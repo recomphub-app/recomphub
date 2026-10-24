@@ -137,6 +137,10 @@ struct GameView {
     notes: String,
     /// PC store the game was found in ("Steam", "Epic Games", "GOG"); None otherwise.
     store: Option<&'static str>,
+    /// "Onde eu parei": the note left when the game last closed.
+    resume: Option<library::ResumeNote>,
+    /// The active profile's picture behind the game in the Modo TV.
+    background: Option<String>,
     files: Option<FilesStatus>,
     total_seconds: u64,
     last_played: Option<u64>,
@@ -150,8 +154,10 @@ struct GameView {
 /// The cover shown for a game, in order: the player's choice, their own files, a download.
 /// The cover shown for a game, in order of preference, and where it came from.
 fn cover_file(state: &AppState, id: &str, own: Option<PathBuf>) -> Option<(PathBuf, &'static str)> {
-    covers::find(&state.covers.custom, id)
-        .map(|p| (p, "custom"))
+    // The active profile's own cover comes first (Perfil > Minhas capas).
+    profile_cover(state, id)
+        .map(|p| (p, "profile"))
+        .or_else(|| covers::find(&state.covers.custom, id).map(|p| (p, "custom")))
         .or_else(|| own.map(|p| (p, "own_files")))
         .or_else(|| covers::find(&state.covers.downloaded, id).map(|p| (p, "downloaded")))
         .or_else(|| meta::image(&state.meta_dir, id, "cover").map(|p| (p, "api")))
@@ -268,6 +274,8 @@ fn view(state: &AppState, game: &'static GameDef) -> GameView {
         play_count: entry.as_ref().map(|e| e.play_count).unwrap_or(0),
         notes: entry.as_ref().map(|e| e.notes.clone()).unwrap_or_default(),
         store: None,
+        resume: entry.as_ref().and_then(|e| e.resume.clone()),
+        background: profile_background(state, game.id.as_str()),
     }
 }
 
@@ -350,6 +358,8 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         play_count: entry.play_count,
         notes: entry.notes.clone(),
         store: entry.store.as_deref().map(stores::store_name),
+        resume: entry.resume.clone(),
+        background: profile_background(state, id),
     }
 }
 
@@ -2883,11 +2893,30 @@ struct ProfileView {
     color: String,
     ra_user: String,
     has_ra_key: bool,
+    /// The profile's pictures as data: addresses.
+    avatar: Option<String>,
+    banner: Option<String>,
+    accent: bool,
+    look: profiles::Look,
 }
 
-impl From<&profiles::Profile> for ProfileView {
-    fn from(p: &profiles::Profile) -> Self {
-        Self { id: p.id.clone(), name: p.name.clone(), color: p.color.clone(), ra_user: p.ra_user.clone(), has_ra_key: !p.ra_key.is_empty() }
+/// A picture of a profile (by the file name Black Flag gave it) as a data: address.
+fn art_url(state: &AppState, profile: &str, file: Option<&str>) -> Option<String> {
+    let f = file.filter(|f| profiles::safe_file(f))?;
+    data_url(&profiles::art_dir(&state.profiles_dir, profile).join(f))
+}
+
+fn profile_view(state: &AppState, p: &profiles::Profile) -> ProfileView {
+    ProfileView {
+        id: p.id.clone(),
+        name: p.name.clone(),
+        color: p.color.clone(),
+        ra_user: p.ra_user.clone(),
+        has_ra_key: !p.ra_key.is_empty(),
+        avatar: art_url(state, &p.id, p.avatar.as_deref()),
+        banner: art_url(state, &p.id, p.banner.as_deref()),
+        accent: p.accent,
+        look: p.look.clone(),
     }
 }
 
@@ -2901,18 +2930,23 @@ struct ProfilesView {
 }
 
 fn profiles_view(state: &AppState) -> ProfilesView {
-    let p = state.profiles.lock().unwrap();
+    let p = state.profiles.lock().unwrap().clone();
     ProfilesView {
-        active: p.active().into(),
-        list: p.list.iter().map(ProfileView::from).collect(),
+        active: profile_view(state, p.active()),
+        list: p.list.iter().map(|x| profile_view(state, x)).collect(),
         ask_on_start: p.ask_on_start,
         separate_saves: p.separate_saves.clone(),
         colors: profiles::COLORS,
     }
 }
 
+/// Any "#rrggbb" color (the page's color picker); anything else becomes the first ready color.
 fn clean_color(color: &str) -> String {
-    profiles::COLORS.iter().find(|c| **c == color).unwrap_or(&profiles::COLORS[0]).to_string()
+    if profiles::valid_color(color) {
+        color.to_lowercase()
+    } else {
+        profiles::COLORS[0].to_string()
+    }
 }
 
 #[tauri::command]
@@ -2930,7 +2964,7 @@ fn create_profile(app: AppHandle, name: String, color: String) -> Result<Profile
             return Err("O Black Flag guarda até 12 perfis.".into());
         }
         let id = profiles::new_id(&p, &name, library::now());
-        p.list.push(profiles::Profile { id, name, color: clean_color(&color), created: library::now(), ra_user: String::new(), ra_key: String::new() });
+        p.list.push(profiles::Profile { id, name, color: clean_color(&color), created: library::now(), ..Default::default() });
         p.save(&state.profiles_path)?;
     }
     Ok(profiles_view(&state))
@@ -2968,6 +3002,7 @@ fn delete_profile(app: AppHandle, id: String) -> Result<ProfilesView, String> {
     }
     let _ = std::fs::remove_file(state.profiles_dir.join(format!("{id}.json")));
     let _ = std::fs::remove_dir_all(state.profiles_dir.join("saves").join(&id));
+    let _ = std::fs::remove_dir_all(profiles::art_dir(&state.profiles_dir, &id));
     let _ = std::fs::remove_file(state.achievements_dir.join(format!("{id}.json")));
     let _ = std::fs::remove_dir_all(state.ra_dir.join("perfis").join(&id));
     {
@@ -2987,6 +3022,403 @@ fn set_profile_options(app: AppHandle, ask_on_start: bool) -> Result<ProfilesVie
         p.save(&state.profiles_path)?;
     }
     Ok(profiles_view(&state))
+}
+
+// ---- Personalização: pictures and look of each profile, the player's own art per game ----
+
+/// The picture dialog; None when the player closes it.
+fn pick_picture(app: &AppHandle, title: &str) -> Option<PathBuf> {
+    app.dialog().file().set_title(title).add_filter("Imagem", covers::IMAGE_EXTS).blocking_pick_file().and_then(|p| p.into_path().ok())
+}
+
+/// Copies a picture into the profile's folder as `<stem>.<png|jpg|webp>` (the type from its
+/// bytes) and returns the file name.
+fn store_art(state: &AppState, profile: &str, stem: &str, src: &Path) -> Result<String, String> {
+    let size = std::fs::metadata(src).map(|m| m.len()).map_err(|e| e.to_string())?;
+    if size > covers::MAX_IMAGE_BYTES {
+        return Err("A imagem passa de 10 MB. Escolha uma menor.".into());
+    }
+    let bytes = std::fs::read(src).map_err(|e| e.to_string())?;
+    let path = covers::store(&profiles::art_dir(&state.profiles_dir, profile), stem, &bytes)?;
+    Ok(path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default())
+}
+
+/// Deletes a picture of a profile that is no longer used.
+fn drop_art(state: &AppState, profile: &str, file: Option<&str>) {
+    if let Some(f) = file.filter(|f| profiles::safe_file(f)) {
+        let _ = std::fs::remove_file(profiles::art_dir(&state.profiles_dir, profile).join(f));
+    }
+}
+
+/// A name for a new picture that never repeats (the page caches pictures by content anyway).
+fn art_stem(kind: &str, game: Option<&str>) -> String {
+    let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+    match game {
+        Some(g) => format!("{kind}-{}-{t}", stores::id_safe(g)),
+        None => format!("{kind}-{t}"),
+    }
+}
+
+/// "Escolher foto" / "Escolher capa do perfil", from a file or from a game's cover.
+#[tauri::command]
+async fn choose_profile_picture(app: AppHandle, id: String, which: String, game: Option<String>) -> Result<Option<ProfilesView>, String> {
+    if which != "avatar" && which != "banner" {
+        return Err("Imagem desconhecida.".into());
+    }
+    let state = app.state::<AppState>();
+    if state.profiles.lock().unwrap().get(&id).is_none() {
+        return Err("Perfil não encontrado.".into());
+    }
+    let src = match &game {
+        Some(g) => cover_file(&state, g, None).map(|(p, _)| p).ok_or("Este jogo ainda não tem capa.")?,
+        None => {
+            let title = if which == "avatar" { "Escolha a foto do perfil" } else { "Escolha a capa do perfil (imagem larga)" };
+            match pick_picture(&app, title) {
+                Some(p) => p,
+                None => return Ok(None),
+            }
+        }
+    };
+    let file = store_art(&state, &id, &art_stem(&which, None), &src)?;
+    let old = {
+        let mut p = state.profiles.lock().unwrap();
+        let profile = p.list.iter_mut().find(|x| x.id == id).ok_or("Perfil não encontrado.")?;
+        let slot = if which == "avatar" { &mut profile.avatar } else { &mut profile.banner };
+        let old = slot.replace(file);
+        p.save(&state.profiles_path)?;
+        old
+    };
+    drop_art(&state, &id, old.as_deref());
+    Ok(Some(profiles_view(&state)))
+}
+
+#[tauri::command]
+fn clear_profile_picture(app: AppHandle, id: String, which: String) -> Result<ProfilesView, String> {
+    let state = app.state::<AppState>();
+    let old = {
+        let mut p = state.profiles.lock().unwrap();
+        let profile = p.list.iter_mut().find(|x| x.id == id).ok_or("Perfil não encontrado.")?;
+        let old = if which == "avatar" { profile.avatar.take() } else { profile.banner.take() };
+        p.save(&state.profiles_path)?;
+        old
+    };
+    drop_art(&state, &id, old.as_deref());
+    Ok(profiles_view(&state))
+}
+
+/// Perfil > Aparência: the profile's color as accent, cover size, tabs, sounds…
+#[tauri::command]
+fn set_profile_look(app: AppHandle, id: String, accent: bool, look: profiles::Look) -> Result<ProfilesView, String> {
+    let state = app.state::<AppState>();
+    {
+        let mut p = state.profiles.lock().unwrap();
+        let profile = p.list.iter_mut().find(|x| x.id == id).ok_or("Perfil não encontrado.")?;
+        profile.accent = accent;
+        profile.look = look.cleaned();
+        p.save(&state.profiles_path)?;
+    }
+    Ok(profiles_view(&state))
+}
+
+/// The active profile's own cover for a game, when it chose one.
+fn profile_cover(state: &AppState, game: &str) -> Option<PathBuf> {
+    let p = state.profiles.lock().unwrap();
+    let prof = p.active();
+    let f = prof.art.get(game)?.active_cover().filter(|f| profiles::safe_file(f))?;
+    let path = profiles::art_dir(&state.profiles_dir, &prof.id).join(f);
+    path.is_file().then_some(path)
+}
+
+/// The active profile's picture behind a game in the Modo TV.
+fn profile_background(state: &AppState, game: &str) -> Option<String> {
+    let (id, file) = {
+        let p = state.profiles.lock().unwrap();
+        let prof = p.active();
+        (prof.id.clone(), prof.art.get(game)?.background.clone())
+    };
+    art_url(state, &id, file.as_deref())
+}
+
+#[derive(Serialize)]
+struct ArtPictureView {
+    image: Option<String>,
+    caption: String,
+}
+
+/// "Minhas capas" on the game page, for the active profile.
+#[derive(Serialize)]
+struct ArtView {
+    profile: String,
+    covers: Vec<ArtPictureView>,
+    active: Option<usize>,
+    background: Option<String>,
+}
+
+fn art_view(state: &AppState, game: &str) -> ArtView {
+    let (id, name, art) = {
+        let p = state.profiles.lock().unwrap();
+        let prof = p.active();
+        (prof.id.clone(), prof.name.clone(), prof.art.get(game).cloned().unwrap_or_default())
+    };
+    ArtView {
+        profile: name,
+        covers: art.covers.iter().map(|c| ArtPictureView { image: art_url(state, &id, Some(&c.file)), caption: c.caption.clone() }).collect(),
+        active: art.active,
+        background: art_url(state, &id, art.background.as_deref()),
+    }
+}
+
+#[tauri::command]
+fn get_game_art(app: AppHandle, id: String) -> ArtView {
+    art_view(&app.state::<AppState>(), &id)
+}
+
+/// Changes the active profile's art for a game and saves the profiles.
+fn edit_art<T>(state: &AppState, game: &str, f: impl FnOnce(&mut profiles::GameArt) -> T) -> Result<T, String> {
+    let mut p = state.profiles.lock().unwrap();
+    let active = p.active.clone();
+    let profile = p.list.iter_mut().find(|x| x.id == active).ok_or("Perfil não encontrado.")?;
+    let art = profile.art.entry(game.to_string()).or_default();
+    let out = f(art);
+    if art.covers.is_empty() && art.background.is_none() {
+        profile.art.remove(game);
+    }
+    p.save(&state.profiles_path)?;
+    Ok(out)
+}
+
+/// "Adicionar capa" (a new picture becomes the one shown) or "Escolher fundo".
+#[tauri::command]
+async fn add_game_art(app: AppHandle, id: String, kind: String) -> Result<Option<ArtView>, String> {
+    let state = app.state::<AppState>();
+    let profile = state.profiles.lock().unwrap().active.clone();
+    let title = if kind == "background" { "Escolha o fundo do jogo no Modo TV (imagem larga)" } else { "Escolha uma capa sua para o jogo" };
+    let Some(src) = pick_picture(&app, title) else { return Ok(None) };
+    let file = store_art(&state, &profile, &art_stem(if kind == "background" { "fundo" } else { "capa" }, Some(&id)), &src)?;
+    let old = edit_art(&state, &id, |art| {
+        if kind == "background" {
+            art.background.replace(file)
+        } else {
+            if art.covers.len() >= 12 {
+                return Some(file);
+            }
+            art.covers.push(profiles::ArtPicture { file, caption: String::new() });
+            art.active = Some(art.covers.len() - 1);
+            None
+        }
+    })?;
+    drop_art(&state, &profile, old.as_deref());
+    Ok(Some(art_view(&state, &id)))
+}
+
+/// Which of the player's covers is shown; None: the library's cover again.
+#[tauri::command]
+fn set_game_art(app: AppHandle, id: String, active: Option<usize>) -> Result<ArtView, String> {
+    let state = app.state::<AppState>();
+    edit_art(&state, &id, |art| art.active = active.filter(|i| *i < art.covers.len()))?;
+    Ok(art_view(&state, &id))
+}
+
+#[tauri::command]
+fn caption_game_art(app: AppHandle, id: String, index: usize, caption: String) -> Result<ArtView, String> {
+    let caption: String = caption.trim().chars().filter(|c| !c.is_control()).take(40).collect();
+    let state = app.state::<AppState>();
+    edit_art(&state, &id, |art| {
+        if let Some(c) = art.covers.get_mut(index) {
+            c.caption = caption;
+        }
+    })?;
+    Ok(art_view(&state, &id))
+}
+
+/// Removes one of the player's covers (index) or the background (None).
+#[tauri::command]
+fn remove_game_art(app: AppHandle, id: String, index: Option<usize>) -> Result<ArtView, String> {
+    let state = app.state::<AppState>();
+    let profile = state.profiles.lock().unwrap().active.clone();
+    let old = edit_art(&state, &id, |art| match index {
+        None => art.background.take(),
+        Some(i) if i < art.covers.len() => {
+            let gone = art.covers.remove(i);
+            art.active = match art.active {
+                Some(a) if a == i => None,
+                Some(a) if a > i => Some(a - 1),
+                other => other,
+            };
+            Some(gone.file)
+        }
+        Some(_) => None,
+    })?;
+    drop_art(&state, &profile, old.as_deref());
+    Ok(art_view(&state, &id))
+}
+
+/// "Onde eu parei": the note left when the game closed; an empty text removes it.
+#[tauri::command]
+fn set_resume_note(app: AppHandle, id: String, text: String, seconds: u64) -> Result<GameView, String> {
+    let text: String = text.trim().chars().filter(|c| !c.is_control()).take(140).collect();
+    let state = app.state::<AppState>();
+    {
+        let mut lib = state.library.lock().unwrap();
+        let e = lib.games.get_mut(&id).ok_or("Jogo fora da biblioteca.")?;
+        e.resume = (!text.is_empty()).then(|| library::ResumeNote { text, at: library::now(), seconds });
+    }
+    save(&state)?;
+    view_any(&state, &id)
+}
+
+// ---- Exportar e importar perfil ----
+
+const PROFILE_FILE: &str = "perfil.json";
+const PROGRESS_FILE: &str = "progresso.json";
+const MAX_PROFILE_JSON: u64 = 20 * 1024 * 1024;
+
+/// One .zip with the profile (no RetroAchievements key), its progress and its pictures.
+#[tauri::command]
+async fn export_profile(app: AppHandle, id: String) -> Result<Option<String>, String> {
+    let state = app.state::<AppState>();
+    let (mut profile, active) = {
+        let p = state.profiles.lock().unwrap();
+        (p.get(&id).cloned().ok_or("Perfil não encontrado.")?, p.active == id)
+    };
+    profile.ra_key.clear();
+    let progress = if active { profiles::extract(&state.library.lock().unwrap()) } else { profiles::load_progress(&state.profiles_dir, &id) };
+    let Some(dest) = app
+        .dialog()
+        .file()
+        .set_title("Salvar o perfil")
+        .set_file_name(&format!("perfil-{}.zip", stores::id_safe(&profile.name)))
+        .add_filter("Perfil do Black Flag", &["zip"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let art = profiles::art_dir(&state.profiles_dir, &id);
+    let name = profile.name.clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        use std::io::Write;
+        let file = std::fs::File::create(&dest).map_err(|e| format!("Não consegui criar o arquivo: {e}"))?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file(PROFILE_FILE, options).map_err(|e| e.to_string())?;
+        zip.write_all(&serde_json::to_vec_pretty(&profile).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        zip.start_file(PROGRESS_FILE, options).map_err(|e| e.to_string())?;
+        zip.write_all(&serde_json::to_vec_pretty(&progress).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        if let Ok(entries) = std::fs::read_dir(&art) {
+            for e in entries.flatten() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if !profiles::safe_file(&name) {
+                    continue;
+                }
+                let bytes = std::fs::read(e.path()).map_err(|e| e.to_string())?;
+                zip.start_file(format!("arte/{name}"), options).map_err(|e| e.to_string())?;
+                zip.write_all(&bytes).map_err(|e| e.to_string())?;
+            }
+        }
+        zip.finish().map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(Some(name))
+}
+
+/// Reads one file of the profile .zip, refusing anything larger than `limit`.
+fn zip_bytes(z: &mut zip::ZipArchive<std::fs::File>, index: usize, limit: u64) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let entry = z.by_index(index).map_err(|e| e.to_string())?;
+    if entry.size() > limit {
+        return Err("O arquivo do perfil tem uma parte grande demais.".into());
+    }
+    let mut out = Vec::new();
+    entry.take(limit + 1).read_to_end(&mut out).map_err(|e| e.to_string())?;
+    if out.len() as u64 > limit {
+        return Err("O arquivo do perfil tem uma parte grande demais.".into());
+    }
+    Ok(out)
+}
+
+/// A profile .zip becomes a new profile (never replaces one), with its pictures and progress.
+#[tauri::command]
+async fn import_profile(app: AppHandle) -> Result<Option<ProfilesView>, String> {
+    let Some(src) = app
+        .dialog()
+        .file()
+        .set_title("Escolha o arquivo do perfil (.zip)")
+        .add_filter("Perfil do Black Flag", &["zip"])
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let state = app.state::<AppState>();
+    let file = std::fs::File::open(&src).map_err(|e| e.to_string())?;
+    let mut z = zip::ZipArchive::new(file).map_err(|_| "Este arquivo não é um perfil do Black Flag.".to_string())?;
+    let mut profile: Option<profiles::Profile> = None;
+    let mut progress: BTreeMap<String, profiles::Progress> = BTreeMap::new();
+    let mut pictures: Vec<(String, Vec<u8>)> = Vec::new();
+    for i in 0..z.len().min(200) {
+        let name = z.by_index(i).map_err(|e| e.to_string())?.name().to_string();
+        if name == PROFILE_FILE {
+            profile = serde_json::from_slice(&zip_bytes(&mut z, i, MAX_PROFILE_JSON)?).ok();
+        } else if name == PROGRESS_FILE {
+            progress = serde_json::from_slice(&zip_bytes(&mut z, i, MAX_PROFILE_JSON)?).unwrap_or_default();
+        } else if let Some(pic) = name.strip_prefix("arte/").filter(|n| profiles::safe_file(n)) {
+            pictures.push((pic.to_string(), zip_bytes(&mut z, i, covers::MAX_IMAGE_BYTES)?));
+        }
+    }
+    let mut profile = profile.ok_or("Este arquivo não é um perfil do Black Flag.")?;
+    let name = profiles::clean_name(&profile.name)?;
+    let id = {
+        let p = state.profiles.lock().unwrap();
+        if p.list.len() >= 12 {
+            return Err("O Black Flag guarda até 12 perfis.".into());
+        }
+        profiles::new_id(&p, &name, library::now())
+    };
+    // Pictures keep their names when the bytes are what the extension says; references to
+    // anything else are dropped.
+    let dir = profiles::art_dir(&state.profiles_dir, &id);
+    let mut kept: Vec<String> = Vec::new();
+    for (pic, bytes) in pictures {
+        let stem = pic.rsplit_once('.').map(|(s, _)| s.to_string()).unwrap_or(pic.clone());
+        if let Ok(path) = covers::store(&dir, &stem, &bytes) {
+            if path.file_name().map(|n| n.to_string_lossy() == pic).unwrap_or(false) {
+                kept.push(pic);
+            } else {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+    let has = |f: &Option<String>| f.as_ref().map(|f| kept.contains(f)).unwrap_or(false);
+    if !has(&profile.avatar) {
+        profile.avatar = None;
+    }
+    if !has(&profile.banner) {
+        profile.banner = None;
+    }
+    for art in profile.art.values_mut() {
+        art.covers.retain(|c| kept.contains(&c.file));
+        art.active = art.active.filter(|i| *i < art.covers.len());
+        if !has(&art.background) {
+            art.background = None;
+        }
+    }
+    profile.art.retain(|_, a| !a.covers.is_empty() || a.background.is_some());
+    profile.id = id.clone();
+    profile.name = name;
+    profile.color = clean_color(&profile.color);
+    profile.look = profile.look.clone().cleaned();
+    profile.ra_key.clear();
+    profile.created = library::now();
+    profiles::store_progress(&state.profiles_dir, &id, &progress)?;
+    {
+        let mut p = state.profiles.lock().unwrap();
+        p.list.push(profile);
+        p.save(&state.profiles_path)?;
+    }
+    Ok(Some(profiles_view(&state)))
 }
 
 fn nothing_running(state: &AppState) -> Result<(), String> {
@@ -3577,6 +4009,17 @@ pub fn run() {
             pc_check,
             install_runtime,
             import_store_games,
+            choose_profile_picture,
+            clear_profile_picture,
+            set_profile_look,
+            get_game_art,
+            add_game_art,
+            set_game_art,
+            caption_game_art,
+            remove_game_art,
+            set_resume_note,
+            export_profile,
+            import_profile,
             clear_store_exclusions,
             hydrate_game,
             get_graphics,

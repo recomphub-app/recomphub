@@ -91,6 +91,20 @@ pub struct Entry {
     /// How the store opens the game ("steam://rungameid/…"); None: the program is started.
     #[serde(default)]
     pub launch_url: Option<String>,
+    /// "Onde eu parei": the player's note to themselves when the game last closed.
+    #[serde(default)]
+    pub resume: Option<ResumeNote>,
+}
+
+/// A note left when a session ends ("no chefe do trem"), shown when the player comes back.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ResumeNote {
+    pub text: String,
+    /// Unix time it was written.
+    pub at: u64,
+    /// How long the session it was written after lasted.
+    #[serde(default)]
+    pub seconds: u64,
 }
 
 /// As Playnite's completion statuses. `None`: not chosen; the page shows "Não jogado" or

@@ -10,12 +10,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use crate::library::{Completion, Entry, Library};
+use crate::library::{Completion, Entry, Library, ResumeNote};
 
 pub const MAIN: &str = "principal";
 pub const COLORS: &[&str] = &["#e0a32e", "#4cc38a", "#6aa7ff", "#e5675a", "#b07cf0", "#f08cc0", "#4cc3c3", "#9aa1ae"];
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct Profile {
     pub id: String,
     pub name: String,
@@ -26,6 +26,127 @@ pub struct Profile {
     pub ra_user: String,
     #[serde(default)]
     pub ra_key: String,
+    /// Picture files in `art_dir` (profile picture and the wide picture on top of the profile).
+    #[serde(default)]
+    pub avatar: Option<String>,
+    #[serde(default)]
+    pub banner: Option<String>,
+    /// The profile's color takes the place of the red accent everywhere.
+    #[serde(default)]
+    pub accent: bool,
+    #[serde(default)]
+    pub look: Look,
+    /// The player's own pictures for games, by game id.
+    #[serde(default)]
+    pub art: BTreeMap<String, GameArt>,
+}
+
+/// How the program looks for this player (Perfil > Aparência).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Look {
+    /// Library covers: "pequeno", "medio" or "grande".
+    #[serde(default = "medium")]
+    pub cards: String,
+    #[serde(default)]
+    pub big_text: bool,
+    /// The library as a list instead of covers.
+    #[serde(default)]
+    pub list: bool,
+    /// Library tab opened first ("all", "port", "pc_game", "discover", "community").
+    #[serde(default = "all_tab")]
+    pub home: String,
+    /// Library tabs this player does not want to see.
+    #[serde(default)]
+    pub hidden_tabs: Vec<String>,
+    /// Sounds and controller rumble in the Modo TV.
+    #[serde(default = "yes")]
+    pub sounds: bool,
+    /// Slides and growing covers; off for a calmer screen.
+    #[serde(default = "yes")]
+    pub motion: bool,
+    /// Open straight in the Modo TV.
+    #[serde(default)]
+    pub start_tv: bool,
+}
+
+fn medium() -> String {
+    "medio".into()
+}
+
+fn all_tab() -> String {
+    "all".into()
+}
+
+impl Default for Look {
+    fn default() -> Self {
+        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false }
+    }
+}
+
+pub const TABS: &[&str] = &["all", "port", "pc_game", "discover", "community"];
+
+impl Look {
+    /// Only known values are kept; the "Todos" tab can never be hidden.
+    pub fn cleaned(mut self) -> Self {
+        if !["pequeno", "medio", "grande"].contains(&self.cards.as_str()) {
+            self.cards = medium();
+        }
+        if !TABS.contains(&self.home.as_str()) {
+            self.home = all_tab();
+        }
+        self.hidden_tabs.retain(|t| TABS.contains(&t.as_str()) && t != "all");
+        self.hidden_tabs.dedup();
+        if self.hidden_tabs.contains(&self.home) {
+            self.home = all_tab();
+        }
+        self
+    }
+}
+
+/// One picture the player keeps for a game, with an optional caption ("minha versão").
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ArtPicture {
+    pub file: String,
+    #[serde(default)]
+    pub caption: String,
+}
+
+/// A player's own pictures for one game.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct GameArt {
+    #[serde(default)]
+    pub covers: Vec<ArtPicture>,
+    /// The cover shown; None: the library's cover.
+    #[serde(default)]
+    pub active: Option<usize>,
+    /// Picture behind the game in the Modo TV.
+    #[serde(default)]
+    pub background: Option<String>,
+}
+
+impl GameArt {
+    pub fn active_cover(&self) -> Option<&str> {
+        self.active.and_then(|i| self.covers.get(i)).map(|c| c.file.as_str())
+    }
+}
+
+/// Where a profile's pictures live.
+pub fn art_dir(dir: &Path, profile: &str) -> PathBuf {
+    dir.join("arte").join(profile)
+}
+
+/// "#a1b2c3" only: the color goes into the page's style.
+pub fn valid_color(c: &str) -> bool {
+    c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit())
+}
+
+/// A file name Black Flag itself gave to a picture ("avatar.png", "capa-banjo-3.jpg").
+pub fn safe_file(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 120
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        && !name.starts_with('.')
+        && !name.contains("..")
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -48,7 +169,7 @@ impl Default for Profiles {
     fn default() -> Self {
         Self {
             active: MAIN.into(),
-            list: vec![Profile { id: MAIN.into(), name: "Principal".into(), color: COLORS[0].into(), created: 0, ra_user: String::new(), ra_key: String::new() }],
+            list: vec![Profile { id: MAIN.into(), name: "Principal".into(), color: COLORS[0].into(), ..Default::default() }],
             ask_on_start: true,
             separate_saves: Vec::new(),
         }
@@ -72,6 +193,8 @@ pub struct Progress {
     pub play_count: u32,
     #[serde(default)]
     pub notes: String,
+    #[serde(default)]
+    pub resume: Option<ResumeNote>,
 }
 
 impl Progress {
@@ -84,6 +207,7 @@ impl Progress {
             completion: e.completion,
             play_count: e.play_count,
             notes: e.notes.clone(),
+            resume: e.resume.clone(),
         }
     }
 
@@ -95,6 +219,7 @@ impl Progress {
         e.completion = self.completion;
         e.play_count = self.play_count;
         e.notes = self.notes;
+        e.resume = self.resume;
     }
 }
 
@@ -221,7 +346,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("recomphub-profiles-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let mut profiles = Profiles::default();
-        let ana = Profile { id: "ana".into(), name: "Ana".into(), color: COLORS[1].into(), created: 1, ra_user: String::new(), ra_key: String::new() };
+        let ana = Profile { id: "ana".into(), name: "Ana".into(), color: COLORS[1].into(), created: 1, ..Default::default() };
         profiles.list.push(ana);
         let mut lib = lib_with("banjo", 3600, true);
 
@@ -248,5 +373,42 @@ mod tests {
         assert!(clean_name("   ").is_err());
         assert!(clean_name(&"x".repeat(31)).is_err());
         assert_eq!(clean_name(" Ana ").unwrap(), "Ana");
+    }
+
+    #[test]
+    fn looks_keep_only_known_values() {
+        let l = Look { cards: "gigante".into(), home: "port".into(), hidden_tabs: vec!["port".into(), "all".into(), "x".into()], ..Default::default() }.cleaned();
+        assert_eq!(l.cards, "medio");
+        assert_eq!(l.hidden_tabs, vec!["port".to_string()]);
+        assert_eq!(l.home, "all", "a hidden tab is never the first one");
+        let old: Profile = serde_json::from_str(r##"{"id":"a","name":"A","color":"#e0a32e","created":1}"##).unwrap();
+        assert_eq!(old.look, Look::default(), "profiles from older versions get the default look");
+        assert!(old.look.sounds && old.art.is_empty());
+    }
+
+    #[test]
+    fn colors_and_file_names() {
+        assert!(valid_color("#1A2b3C"));
+        assert!(!valid_color("red") && !valid_color("#12345") && !valid_color("#12345g") && !valid_color("#123456;x"));
+        assert!(safe_file("capa-banjo-3.jpg") && safe_file("avatar.png"));
+        assert!(!safe_file("../x.png") && !safe_file("a/b.png") && !safe_file(".hidden") && !safe_file(""));
+        let art = GameArt { covers: vec![ArtPicture { file: "a.png".into(), caption: String::new() }], active: Some(0), background: None };
+        assert_eq!(art.active_cover(), Some("a.png"));
+        assert_eq!(GameArt { active: Some(5), ..art.clone() }.active_cover(), None);
+    }
+
+    #[test]
+    fn the_resume_note_belongs_to_the_profile() {
+        let dir = std::env::temp_dir().join(format!("recomphub-resume-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut profiles = Profiles::default();
+        profiles.list.push(Profile { id: "bia".into(), name: "Bia".into(), ..Default::default() });
+        let mut lib = lib_with("gow3", 10, false);
+        lib.games.get_mut("gow3").unwrap().resume = Some(ResumeNote { text: "no chefe".into(), at: 5, seconds: 600 });
+        switch(&mut lib, &mut profiles, &dir, "bia").unwrap();
+        assert!(lib.games["gow3"].resume.is_none());
+        switch(&mut lib, &mut profiles, &dir, MAIN).unwrap();
+        assert_eq!(lib.games["gow3"].resume.as_ref().unwrap().text, "no chefe");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
