@@ -331,6 +331,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     Xbox): segurar o botão Xbox/PS ou View + Menu por 0,7 s traz a janela de volta. Segurar,
     não apertar, porque o toque curto é da Xbox Game Bar. Controles PlayStation só são vistos
     assim através da Steam ou do DS4Windows.
+60. **Modo TV com ideias de console, desenho do RecompHUB.** Do PS4 vem a fileira única de jogos
+    em que o escolhido cresce e fica na borda esquerda, com a arte dele (banner da SteamGridDB,
+    senão a capa) no fundo, escurecida por uma camada lisa. Do Xbox 360 vêm as seções trocadas
+    com LB/RB (Jogos, Descobrir, Conquistas, Sistema), a barra que diz o que cada botão faz agora
+    e o Guia no Menu/Options. Nada dos dois projetos é copiado: o PS4-UI é MIT, mas a fonte, os
+    sons e as imagens dele são da Sony; o xbox_dashboard não tem licença. Os sons são gerados
+    pelo próprio programa (Web Audio) e, com a vibração, são desligados em Sistema; a escolha
+    fica no navegador do app (`localStorage`), por ser só uma preferência deste PC.
 
 ## Capas
 

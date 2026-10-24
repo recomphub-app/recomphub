@@ -3025,9 +3025,9 @@ function renderCommunityDetail(g) {
 // Standard mapping: 0 bottom, 1 right, 2 left, 3 top, 4/5 shoulders, 8 View/Share, 9 Menu/Options,
 // 12-15 d-pad; left stick on axes 0/1. Nintendo confirms with the right button (A).
 const PAD_NAMES = {
-  playstation: { ok: '✕', back: '○', lb: 'L1', rb: 'R1', menu: 'Options' },
-  xbox: { ok: 'A', back: 'B', lb: 'LB', rb: 'RB', menu: 'Menu' },
-  nintendo: { ok: 'A', back: 'B', lb: 'L', rb: 'R', menu: '+' },
+  playstation: { ok: '✕', back: '○', y: '△', lb: 'L1', rb: 'R1', menu: 'Options' },
+  xbox: { ok: 'A', back: 'B', y: 'Y', lb: 'LB', rb: 'RB', menu: 'Menu' },
+  nintendo: { ok: 'A', back: 'B', y: 'X', lb: 'L', rb: 'R', menu: '+' },
 };
 let padKind = null;   // family of the controller last used; null before any
 
@@ -3055,7 +3055,7 @@ function readPad() {
   const ay = pad.axes[1] || 0;
   return {
     changed,
-    ok: b(swap ? 1 : 0), back: b(swap ? 0 : 1), lb: b(4), rb: b(5), menu: b(9),
+    ok: b(swap ? 1 : 0), back: b(swap ? 0 : 1), y: b(3), lb: b(4), rb: b(5), menu: b(9),
     left: b(14) || ax < -0.5, right: b(15) || ax > 0.5, up: b(12) || ay < -0.5, down: b(13) || ay > 0.5,
   };
 }
@@ -3067,7 +3067,7 @@ function padEdges(state, p, t, delays = [380, 120]) {
     state.held[name] = p[name];
     return p[name] && !was;
   };
-  const out = { ok: press('ok'), back: press('back'), lb: press('lb'), rb: press('rb'), menu: press('menu'), dx: 0, dy: 0 };
+  const out = { ok: press('ok'), back: press('back'), y: press('y'), lb: press('lb'), rb: press('rb'), menu: press('menu'), dx: 0, dy: 0 };
   const any = p.left || p.right || p.up || p.down;
   if (any && (!state.held.dir || t >= state.nextAt)) {
     out.dx = p.right - p.left;
@@ -3248,11 +3248,63 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ---- Modo TV: full-screen library for a controller (Gamepad API) or the keyboard ----
+// ---- Modo TV: full screen, for a controller (Gamepad API) or the keyboard ----
+
+// A row of games (the chosen one grows, its art fills the screen), sections switched with LB/RB,
+// a bar saying what each button does now, and a Guide panel on Menu/Options. Ideas from the PS4
+// home screen and the Xbox 360 dashboard, drawn in RecompHUB's own look.
 
 let tvOn = false;
-let tvSel = 0;
 let tvPad = { held: {}, nextAt: 0 };
+const TV_SECTIONS = [
+  ['jogos', 'Jogos'],
+  ['descobrir', 'Descobrir'],
+  ['conquistas', 'Conquistas'],
+  ['sistema', 'Sistema'],
+];
+let tvSection = 0;
+const tvSel = { jogos: 0, descobrir: 0, conquistas: 0, sistema: 0 };
+let tvGuide = null;      // index of the Guide item in focus, null when closed
+let tvClock = null;
+let tvSlide = '';        // 'l' / 'r' right after changing section, for the slide-in
+
+const TV_SOUND_KEY = 'recomphub-tv-som';
+
+function tvSoundOn() {
+  try { return localStorage.getItem(TV_SOUND_KEY) !== '0'; } catch { return true; }
+}
+
+let tvAudio = null;
+// Short tones made here (no sound file from anyone else): a tick to move, two notes to choose.
+function tvSound(kind) {
+  if (!tvSoundOn()) return;
+  try {
+    tvAudio = tvAudio || new AudioContext();
+    const notes = { move: [[1320, 0.025]], ok: [[880, 0.05], [1320, 0.07]], back: [[990, 0.05], [660, 0.07]], section: [[740, 0.04], [990, 0.05]] }[kind] || [];
+    let t = tvAudio.currentTime;
+    for (const [f, d] of notes) {
+      const o = tvAudio.createOscillator();
+      const g = tvAudio.createGain();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(kind === 'move' ? 0.03 : 0.06, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g).connect(tvAudio.destination);
+      o.start(t);
+      o.stop(t + d + 0.02);
+      t += d * 0.8;
+    }
+  } catch { /* no audio device */ }
+}
+
+function tvRumble() {
+  if (!tvSoundOn()) return;
+  const pad = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean);
+  try {
+    if (pad && pad.vibrationActuator) pad.vibrationActuator.playEffect('dual-rumble', { duration: 45, strongMagnitude: 0.25, weakMagnitude: 0.35 });
+  } catch { /* no rumble */ }
+}
 
 function tvGames() {
   return games
@@ -3260,82 +3312,291 @@ function tvGames() {
     .sort((a, b) => (b.favorite - a.favorite) || ((b.last_played || 0) - (a.last_played || 0)) || a.title.localeCompare(b.title, 'pt-BR'));
 }
 
+function tvSystemItems() {
+  return [
+    { id: 'perfil', title: 'Trocar perfil', icon: '☺', text: `Quem está jogando: ${profiles && profiles.active ? profiles.active.name : '—'}.` },
+    { id: 'som', title: `Som: ${tvSoundOn() ? 'ligado' : 'desligado'}`, icon: '♪', text: 'Sons curtos ao navegar e vibração do controle ao escolher.' },
+    { id: 'estatisticas', title: 'Estatísticas', icon: '▤', text: 'Tempo de jogo por semana e os jogos mais jogados.' },
+    { id: 'config', title: 'Configurações', icon: '⚙', text: 'Sai do Modo TV e abre as Configurações.' },
+    { id: 'sair', title: 'Sair do Modo TV', icon: '⏻', text: 'Volta para a biblioteca na janela normal.' },
+  ];
+}
+
+// What the row shows in the section open now: [{ key, title, cover, game?, item? }].
+function tvItems() {
+  const s = TV_SECTIONS[tvSection][0];
+  if (s === 'jogos') return tvGames().map((g) => ({ key: g.id, game: g }));
+  if (s === 'descobrir') {
+    return games.filter((g) => !g.in_library && g.kind === 'port').sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')).map((g) => ({ key: g.id, game: g }));
+  }
+  if (s === 'conquistas') {
+    if (!achSummary) return [];
+    return achSummary.games.filter(([, , , total]) => total > 0).map(([id, , done, total]) => ({ key: id, game: games.find((g) => g.id === id), done, total }))
+      .filter((x) => x.game);
+  }
+  return tvSystemItems().map((x) => ({ key: x.id, item: x }));
+}
+
+function tvTile(x, i, sel) {
+  const cls = `tv-tile${i === sel ? ' sel' : ''}${i < sel ? ' past' : ''}`;
+  if (x.item) return `<div class="${cls} tv-fn" data-i="${i}"><span class="tv-icon">${x.item.icon}</span><span>${esc(x.item.title)}</span></div>`;
+  const g = x.game;
+  const art = g.cover ? `<img src="${g.cover}" alt="">` : `<span class="tv-name">${esc(g.title)}</span>`;
+  const bar = x.total ? `<span class="tv-progress"><span style="width:${Math.round((x.done / x.total) * 100)}%"></span></span>` : '';
+  return `<div class="${cls}" data-i="${i}">${art}${g.status === 'running' ? '<span class="tv-live">jogando</span>' : ''}${bar}</div>`;
+}
+
+function tvMeta(pairs) {
+  return `<div class="tv-meta">${pairs.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>`;
+}
+
+// The text above the row: what is chosen and the facts that matter for it.
+function tvInfo(x) {
+  if (!x) {
+    const empty = {
+      jogos: ['Nenhum jogo instalado', 'Vá em Descobrir (botão R1/RB) para instalar um port.'],
+      descobrir: ['Tudo instalado', 'Você já tem todos os ports do catálogo.'],
+      conquistas: [achSummary ? 'Nenhuma conquista ainda' : 'Carregando conquistas…', achSummary ? 'Os jogos com conquistas aparecem aqui.' : ''],
+    }[TV_SECTIONS[tvSection][0]] || ['', ''];
+    return `<h1>${esc(empty[0])}</h1><p class="tv-sub">${esc(empty[1])}</p>`;
+  }
+  if (x.item) return `<div class="tv-fam">Sistema</div><h1>${esc(x.item.title)}</h1><p class="tv-sub">${esc(x.item.text)}</p>`;
+  const g = x.game;
+  const fam = `<div class="tv-fam">${esc(g.family || '')}${g.port_name ? ` · ${esc(g.port_name)}` : ''}</div>`;
+  const s = TV_SECTIONS[tvSection][0];
+  if (s === 'descobrir') {
+    return `${fam}<h1>${esc(g.title)}</h1><p class="tv-sub">Port feito por ${esc(g.port_authors || '?')}. ${esc(g.requirements || '')}</p>`;
+  }
+  if (s === 'conquistas') {
+    return `${fam}<h1>${esc(g.title)}</h1>${tvMeta([['Conquistas', `${x.done} de ${x.total}`], ['Completo', `${x.total ? Math.round((x.done / x.total) * 100) : 0}%`]])}`;
+  }
+  const ach = achSummary && achSummary.games.find(([id]) => id === g.id);
+  const pairs = [
+    [g.status === 'running' ? 'Jogando há' : 'Tempo de jogo', g.status === 'running' ? sessionLength(g) : playTime(g.total_seconds)],
+    ['Última vez', lastPlayed(g.last_played)],
+  ];
+  if (ach && ach[3]) pairs.push(['Conquistas', `${ach[2]} de ${ach[3]}`]);
+  return `${fam}<h1>${esc(g.title)}</h1>${tvMeta(pairs)}`;
+}
+
+// The art of the chosen game behind everything: its banner, else its cover.
+function tvArt(x) {
+  if (!x || !x.game) return '';
+  const g = x.game;
+  if (g.in_library && metaCache[g.id] === undefined) {
+    metaCache[g.id] = 'loading';
+    setTimeout(() => loadMeta(g.id).then(() => { if (tvOn) renderTv(); }), 0);
+  }
+  const m = metaCache[g.id];
+  if (m && m.banner) return m.banner;
+  return g.cover || '';
+}
+
+// The bar at the bottom: each button and what it does on the item chosen now.
+function tvTray(x) {
+  const pad = padKind !== null;
+  const key = (p, k) => `<b>${pad ? padName(p) : k}</b>`;
+  const s = TV_SECTIONS[tvSection][0];
+  let main = '';
+  if (x && x.item) main = x.item.title.startsWith('Som') ? (tvSoundOn() ? 'Desligar o som' : 'Ligar o som') : x.item.title;
+  else if (x && s === 'jogos') main = x.game.status === 'running' ? `Mostrar ${x.game.title}` : `Jogar ${x.game.title}`;
+  else if (x && s === 'descobrir') main = 'Ver e instalar';
+  else if (x && s === 'conquistas') main = 'Ver conquistas';
+  const parts = [];
+  if (main) parts.push(`<span class="tv-main" data-tv="ok">${key('ok', 'Enter')} ${esc(main)}</span>`);
+  if (x && x.game) parts.push(`<span data-tv="details">${key('y', 'I')} Detalhes</span>`);
+  parts.push(`<span data-tv="back">${key('back', 'Esc')} Sair</span>`);
+  parts.push(`<span data-tv="guide">${key('menu', 'G')} Guia</span>`);
+  return parts.join('');
+}
+
+function tvGuideItems() {
+  return [
+    ['perfil', 'Trocar perfil'],
+    ['config', 'Configurações'],
+    ['som', tvSoundOn() ? 'Desligar o som' : 'Ligar o som'],
+    ['sair', 'Sair do Modo TV'],
+    ['fechar', 'Fechar o guia'],
+  ];
+}
+
+function tvClockText() {
+  return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
 function renderTv() {
-  const list = tvGames();
-  tvSel = Math.max(0, Math.min(tvSel, list.length - 1));
+  const list = tvItems();
+  const s = TV_SECTIONS[tvSection][0];
+  tvSel[s] = Math.max(0, Math.min(tvSel[s], list.length - 1));
+  const sel = tvSel[s];
+  const x = list[sel];
+  const art = tvArt(x);
+  const p = profiles && profiles.active;
+  const ach = achSummary ? `<span class="tv-trophy">🏆 ${achSummary.unlocked}</span>` : '';
+  const shoulder = (k, kb) => `<span class="tv-key">${padKind !== null ? padName(k) : kb}</span>`;
   $('#tv').innerHTML = `
-    <h1>Recomp<span style="color:var(--accent)">HUB</span></h1>
-    ${list.length ? '' : '<p class="muted">Nenhum jogo instalado ainda. Saia do Modo TV para instalar.</p>'}
-    <div class="tv-grid">${list.map((g, i) => `
-      <div class="card${i === tvSel ? ' sel' : ''}" data-i="${i}">
-        ${coverHtml(g)}
-        <div class="body">
-          <div class="title">${esc(g.title)}</div>
-          <div>${chips(g)}</div>
-          <div class="meta">${g.status === 'running' ? `Jogando há ${sessionLength(g)}` : playTime(g.total_seconds)}</div>
-        </div>
-      </div>`).join('')}</div>
-    <div class="hints"><span><b>${padName('ok')}</b> / <b>Enter</b> Jogar</span><span><b>${padName('back')}</b> / <b>Esc</b> Sair do Modo TV</span><span><b>Direcional</b> / <b>setas</b> Escolher</span></div>`;
-  document.querySelectorAll('#tv .card').forEach((el) => {
-    el.addEventListener('mouseenter', () => { tvSel = Number(el.dataset.i); tvHighlight(); });
-    el.addEventListener('click', () => { tvSel = Number(el.dataset.i); tvPlay(); });
-  });
-  tvHighlight();
+    <div class="tv-art"${art ? ` style="background-image:url('${art.replace(/'/g, '%27')}')"` : ''}></div>
+    <div class="tv-scrim"></div>
+    <header class="tv-top">
+      <div class="brand">Recomp<span>HUB</span></div>
+      <nav class="tv-sections">${shoulder('lb', 'Q')}${TV_SECTIONS.map(([k, label], i) =>
+        `<span class="tv-sec${i === tvSection ? ' on' : ''}" data-sec="${i}">${label}</span>`).join('')}${shoulder('rb', 'E')}</nav>
+      <div class="tv-me">${p ? `${avatar(p)}<span>${esc(p.name)}</span>` : ''}${ach}</div>
+      <div class="tv-clock">${tvClockText()}</div>
+    </header>
+    <section class="tv-stage${tvSlide ? ` slide-${tvSlide}` : ''}">
+      <div class="tv-info">${tvInfo(x)}</div>
+      <div class="tv-row" style="--sel:${sel}">${list.map((y, i) => tvTile(y, i, sel)).join('')}</div>
+    </section>
+    <footer class="tv-tray">${tvTray(x)}</footer>
+    ${tvGuide === null ? '' : `
+      <aside class="tv-guide">
+        <div class="tv-guide-who">${p ? avatar(p, true) : ''}<div><h3>${p ? esc(p.name) : ''}</h3>
+          <p class="muted">${achSummary ? `${achSummary.unlocked} conquistas · ${achSummary.points} pontos` : ''}</p></div></div>
+        <ul>${tvGuideItems().map(([k, label], i) => `<li class="${i === tvGuide ? 'on' : ''}" data-g="${i}">${esc(label)}</li>`).join('')}</ul>
+      </aside>`}`;
+  tvSlide = '';
+  document.querySelectorAll('#tv .tv-tile').forEach((el) => el.addEventListener('click', () => {
+    const i = Number(el.dataset.i);
+    if (i === tvSel[TV_SECTIONS[tvSection][0]]) tvOk();
+    else tvMove(i - tvSel[TV_SECTIONS[tvSection][0]]);
+  }));
+  document.querySelectorAll('#tv [data-sec]').forEach((el) => el.addEventListener('click', () => tvGoSection(Number(el.dataset.sec) - tvSection)));
+  document.querySelectorAll('#tv [data-tv]').forEach((el) => el.addEventListener('click', () => tvAction(el.dataset.tv)));
+  document.querySelectorAll('#tv [data-g]').forEach((el) => el.addEventListener('click', () => { tvGuide = Number(el.dataset.g); tvGuideOk(); }));
 }
 
-function tvHighlight() {
-  document.querySelectorAll('#tv .card').forEach((el) => el.classList.toggle('sel', Number(el.dataset.i) === tvSel));
-  const sel = document.querySelector('#tv .card.sel');
-  if (sel) sel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+function tvAction(what) {
+  if (what === 'ok') tvOk();
+  else if (what === 'details') tvDetails();
+  else if (what === 'back') tvBack();
+  else if (what === 'guide') tvToggleGuide();
 }
 
-function tvColumns() {
-  const cards = [...document.querySelectorAll('#tv .card')];
-  if (cards.length < 2) return 1;
-  const top = cards[0].offsetTop;
-  const n = cards.findIndex((c) => c.offsetTop !== top);
-  return n < 0 ? cards.length : n;
-}
-
-function tvMove(dx, dy) {
-  const n = tvGames().length;
+function tvMove(step) {
+  const n = tvItems().length;
+  const s = TV_SECTIONS[tvSection][0];
   if (!n) return;
-  tvSel = Math.max(0, Math.min(n - 1, tvSel + dx + dy * tvColumns()));
-  tvHighlight();
+  const next = Math.max(0, Math.min(n - 1, tvSel[s] + step));
+  if (next === tvSel[s]) return;
+  tvSel[s] = next;
+  tvSound('move');
+  renderTv();
 }
 
-async function tvPlay() {
-  const g = tvGames()[tvSel];
-  if (!g) return;
+function tvGoSection(step) {
+  if (!step) return;
+  tvSection = (tvSection + step + TV_SECTIONS.length) % TV_SECTIONS.length;
+  tvSlide = step > 0 ? 'r' : 'l';
+  tvSound('section');
+  if (TV_SECTIONS[tvSection][0] === 'conquistas' && !achSummary) {
+    invoke('get_achievement_summary').then((a) => { achSummary = a; if (tvOn) renderTv(); }).catch(() => {});
+  }
+  renderTv();
+}
+
+// Leaves the TV for a page of the normal window (install, settings…).
+async function tvLeaveTo(fn) {
+  await tvClose();
+  fn();
+}
+
+async function tvOk() {
+  const x = tvItems()[tvSel[TV_SECTIONS[tvSection][0]]];
+  if (!x) return;
+  tvSound('ok');
+  tvRumble();
+  if (x.item) {
+    tvSystem(x.item.id);
+    return;
+  }
+  const s = TV_SECTIONS[tvSection][0];
+  const g = x.game;
+  if (s === 'descobrir') return tvLeaveTo(() => openGame(g.id));
+  if (s === 'conquistas') {
+    return tvLeaveTo(() => {
+      pageTab[g.id] = 'conquistas';
+      openGame(g.id);
+    });
+  }
   if (g.status === 'running') {
     // Brings the open game to the front.
     await invoke('play', { id: g.id }).catch(() => toast(`${g.title} já está aberto.`, true));
     return;
   }
   if (g.status !== 'ready') {
-    toast(`${g.title}: ${STATUS_TEXT[g.status]}. Saia do Modo TV para resolver.`, true);
+    toast(`${g.title}: ${STATUS_TEXT[g.status]}. Aperte ${padKind !== null ? padName('y') : 'I'} para ver os detalhes.`, true);
     return;
   }
   try {
     await invoke('play', { id: g.id });
     setGame(await invoke('get_game', { id: g.id }));
-    renderTv();
   } catch (e) {
     toast(String(e), true);
   }
 }
 
+function tvDetails() {
+  const x = tvItems()[tvSel[TV_SECTIONS[tvSection][0]]];
+  if (!x || !x.game) return;
+  tvSound('ok');
+  tvLeaveTo(() => openGame(x.game.id));
+}
+
+function tvSystem(id) {
+  if (id === 'perfil') whoOpen();
+  else if (id === 'som') {
+    try { localStorage.setItem(TV_SOUND_KEY, tvSoundOn() ? '0' : '1'); } catch { /* stays as it was */ }
+    tvSound('ok');
+    renderTv();
+  } else if (id === 'estatisticas') tvLeaveTo(openStats);
+  else if (id === 'config') tvLeaveTo(() => $('#btn-settings').click());
+  else if (id === 'sair') tvClose();
+}
+
+function tvToggleGuide() {
+  tvGuide = tvGuide === null ? 0 : null;
+  tvSound(tvGuide === null ? 'back' : 'section');
+  renderTv();
+}
+
+function tvGuideOk() {
+  const [id] = tvGuideItems()[tvGuide] || [];
+  tvGuide = null;
+  if (id && id !== 'fechar') tvSystem(id);
+  else renderTv();
+}
+
+function tvBack() {
+  if (tvGuide !== null) {
+    tvToggleGuide();
+    return;
+  }
+  tvSound('back');
+  tvClose();
+}
+
 async function tvOpen() {
   tvOn = true;
-  tvSel = 0;
+  tvSection = 0;
+  tvSel.jogos = 0;
+  tvGuide = null;
   $('#tv').hidden = false;
   renderTv();
+  if (!achSummary) invoke('get_achievement_summary').then((a) => { achSummary = a; if (tvOn) renderTv(); }).catch(() => {});
+  clearInterval(tvClock);
+  tvClock = setInterval(() => {
+    const c = document.querySelector('#tv .tv-clock');
+    if (c) c.textContent = tvClockText();
+  }, 10000);
   try { await invoke('set_fullscreen', { on: true }); } catch { /* windowed is fine */ }
   requestAnimationFrame(tvPoll);
 }
 
 async function tvClose() {
   tvOn = false;
+  tvGuide = null;
+  clearInterval(tvClock);
   $('#tv').hidden = true;
   try { await invoke('set_fullscreen', { on: false }); } catch { /* ignore */ }
 }
@@ -3344,22 +3605,55 @@ function tvPoll(t) {
   if (!tvOn) return;
   const p = readPad();
   if (p) {
-    // The hints show the buttons of the controller in use (✕ ○ on PlayStation).
-    if (p.changed) renderTv();
     const e = padEdges(tvPad, p, t);
-    if (e.ok) tvPlay();
-    if (e.back) tvClose();
-    if (e.dx || e.dy) tvMove(e.dx, e.dy);
+    // "Quem vai jogar?" on top reads the controller itself.
+    if (!$('#who').hidden) {
+      requestAnimationFrame(tvPoll);
+      return;
+    }
+    // The bar shows the buttons of the controller in use (✕ ○ on PlayStation).
+    if (p.changed) renderTv();
+    if (tvGuide !== null) {
+      if (e.dy) {
+        tvGuide = Math.max(0, Math.min(tvGuideItems().length - 1, tvGuide + e.dy));
+        tvSound('move');
+        renderTv();
+      }
+      if (e.ok) tvGuideOk();
+      if (e.back || e.menu) tvToggleGuide();
+    } else {
+      if (e.dx) tvMove(e.dx);
+      if (e.lb) tvGoSection(-1);
+      if (e.rb) tvGoSection(1);
+      if (e.ok) tvOk();
+      if (e.y) tvDetails();
+      if (e.menu) tvToggleGuide();
+      if (e.back) tvBack();
+    }
   }
   requestAnimationFrame(tvPoll);
 }
 
 document.addEventListener('keydown', (e) => {
-  if (!tvOn) return;
-  const keys = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-  if (keys[e.key]) { tvMove(...keys[e.key]); e.preventDefault(); }
-  else if (e.key === 'Enter') { tvPlay(); e.preventDefault(); }
-  else if (e.key === 'Escape') { tvClose(); e.preventDefault(); }
+  if (!tvOn || !$('#who').hidden) return;
+  const k = e.key.toLowerCase();
+  let done = true;
+  if (tvGuide !== null) {
+    if (k === 'arrowup' || k === 'arrowdown') {
+      tvGuide = Math.max(0, Math.min(tvGuideItems().length - 1, tvGuide + (k === 'arrowdown' ? 1 : -1)));
+      renderTv();
+    } else if (k === 'enter') tvGuideOk();
+    else if (k === 'escape' || k === 'g') tvToggleGuide();
+    else done = false;
+  } else if (k === 'arrowleft' || k === 'arrowright') tvMove(k === 'arrowright' ? 1 : -1);
+  else if (k === 'q' || k === 'pageup') tvGoSection(-1);
+  else if (k === 'e' || k === 'pagedown') tvGoSection(1);
+  else if (k === 'enter') tvOk();
+  else if (k === 'i') tvDetails();
+  else if (k === 'g') tvToggleGuide();
+  else if (k === 'escape') tvBack();
+  else done = false;
+  if (done) e.preventDefault();
 });
 
 $('#btn-tv').addEventListener('click', tvOpen);
