@@ -340,6 +340,21 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     pelo próprio programa (Web Audio) e, com a vibração, são desligados em Sistema; a escolha
     fica no navegador do app (`localStorage`), por ser só uma preferência deste PC.
 
+61. **De launcher de ports a launcher geral.** Pedido do Gustavo em 24/10/2026: reconhecer jogos
+    de vários lugares e configurá-los pelo programa (fases em `STATUS.md`). O princípio 1 continua
+    valendo: nenhum jogo, BIOS ou firmware passa pelo programa. Lojas são lidas só nos arquivos e
+    no registro delas, sem login nem senha; emuladores só vêm da página oficial de cada um.
+62. **Jogos das lojas.** Steam (`libraryfolders.vdf` e `appmanifest_*.acf`, só `StateFlags` com o
+    bit 4, sem redistribuíveis nem ferramentas), Epic (`ProgramData\Epic\...\Manifests\*.item`,
+    sem instalação incompleta nem DLC) e GOG (registro `GOG.com\Games`). Cada jogo vira um "Jogo
+    de PC" com id `loja-idDaLoja`. Steam e Epic abrem pelo endereço da própria loja (assim o
+    DRM, a nuvem e as atualizações continuam com ela); a GOG abre o programa direto. O tempo
+    conta pelos processos dentro da pasta do jogo, inclusive quando o jogo é aberto pela loja.
+    A busca só atualiza pasta, programa e endereço: nome, capa, etiquetas e favorito são do
+    jogador. Um jogo de loja removido pelo jogador vai para `excluded` e não volta sozinho; um
+    jogo desinstalado na loja sai da biblioteca guardando o tempo de jogo. A capa da Steam vem
+    do cache local dela (`appcache\librarycache`).
+
 ## Capas
 
 13. **Ordem fixa:** capa escolhida pelo jogador → imagem dos arquivos do próprio jogo → capa

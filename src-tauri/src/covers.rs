@@ -63,6 +63,9 @@ pub struct Settings {
     /// The one-time permission was granted; it counts after the next Windows sign-in.
     #[serde(default)]
     pub fps_permission_granted: bool,
+    /// Look for Steam, Epic and GOG games each time RecompHUB opens (stores.rs).
+    #[serde(default = "yes")]
+    pub store_import: bool,
 }
 
 fn ten() -> u32 {
@@ -91,6 +94,7 @@ impl Default for Settings {
             github_token: String::new(),
             fps_overlay: false,
             fps_permission_granted: false,
+            store_import: true,
         }
     }
 }

@@ -78,7 +78,7 @@ function coverHtml(g) {
   return `<div class="cover${contain}"><img src="${g.cover}" alt=""></div>`;
 }
 
-let settings = { close_to_tray: true, show_hidden: false, version: '' };
+let settings = { close_to_tray: true, show_hidden: false, store_import: true, version: '' };
 
 function chips(g) {
   let html = g.favorite ? '<span class="chip fav" title="Favorito">★</span>' : '';
@@ -330,7 +330,7 @@ function renderPcDetail(g) {
       <div>${coverColumn(g)}</div>
       <div>
         <h2>${esc(g.title)}</h2>
-        <div class="credit">Jogo de PC adicionado por você.</div>
+        <div class="credit">${g.store ? storeCredit(g) : 'Jogo de PC adicionado por você.'}</div>
         <div>${chips(g)}</div>
         <div class="stats">
           <div><div class="k">Tempo de jogo</div><div class="v">${playTime(g.total_seconds)}</div></div>
@@ -1758,7 +1758,10 @@ function renderSettings() {
               Para sair de vez, use "Sair" no ícone da bandeja.</label>
             <label class="check"><input type="checkbox" id="set-hidden" ${settings.show_hidden ? 'checked' : ''}>
               Mostrar jogos ocultos na biblioteca.</label>
-            <div class="row"><button data-act="settings-save">Salvar</button></div>
+            <label class="check"><input type="checkbox" id="set-stores" ${settings.store_import ? 'checked' : ''}>
+              Procurar jogos da Steam, da Epic e da GOG sempre que o RecompHUB abrir. Ele só lê os arquivos das lojas neste PC, sem login.</label>
+            <div class="row"><button data-act="settings-save">Salvar</button>
+              <button class="ghost" data-act="stores-unexclude">Trazer de volta os jogos das lojas que removi</button></div>
           </div>
           <div class="box">
             <h3>Tutorial</h3>
@@ -2405,10 +2408,17 @@ async function act(action, g, el) {
       if (list) { m.view.collections = list; render(); }
       break;
     }
+    case 'stores-unexclude': {
+      const n = await call('clear_store_exclusions');
+      await importStores(false);
+      toast(n ? `${n} jogo${n > 1 ? 's' : ''} das lojas volta${n > 1 ? 'm' : ''} para a biblioteca, se ainda estiver${n > 1 ? 'em' : ''} instalado${n > 1 ? 's' : ''}.` : 'Nenhum jogo das lojas tinha sido removido.');
+      break;
+    }
     case 'settings-save':
       settings = await call('set_settings', {
         closeToTray: $('#set-tray').checked,
         showHidden: $('#set-hidden').checked,
+        storeImport: $('#set-stores').checked,
       });
       toast('Configurações salvas.');
       break;
@@ -2611,6 +2621,31 @@ async function addExisting() {
   toast(`${g.title} adicionado à biblioteca.`);
 }
 
+// ---- Jogos das lojas (Steam, Epic, GOG) ----
+
+function storeCredit(g) {
+  return g.store === 'GOG'
+    ? 'Jogo da GOG, achado pelo RecompHUB no seu PC. O RecompHUB abre o jogo direto e conta o tempo.'
+    : `Jogo da ${esc(g.store)}, achado pelo RecompHUB no seu PC. A ${esc(g.store)} abre o jogo (com as atualizações e os saves na nuvem dela) e o RecompHUB conta o tempo.`;
+}
+
+function storeReport(r) {
+  const parts = [];
+  if (r.added.length) parts.push(`${r.added.length} jogo${r.added.length > 1 ? 's' : ''} novo${r.added.length > 1 ? 's' : ''} das lojas: ${r.added.slice(0, 3).join(', ')}${r.added.length > 3 ? '…' : ''}.`);
+  if (r.gone.length) parts.push(`Desinstalado${r.gone.length > 1 ? 's' : ''} na loja: ${r.gone.slice(0, 3).join(', ')}.`);
+  return parts.join(' ');
+}
+
+async function importStores(asked) {
+  if (asked) toast('Procurando jogos da Steam, da Epic e da GOG…');
+  const r = await call('import_store_games');
+  await refresh();
+  if (!asked) return;
+  if (r.added.length || r.gone.length) toast(storeReport(r));
+  else if (r.found) toast(`Nenhum jogo novo: os ${r.found} jogos das lojas (${r.stores.join(', ')}) já estão na biblioteca.`);
+  else toast('Não achei jogos da Steam, da Epic nem da GOG neste PC.');
+}
+
 async function addPcGame() {
   const g = await call('add_pc_game');
   if (!g) return;
@@ -2623,6 +2658,7 @@ async function addPcGame() {
 
 $('#btn-add').addEventListener('click', addExisting);
 $('#btn-add-pc').addEventListener('click', addPcGame);
+$('#btn-stores').addEventListener('click', () => importStores(true));
 $('#btn-covers').addEventListener('click', openCovers);
 $('#btn-backup').addEventListener('click', backupSaves);
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
@@ -2664,6 +2700,11 @@ listen('session', async (e) => {
 });
 
 listen('open-game', (e) => openGame(e.payload));
+// The search at start found games installed or uninstalled in the stores.
+listen('stores', async (e) => {
+  await refresh();
+  toast(storeReport(e.payload));
+});
 listen('achievement', (e) => {
   const { id, game, unlocked, complete } = e.payload;
   for (const a of unlocked) toast(`🏆 Conquista: ${a.title} (${game}, ${a.points} pts)`);

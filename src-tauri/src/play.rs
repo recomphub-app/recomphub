@@ -673,6 +673,39 @@ pub fn bring_own_window() -> bool {
     find_window(vec![std::process::id()], Some("RecompHUB")).map(force_foreground).unwrap_or(false)
 }
 
+/// Store addresses RecompHUB may open: only the stores' own protocols.
+pub fn store_url_ok(url: &str) -> bool {
+    ["steam://rungameid/", "com.epicgames.launcher://apps/"].iter().any(|p| url.starts_with(p)) && !url.contains(['"', ' ', '\n'])
+}
+
+/// Opens a store game through the store ("steam://rungameid/620"). The store starts the game
+/// a little later; the watcher sees its processes in the game's folder.
+pub fn start_url(app: &AppHandle, id: &str, url: &str, store: &str) -> Result<(), String> {
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    if !store_url_ok(url) {
+        return Err("Endereço da loja inválido.".into());
+    }
+    let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
+    let (verb, file) = (wide("open"), wide(url));
+    // SAFETY: both strings end in 0 and live until the call returns.
+    let r = unsafe { ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), file.as_ptr(), std::ptr::null(), std::ptr::null(), SW_SHOWNORMAL) };
+    // ShellExecute returns a value above 32 on success.
+    if (r as isize) <= 32 {
+        return Err(format!("O Windows não abriu {store}. Ela está instalada?"));
+    }
+    {
+        let state = app.state::<AppState>();
+        let mut s = state.sessions.lock().unwrap();
+        s.launching.insert(id.to_string(), Instant::now());
+        s.stopped.remove(id);
+        s.exit_codes.remove(id);
+        s.children.remove(id);
+    }
+    let _ = app.emit("session", serde_json::json!({ "id": id, "state": "starting" }));
+    Ok(())
+}
+
 pub fn start(
     app: &AppHandle,
     id: &str,
@@ -789,6 +822,15 @@ mod tests {
         assert_eq!(join_args(&args), r#"--rom "C:\My Games\x.z64" -v"#);
         assert_eq!(split_args(&join_args(&args)), args);
         assert_eq!(exe_name(r"bin\BanjoRecompiled.exe").as_deref(), Some("BanjoRecompiled.exe"));
+    }
+
+    #[test]
+    fn only_store_addresses_open() {
+        assert!(store_url_ok("steam://rungameid/620"));
+        assert!(store_url_ok("com.epicgames.launcher://apps/ns%3Ait%3AMin?action=launch&silent=true"));
+        assert!(!store_url_ok("https://example.com"));
+        assert!(!store_url_ok("file:///C:/Windows/System32/cmd.exe"));
+        assert!(!store_url_ok("steam://rungameid/620\" --outra-coisa"));
     }
 
     #[test]

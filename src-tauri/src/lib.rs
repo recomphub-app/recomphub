@@ -25,6 +25,7 @@ mod reg;
 mod saves;
 mod shortcut;
 mod steam;
+mod stores;
 mod tray;
 
 use base64::Engine;
@@ -134,6 +135,8 @@ struct GameView {
     completion: library::Completion,
     play_count: u32,
     notes: String,
+    /// PC store the game was found in ("Steam", "Epic Games", "GOG"); None otherwise.
+    store: Option<&'static str>,
     files: Option<FilesStatus>,
     total_seconds: u64,
     last_played: Option<u64>,
@@ -264,6 +267,7 @@ fn view(state: &AppState, game: &'static GameDef) -> GameView {
         completion: entry.as_ref().map(|e| e.completion).unwrap_or_default(),
         play_count: entry.as_ref().map(|e| e.play_count).unwrap_or(0),
         notes: entry.as_ref().map(|e| e.notes.clone()).unwrap_or_default(),
+        store: None,
     }
 }
 
@@ -276,14 +280,18 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
     let community = entry.kind == library::EntryKind::Community;
     let installing = state.installing.lock().unwrap().contains(id);
     let exe = pc_exe(entry);
-    let (cover, cover_source) = pick_cover(state, id, None);
+    // Steam keeps the game's library art on this PC.
+    let store_cover = (entry.store.as_deref() == Some("steam")).then(|| id.strip_prefix("steam-").and_then(stores::steam_cover_for)).flatten();
+    let (cover, cover_source) = pick_cover(state, id, store_cover);
+    // A game the store opens only needs its folder; the store knows the program.
+    let store_ready = entry.launch_url.is_some() && Path::new(&entry.install_dir).is_dir();
     let status = if installing {
         "installing"
     } else if running {
         "running"
     } else if launching {
         "starting"
-    } else if exe.as_deref().map(Path::is_file).unwrap_or(false) {
+    } else if store_ready || exe.as_deref().map(Path::is_file).unwrap_or(false) {
         "ready"
     } else if community && entry.exe.is_none() {
         "needs_exe"
@@ -297,7 +305,7 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         id: id.to_string(),
         kind: if community { "community" } else { "pc_game" },
         title: entry.title.clone().unwrap_or_else(|| "Jogo sem nome".into()),
-        family: if community { "Comunidade" } else { "PC" },
+        family: if community { "Comunidade" } else { entry.store.as_deref().map(stores::store_name).unwrap_or("PC") },
         port_name: repo.as_ref().and_then(|r| r.split('/').nth(1)).unwrap_or("").to_string(),
         port_authors: repo.as_ref().and_then(|r| r.split('/').next()).unwrap_or("").to_string(),
         project_url: repo.as_ref().map(|r| format!("https://github.com/{r}")).unwrap_or_default(),
@@ -313,7 +321,7 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         status,
         session_started,
         in_library: true,
-        install_dir: if community { Some(entry.install_dir.clone()) } else { exe.map(|p| p.display().to_string()) },
+        install_dir: if community { Some(entry.install_dir.clone()) } else { exe.map(|p| p.display().to_string()).or_else(|| entry.store.as_ref().map(|_| entry.install_dir.clone())) },
         version: entry.version.clone().filter(|_| community),
         update_available: !entry.ignore_updates
             && latest.is_some()
@@ -341,6 +349,7 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         completion: entry.completion,
         play_count: entry.play_count,
         notes: entry.notes.clone(),
+        store: entry.store.as_deref().map(stores::store_name),
     }
 }
 
@@ -447,6 +456,76 @@ async fn add_pc_game(app: AppHandle) -> Result<Option<GameView>, String> {
     // Without a cover the card shows the program's own icon; failing to read it is harmless.
     let _ = covers::extract_icon(&state.covers, &id, &exe);
     view_any(&state, &id).map(Some)
+}
+
+#[derive(Serialize, Clone)]
+struct StoreImport {
+    /// Names of the games new in the library.
+    added: Vec<String>,
+    /// Names of the games that left because the store uninstalled them.
+    gone: Vec<String>,
+    /// Games found in all stores (new or not).
+    found: usize,
+    /// Stores that had games ("Steam", "Epic Games", "GOG").
+    stores: Vec<&'static str>,
+}
+
+/// Looks for games in Steam, Epic and GOG and brings the library up to date (stores.rs).
+fn import_stores(app: &AppHandle) -> Result<StoreImport, String> {
+    let found = stores::all();
+    let state = app.state::<AppState>();
+    let mut added = Vec::new();
+    let mut gone = Vec::new();
+    let mut icons = Vec::new();
+    {
+        let mut lib = state.library.lock().unwrap();
+        for store in ["steam", "epic", "gog"] {
+            let ids: Vec<String> = found.iter().filter(|f| f.store == store).map(|f| f.id()).collect();
+            gone.extend(lib.drop_uninstalled(store, &ids));
+        }
+        for f in &found {
+            // The player already added this game by hand: not a second card.
+            let dir = f.dir.display().to_string().to_lowercase();
+            if lib.games.values().any(|e| e.store.is_none() && e.install_dir.to_lowercase() == dir) {
+                continue;
+            }
+            let id = f.id();
+            if lib.upsert_store_game(&id, f.store, &f.title, &f.dir, f.exe.clone(), f.launch_url.clone()) {
+                added.push(f.title.clone());
+                if let Some(exe) = &f.exe {
+                    icons.push((id, f.dir.join(exe)));
+                }
+            }
+        }
+    }
+    save(&state)?;
+    // Without a cover the card shows the program's own icon; failing to read it is harmless.
+    for (id, exe) in icons {
+        let _ = covers::extract_icon(&state.covers, &id, &exe);
+    }
+    let mut names: Vec<&'static str> = found.iter().map(|f| stores::store_name(f.store)).collect();
+    names.dedup();
+    Ok(StoreImport { added, gone, found: found.len(), stores: names })
+}
+
+/// "Procurar jogos nas lojas".
+#[tauri::command]
+async fn import_store_games(app: AppHandle) -> Result<StoreImport, String> {
+    tauri::async_runtime::spawn_blocking(move || import_stores(&app)).await.map_err(|e| e.to_string())?
+}
+
+/// Store games the player removed come back on the next search.
+#[tauri::command]
+fn clear_store_exclusions(app: AppHandle) -> Result<usize, String> {
+    let state = app.state::<AppState>();
+    let n = {
+        let mut lib = state.library.lock().unwrap();
+        let n = lib.excluded.len();
+        lib.excluded.clear();
+        n
+    };
+    save(&state)?;
+    Ok(n)
 }
 
 #[tauri::command]
@@ -851,6 +930,7 @@ struct AppSettings {
     has_steamgriddb: bool,
     has_igdb: bool,
     has_github_token: bool,
+    store_import: bool,
     sgdb_key_page: &'static str,
     igdb_key_page: &'static str,
 }
@@ -866,6 +946,7 @@ fn get_settings(app: AppHandle) -> AppSettings {
         has_steamgriddb: !keys.sgdb.is_empty(),
         has_igdb: keys.igdb(),
         has_github_token: !s.github_token.is_empty(),
+        store_import: s.store_import,
         sgdb_key_page: meta::SGDB_KEY_PAGE,
         igdb_key_page: meta::IGDB_KEY_PAGE,
     }
@@ -1046,12 +1127,13 @@ fn known_igdb_page(state: &AppState, url: &str) -> bool {
 }
 
 #[tauri::command]
-fn set_settings(app: AppHandle, close_to_tray: bool, show_hidden: bool) -> Result<AppSettings, String> {
+fn set_settings(app: AppHandle, close_to_tray: bool, show_hidden: bool, store_import: bool) -> Result<AppSettings, String> {
     {
         let state = app.state::<AppState>();
         let mut s = state.settings.lock().unwrap();
         s.close_to_tray = close_to_tray;
         s.show_hidden = show_hidden;
+        s.store_import = store_import;
         s.save(&state.settings_path)?;
     }
     Ok(get_settings(app))
@@ -3061,6 +3143,11 @@ fn play(app: AppHandle, id: String) -> Result<(), String> {
     }
     let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
     let dir = PathBuf::from(&entry.install_dir);
+    // Steam and Epic open their games themselves (DRM, cloud saves, updates); the session is
+    // still timed by the game's folder.
+    if let Some(url) = &entry.launch_url {
+        return play::start_url(&app, &id, url, entry.store.as_deref().map(stores::store_name).unwrap_or("a loja"));
+    }
     let exe = program_of(&id, &entry).ok_or("Jogo sem programa definido.")?;
     apply_profile_mods(&state, &id);
     let started = play::start(&app, &id, &dir, &exe, &entry.launch_args, &entry.env, entry.run_as_admin)?;
@@ -3395,6 +3482,18 @@ pub fn run() {
             github::set_token(&app.state::<AppState>().settings.lock().unwrap().github_token);
             play::spawn_watcher(app.handle().clone());
             pad::spawn(app.handle().clone());
+            // Games installed or uninstalled in the stores since last time.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                if !handle.state::<AppState>().settings.lock().unwrap().store_import {
+                    return;
+                }
+                if let Ok(r) = import_stores(&handle) {
+                    if !r.added.is_empty() || !r.gone.is_empty() {
+                        let _ = handle.emit("stores", r);
+                    }
+                }
+            });
             tray::build(app.handle())?;
             let args: Vec<String> = std::env::args().collect();
             handle_args(app.handle(), &args);
@@ -3470,6 +3569,8 @@ pub fn run() {
             get_pc_info,
             pc_check,
             install_runtime,
+            import_store_games,
+            clear_store_exclusions,
             hydrate_game,
             get_graphics,
             set_gpu_preference,

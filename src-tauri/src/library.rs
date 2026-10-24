@@ -85,6 +85,12 @@ pub struct Entry {
     /// program asks for it; the player can also turn it on or off.
     #[serde(default)]
     pub run_as_admin: bool,
+    /// Game found in a PC store's files (stores.rs): "steam", "epic" or "gog".
+    #[serde(default)]
+    pub store: Option<String>,
+    /// How the store opens the game ("steam://rungameid/…"); None: the program is started.
+    #[serde(default)]
+    pub launch_url: Option<String>,
 }
 
 /// As Playnite's completion statuses. `None`: not chosen; the page shows "Não jogado" or
@@ -122,6 +128,9 @@ pub struct Library {
     /// Play time kept for games removed from the library, so adding them back keeps it.
     #[serde(default)]
     pub removed: BTreeMap<String, Entry>,
+    /// Store games the player removed: the next search leaves them out.
+    #[serde(default)]
+    pub excluded: std::collections::BTreeSet<String>,
 }
 
 impl Library {
@@ -175,8 +184,51 @@ impl Library {
 
     pub fn remove(&mut self, id: &str) {
         if let Some(e) = self.games.remove(id) {
+            if e.store.is_some() {
+                self.excluded.insert(id.to_string());
+            }
             self.removed.insert(id.to_string(), e);
         }
+    }
+
+    /// A game found in a store: added (with the play time it had, if it was here before), or
+    /// its folder, program and store address brought up to date. The player's own choices
+    /// (name, tags, favorite, notes) are never touched. Returns whether it is new.
+    pub fn upsert_store_game(&mut self, id: &str, store: &str, title: &str, dir: &Path, exe: Option<String>, launch_url: Option<String>) -> bool {
+        if self.excluded.contains(id) {
+            return false;
+        }
+        let new = !self.games.contains_key(id);
+        let mut entry = self.games.remove(id).or_else(|| self.removed.remove(id)).unwrap_or_default();
+        entry.kind = EntryKind::PcGame;
+        entry.install_dir = dir.display().to_string();
+        entry.exe = exe;
+        entry.store = Some(store.to_string());
+        entry.launch_url = launch_url;
+        if entry.title.is_none() {
+            entry.title = Some(title.to_string());
+        }
+        self.games.insert(id.to_string(), entry);
+        new
+    }
+
+    /// Store games no longer installed (not found by the search and their folder gone) leave
+    /// the library, keeping their play time for when they come back. Returns their names.
+    pub fn drop_uninstalled(&mut self, store: &str, found: &[String]) -> Vec<String> {
+        let gone: Vec<String> = self
+            .games
+            .iter()
+            .filter(|(id, e)| e.store.as_deref() == Some(store) && !found.contains(id) && !Path::new(&e.install_dir).is_dir())
+            .map(|(id, _)| id.clone())
+            .collect();
+        gone.iter()
+            .filter_map(|id| {
+                let e = self.games.remove(id)?;
+                let name = e.title.clone().unwrap_or_default();
+                self.removed.insert(id.clone(), e);
+                Some(name)
+            })
+            .collect()
     }
 
     pub fn install_dir(&self, id: &str) -> Option<PathBuf> {
@@ -213,5 +265,39 @@ mod tests {
         assert_eq!(super::date(0), "1970-01-01");
         assert_eq!(super::date(1_760_832_000), "2025-10-19");
         assert_eq!(super::date(1_709_164_800), "2024-02-29");
+    }
+
+    #[test]
+    fn store_games_keep_the_players_choices() {
+        let mut lib = super::Library::default();
+        let dir = std::env::temp_dir();
+        assert!(lib.upsert_store_game("steam-620", "steam", "Portal 2", &dir, None, Some("steam://rungameid/620".into())));
+        {
+            let e = lib.games.get_mut("steam-620").unwrap();
+            e.title = Some("Portal 2 (meu nome)".into());
+            e.total_seconds = 3600;
+            e.favorite = true;
+        }
+        // Found again: still the player's name, play time and favorite; the address is updated.
+        assert!(!lib.upsert_store_game("steam-620", "steam", "Portal 2", &dir, None, Some("steam://rungameid/620".into())));
+        let e = &lib.games["steam-620"];
+        assert_eq!((e.title.as_deref(), e.total_seconds, e.favorite), (Some("Portal 2 (meu nome)"), 3600, true));
+        // Removed by the player: the next search leaves it out, and the time is kept.
+        lib.remove("steam-620");
+        assert!(!lib.upsert_store_game("steam-620", "steam", "Portal 2", &dir, None, None));
+        assert!(!lib.games.contains_key("steam-620"));
+        assert_eq!(lib.removed["steam-620"].total_seconds, 3600);
+    }
+
+    #[test]
+    fn uninstalled_store_games_leave() {
+        let mut lib = super::Library::default();
+        let gone = std::env::temp_dir().join("recomphub-nao-existe-9f3a");
+        lib.upsert_store_game("epic-a", "epic", "A", &gone, None, None);
+        lib.upsert_store_game("epic-b", "epic", "B", &std::env::temp_dir(), None, None);
+        lib.upsert_store_game("gog-1", "gog", "C", &gone, None, None);
+        assert_eq!(lib.drop_uninstalled("epic", &["epic-b".into()]), vec!["A".to_string()]);
+        assert!(lib.games.contains_key("epic-b") && lib.games.contains_key("gog-1"));
+        assert!(lib.removed.contains_key("epic-a") && !lib.excluded.contains("epic-a"));
     }
 }

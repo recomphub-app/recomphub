@@ -48,6 +48,35 @@ pub fn get_dword(root: Root, key: &str, value: &str) -> Option<u32> {
     (r == ERROR_SUCCESS).then_some(out)
 }
 
+/// Names of the keys right under `key` (empty when it does not exist).
+pub fn subkeys(root: Root, key: &str) -> Vec<String> {
+    use windows_sys::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, KEY_READ};
+    let k = wide(key);
+    let mut h: HKEY = std::ptr::null_mut();
+    // SAFETY: the name ends in 0; the handle is closed below.
+    if unsafe { RegOpenKeyExW(hkey(root), k.as_ptr(), 0, KEY_READ, &mut h) } != ERROR_SUCCESS {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for i in 0..4096u32 {
+        let mut name = [0u16; 256];
+        let mut len = name.len() as u32;
+        // SAFETY: the buffer and its length in characters go together.
+        let r = unsafe {
+            RegEnumKeyExW(h, i, name.as_mut_ptr(), &mut len, std::ptr::null(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut())
+        };
+        if r != ERROR_SUCCESS {
+            break;
+        }
+        out.push(String::from_utf16_lossy(&name[..(len as usize).min(name.len())]));
+    }
+    // SAFETY: opened above.
+    unsafe {
+        RegCloseKey(h);
+    }
+    out
+}
+
 /// Writes a text value under HKEY_CURRENT_USER, creating the key when needed.
 pub fn set_user_string(key: &str, value: &str, data: &str) -> Result<(), String> {
     let (k, v, d) = (wide(key), wide(value), wide(data));

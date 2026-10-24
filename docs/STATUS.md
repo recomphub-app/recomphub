@@ -32,6 +32,29 @@
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 
+## Rumo novo: launcher de jogos geral (decidido em 24/10/2026)
+
+O Gustavo decidiu que o programa deixa de ser só de ports nativos e vira um launcher que
+reconhece jogos de vários lugares e configura tudo pelo próprio programa. Ele também vai
+ganhar um nome novo (ainda não escolhido). Fases, cada uma testada antes da próxima:
+
+- [x] **Fase 1: jogos das lojas** (v0.28, Steam, Epic e GOG). Achar os jogos instalados da Steam, da Epic e da GOG, só
+  lendo os arquivos e o registro de cada loja (sem login). Abrir pela loja, contar o tempo
+  pela pasta do jogo e importar sozinho ao abrir o programa. Um jogo removido não volta.
+  Depois: Xbox/Microsoft Store, EA, Ubisoft, Amazon e itch.
+- [ ] **Fase 2: emuladores.** Reconhecer os emuladores instalados (PCSX2, DuckStation, RPCS3,
+  Dolphin, Cemu, Ryujinx/Ryubing, Xenia Canary, xemu, PPSSPP, RetroArch) e instalar os que
+  faltam pela página oficial no GitHub, como os ports. Pastas de jogos por console, abrir o
+  jogo pela linha de comando de cada emulador (`clay/emuladores/emuladores-cli.json`), conferir
+  BIOS e firmware antes de jogar (só abrir a pasta certa; nunca baixar BIOS, firmware nem jogos).
+- [ ] **Fase 3: configurar pelo programa.** Para cada emulador, as opções mais usadas
+  (resolução, tela cheia, API gráfica, limite de FPS, controle) escritas na configuração dele,
+  com cópia antes de mudar e volta automática se o jogo não abrir; ajustes por jogo e perfis
+  prontos (Desempenho, Qualidade). Base: `clay/toggles` e o padrão "Generator" do RetroBat.
+- [ ] **Fase 4: extras.** Conquistas do RetroAchievements nos emuladores, saves dos emuladores
+  no backup, correções com um clique (`clay/auto-cura`) e medição de desempenho
+  (`clay/auto-tuning`).
+
 ## Testes automáticos
 
 Rodam no GitHub Actions antes de gerar o instalador (`cargo test --lib`):
@@ -58,6 +81,7 @@ Rodam no GitHub Actions antes de gerar o instalador (`cargo test --lib`):
 | Steam | CRC igual ao padrão; atalhos existentes regravados byte a byte; clicar de novo atualiza sem duplicar e mantém o id; arquivo quebrado ou com dados sobrando é recusado |
 | Antes de jogar | Tabelas de importação de programas de 32 e 64 bits (normais e de carga atrasada); arquivo danificado não é lido além do fim; DLLs separadas em Visual C++, Visual C++ antigo, DirectX, Vulkan e arquivo do jogo; OneDrive pelos atributos; teste de escrita apaga o arquivo; downloads só de endereços da Microsoft, SHA-256 do endereço e assinatura `O=Microsoft Corporation`; códigos de saída do instalador |
 | Controle | Botões que chamam o RecompHUB (Xbox, View + Menu); dispara uma vez por toque longo, depois de 0,7 s |
+| Lojas | Formato de texto da Steam (aspas, chaves, comentários, os dois formatos do `libraryfolders.vdf`); só jogos instalados de verdade, sem ferramentas nem Proton; manifestos da Epic sem DLC, plugin ou instalação pela metade; programa da GOG dentro da pasta; o jogador mantém nome, tempo e favorito; jogo removido não volta e o desinstalado sai guardando o tempo; só endereços `steam://` e `com.epicgames.launcher://` abrem |
 | Outros | Argumentos com aspas, nomes de variáveis, nomes de atalho, datas, comparação de versões |
 
 ## Regras de trabalho
