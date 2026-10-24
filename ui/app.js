@@ -291,6 +291,7 @@ function playRow(g, what) {
       <p class="muted">O tempo é contado enquanto ${what} estiver aberto e salvo a cada 30 segundos.</p>`;
   }
   return `
+    ${resumeBox(g)}
     <div class="row">
       <button class="primary play" data-act="play" ${g.status !== 'ready' ? 'disabled' : ''}>Jogar</button>
     </div>`;
@@ -346,6 +347,7 @@ function renderPcDetail(g) {
           ['saves', 'Saves', ''],
           ['conquistas', 'Conquistas', ''],
           ['ajustes', 'Ajustes', `
+            ${artBox(g)}
             <div class="box">
               <h3>Nome</h3>
               <div class="tags-edit">
@@ -378,6 +380,7 @@ function progressBox(g) {
 }
 
 const COVER_SOURCE = {
+  profile: 'Sua capa neste perfil (Ajustes > Minhas capas)',
   custom: 'Capa escolhida por você',
   own_files: 'Capa dos seus arquivos do jogo',
   downloaded: 'Capa baixada',
@@ -653,13 +656,175 @@ async function reloadBackups(id) {
   if (openId === id) render();
 }
 
+// ---- Minhas capas: the active profile's own pictures for a game ----
+
+const artCache = {};   // id -> 'loading' | ArtView
+
+function artBox(g) {
+  if (!g.in_library) return '';
+  const a = artCache[g.id];
+  if (a === undefined) {
+    artCache[g.id] = 'loading';
+    invoke('get_game_art', { id: g.id })
+      .then((v) => { artCache[g.id] = v; if (openId === g.id) render(); })
+      .catch(() => { delete artCache[g.id]; });
+    return '';
+  }
+  if (a === 'loading') return '';
+  return `
+    <div class="box">
+      <h3>Minhas capas</h3>
+      <p class="muted">Só do perfil ${esc(a.profile)}: os outros perfis continuam vendo a capa da biblioteca.</p>
+      <div class="art-list">
+        <div class="art-item${a.active === null ? ' on' : ''}">
+          <div class="art-library">Capa da biblioteca</div>
+          <div class="row"><button class="small" data-act="art-use" data-v="">Mostrar</button></div>
+        </div>
+        ${a.covers.map((c, i) => `
+          <div class="art-item${a.active === i ? ' on' : ''}">
+            ${c.image ? `<img src="${c.image}" alt="">` : '<div class="art-library">imagem sumiu</div>'}
+            <input type="text" class="art-caption" data-i="${i}" value="${esc(c.caption)}" placeholder="Legenda (ex.: minha versão)" maxlength="40">
+            <div class="row">
+              <button class="small" data-act="art-use" data-v="${i}">Mostrar</button>
+              <button class="ghost small danger" data-act="art-remove" data-v="${i}">Tirar</button>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="row"><button data-act="art-add" data-v="cover">Adicionar capa</button></div>
+      <h4>Fundo no Modo TV</h4>
+      ${a.background ? `<div class="profile-banner-preview" style="background-image:url('${a.background}')"></div>` : '<p class="muted">Sem fundo próprio: o Modo TV usa o banner ou a capa do jogo.</p>'}
+      <div class="row">
+        <button data-act="art-add" data-v="background">${a.background ? 'Trocar o fundo' : 'Escolher fundo'}</button>
+        ${a.background ? '<button class="ghost danger" data-act="art-remove" data-v="">Tirar o fundo</button>' : ''}
+      </div>
+    </div>`;
+}
+
+// A caption is kept when the field loses the focus.
+document.addEventListener('change', async (e) => {
+  if (!e.target.classList || !e.target.classList.contains('art-caption') || !openId) return;
+  try {
+    artCache[openId] = await invoke('caption_game_art', { id: openId, index: Number(e.target.dataset.i), caption: e.target.value });
+    toast('Legenda salva.');
+  } catch (err) {
+    toast(String(err), true);
+  }
+});
+
+async function artChanged(g, view) {
+  if (!view) return;
+  artCache[g.id] = view;
+  setGame(await call('get_game', { id: g.id }));
+}
+
+// ---- Onde eu parei: a note when the game closes, shown when you come back ----
+
+const RESUME_CHIPS = ['Num chefe', 'Explorando', 'Começando um capítulo novo', 'Fazendo missões secundárias', 'Juntando itens', 'Perto do fim'];
+const RESUME_MIN_SECONDS = 120;
+let resumeAsk = null;   // { id, title, seconds } while the question is open
+
+function daysAgo(at) {
+  const days = Math.floor((Date.now() / 1000 - at) / 86400);
+  return days <= 0 ? 'hoje' : days === 1 ? 'ontem' : `há ${days} dias`;
+}
+
+function resumeOpen(g, seconds) {
+  resumeAsk = { id: g.id, title: g.title, seconds };
+  const el = $('#resume');
+  el.innerHTML = `
+    <div class="resume-card">
+      <h2>Onde você parou?</h2>
+      <p class="muted">${esc(g.title)} · sessão de ${playTime(seconds).toLowerCase()}. Um recado para você do futuro, que aparece quando voltar a este jogo.</p>
+      <div class="resume-chips">${RESUME_CHIPS.map((c) => `<button class="tag" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <input type="text" id="resume-text" maxlength="140" placeholder="Ex.: no chefe do trem, falta a chave azul" value="${esc((g.resume && g.resume.text) || '')}">
+      <div class="row">
+        <button class="primary" data-resume="save">Guardar recado</button>
+        <button class="ghost" data-resume="skip">Agora não</button>
+      </div>
+    </div>`;
+  el.hidden = false;
+  el.querySelectorAll('[data-chip]').forEach((b) => b.addEventListener('click', () => {
+    const input = $('#resume-text');
+    input.value = input.value ? `${input.value}, ${b.dataset.chip.toLowerCase()}` : b.dataset.chip;
+  }));
+  el.querySelector('[data-resume="save"]').addEventListener('click', resumeSave);
+  el.querySelector('[data-resume="skip"]').addEventListener('click', resumeClose);
+  if (document.body.classList.contains('pad-on')) setTimeout(() => padFocus(el.querySelector('[data-chip]')), 0);
+}
+
+function resumeClose() {
+  resumeAsk = null;
+  $('#resume').hidden = true;
+}
+
+async function resumeSave() {
+  const a = resumeAsk;
+  const text = $('#resume-text').value.trim();
+  resumeClose();
+  if (!a || !text) return;
+  try {
+    setGame(await invoke('set_resume_note', { id: a.id, text, seconds: a.seconds }));
+    toast('Recado guardado.');
+  } catch (e) {
+    toast(String(e), true);
+  }
+}
+
+// On the game page: the note, standing out after a few days away.
+function resumeBox(g) {
+  const r = g.resume;
+  if (!r) return '';
+  const old = Date.now() / 1000 - r.at > 3 * 86400;
+  return `
+    <div class="resume-note${old ? ' old' : ''}">
+      <span class="k">Onde você parou · ${daysAgo(r.at)}${r.seconds ? ` · sessão de ${playTime(r.seconds).toLowerCase()}` : ''}</span>
+      <p>${esc(r.text)}</p>
+      <button class="link small-text" data-act="resume-clear">Apagar recado</button>
+    </div>`;
+}
+
 // ---- Perfis ----
 
 let profiles = null;        // { active, list, ask_on_start, separate_saves, colors }
 let profileForm = null;     // { id|null, name, color } while creating or editing
 
-const avatar = (p, big = false) =>
-  `<span class="avatar${big ? ' big' : ''}" style="background:${esc(p.color)}">${esc((p.name || '?').trim().charAt(0).toUpperCase())}</span>`;
+const avatar = (p, big = false) => p.avatar
+  ? `<span class="avatar img${big ? ' big' : ''}" style="border-color:${esc(p.color)}"><img src="${p.avatar}" alt=""></span>`
+  : `<span class="avatar${big ? ' big' : ''}" style="background:${esc(p.color)}">${esc((p.name || '?').trim().charAt(0).toUpperCase())}</span>`;
+
+// The active profile's look: its color as the accent, cover size, text size, list, motion, tabs.
+function applyLook() {
+  const p = profiles && profiles.active;
+  if (!p) return;
+  const root = document.documentElement.style;
+  if (p.accent) {
+    root.setProperty('--red', p.color);
+  } else {
+    root.removeProperty('--red');
+  }
+  const l = p.look || {};
+  const body = document.body.classList;
+  body.toggle('cards-pequeno', l.cards === 'pequeno');
+  body.toggle('cards-grande', l.cards === 'grande');
+  body.toggle('big-text', !!l.big_text);
+  body.toggle('list-view', !!l.list);
+  body.toggle('no-motion', l.motion === false);
+  const hidden = l.hidden_tabs || [];
+  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => (b.hidden = hidden.includes(b.dataset.tab)));
+  if (hidden.includes(tab)) tab = 'all';
+}
+
+// Right after a profile is chosen (at start or by switching): its first tab and, at start, the TV.
+let startingUp = true;
+function profileReady() {
+  applyLook();
+  const l = (profiles && profiles.active.look) || {};
+  if (l.home) tab = l.home;
+  openId = null;
+  render();
+  if (startingUp && l.start_tv) tvOpen();
+  startingUp = false;
+}
 
 function renderProfileChip() {
   const btn = $('#btn-profile');
@@ -670,7 +835,7 @@ function renderProfileChip() {
 
 // Everything cached on screen belongs to the previous profile.
 function forgetProfileCaches() {
-  for (const c of [historyCache, backupCache, achCache, raCache, modsState]) for (const id of Object.keys(c)) delete c[id];
+  for (const c of [historyCache, backupCache, achCache, raCache, modsState, artCache]) for (const id of Object.keys(c)) delete c[id];
   raResult = null;
   statsData = null;
 }
@@ -678,6 +843,7 @@ function forgetProfileCaches() {
 async function loadProfiles() {
   profiles = await call('get_profiles');
   renderProfileChip();
+  applyLook();
 }
 
 async function switchProfile(id) {
@@ -690,6 +856,9 @@ async function switchProfile(id) {
   }
   forgetProfileCaches();
   renderProfileChip();
+  applyLook();
+  const home = profiles.active.look && profiles.active.look.home;
+  if (home) tab = home;
   await refresh();
   toast(`Perfil: ${profiles.active.name}.`);
   return true;
@@ -705,7 +874,9 @@ function profileFormHtml() {
         <input type="text" id="profile-name" maxlength="30" value="${esc(f.name)}" placeholder="Nome">
       </div>
       <div class="swatches">${profiles.colors.map((c) =>
-        `<button class="swatch${c === f.color ? ' on' : ''}" style="background:${c}" data-act="profile-color" data-color="${c}" title="Cor"></button>`).join('')}</div>
+        `<button class="swatch${c === f.color ? ' on' : ''}" style="background:${c}" data-act="profile-color" data-color="${c}" title="Cor"></button>`).join('')}
+        <label class="color-pick" title="Qualquer cor"><input type="color" id="profile-color" value="${esc(f.color)}"> outra cor</label></div>
+      ${f.id ? profileLookHtml(profiles.list.find((x) => x.id === f.id)) : '<p class="muted">Depois de criar, edite o perfil para pôr foto, capa e escolher a aparência.</p>'}
       <div class="row">
         <button class="primary" data-act="profile-save">${f.id ? 'Salvar' : 'Criar'}</button>
         <button class="ghost" data-act="profile-cancel">Cancelar</button>
@@ -713,11 +884,73 @@ function profileFormHtml() {
     </div>`;
 }
 
+const TAB_NAMES = { all: 'Todos', port: 'Ports', pc_game: 'Jogos de PC', discover: 'Descobrir', community: 'Comunidade' };
+
+// Pictures and look of one profile, inside its edit form.
+function profileLookHtml(x) {
+  if (!x) return '';
+  const l = x.look || {};
+  const opt = (v, label, cur) => `<option value="${v}"${v === cur ? ' selected' : ''}>${label}</option>`;
+  const withCover = games.filter((g) => g.in_library && g.cover).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+  return `
+    <div class="profile-pics">
+      <div>
+        <h4>Foto</h4>
+        ${avatar(x, true)}
+        <div class="row">
+          <button class="small" data-act="profile-pic" data-v="avatar">Escolher imagem</button>
+          ${withCover.length ? `<select id="profile-pic-game"><option value="">ou a capa de um jogo…</option>${withCover.map((g) => `<option value="${esc(g.id)}">${esc(g.title)}</option>`).join('')}</select>
+            <button class="small" data-act="profile-pic-game" data-v="avatar">Usar a capa</button>` : ''}
+          ${x.avatar ? '<button class="ghost small danger" data-act="profile-pic-clear" data-v="avatar">Tirar</button>' : ''}
+        </div>
+      </div>
+      <div>
+        <h4>Capa do perfil</h4>
+        <div class="profile-banner-preview"${x.banner ? ` style="background-image:url('${x.banner}')"` : ''}>${x.banner ? '' : '<span class="muted">sem capa</span>'}</div>
+        <div class="row">
+          <button class="small" data-act="profile-pic" data-v="banner">Escolher imagem larga</button>
+          ${x.banner ? '<button class="ghost small danger" data-act="profile-pic-clear" data-v="banner">Tirar</button>' : ''}
+        </div>
+        <p class="muted small-text">Aparece no alto do perfil, no "Quem vai jogar?" e no fundo do Modo TV.</p>
+      </div>
+    </div>
+    <h4>Aparência</h4>
+    <label class="check"><input type="checkbox" id="look-accent" ${x.accent ? 'checked' : ''}>
+      Usar a cor deste perfil no programa, no lugar do vermelho.</label>
+    <div class="look-grid">
+      <label>Capas na biblioteca <select id="look-cards">${opt('pequeno', 'Pequenas', l.cards)}${opt('medio', 'Médias', l.cards)}${opt('grande', 'Grandes', l.cards)}</select></label>
+      <label>Abrir na aba <select id="look-home">${Object.entries(TAB_NAMES).map(([k, v]) => opt(k, v, l.home)).join('')}</select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="look-list" ${l.list ? 'checked' : ''}> Biblioteca em lista, em vez de capas.</label>
+    <label class="check"><input type="checkbox" id="look-big" ${l.big_text ? 'checked' : ''}> Letras maiores.</label>
+    <label class="check"><input type="checkbox" id="look-motion" ${l.motion !== false ? 'checked' : ''}> Animações (capas que crescem, telas que deslizam).</label>
+    <label class="check"><input type="checkbox" id="look-sounds" ${l.sounds !== false ? 'checked' : ''}> Sons e vibração do controle no Modo TV.</label>
+    <label class="check"><input type="checkbox" id="look-tv" ${l.start_tv ? 'checked' : ''}> Abrir direto no Modo TV.</label>
+    <p class="muted">Abas que aparecem:</p>
+    <div class="tags-edit">${Object.entries(TAB_NAMES).filter(([k]) => k !== 'all').map(([k, v]) =>
+      `<label class="check inline"><input type="checkbox" class="look-tab" value="${k}" ${(l.hidden_tabs || []).includes(k) ? '' : 'checked'}> ${v}</label>`).join('')}</div>`;
+}
+
+// The look as the edit form has it now.
+function lookFromForm() {
+  return {
+    cards: $('#look-cards').value,
+    home: $('#look-home').value,
+    list: $('#look-list').checked,
+    big_text: $('#look-big').checked,
+    motion: $('#look-motion').checked,
+    sounds: $('#look-sounds').checked,
+    start_tv: $('#look-tv').checked,
+    hidden_tabs: [...document.querySelectorAll('.look-tab')].filter((c) => !c.checked).map((c) => c.value),
+  };
+}
+
 function renderProfiles() {
   const p = profiles;
   $('#detail').innerHTML = `
     <button class="ghost back" data-act="back">← Biblioteca</button>
     <div class="covers-page">
+      ${p.active.banner ? `<div class="profile-hero" style="background-image:url('${p.active.banner}')">${avatar(p.active, true)}<b>${esc(p.active.name)}</b></div>` : ''}
       <h2>Perfis</h2>
       <p>Cada perfil tem o próprio tempo de jogo, histórico, favoritos, ocultos, estado dos jogos e anotações.
         Os jogos instalados são os mesmos para todos.</p>
@@ -728,9 +961,15 @@ function renderProfiles() {
           ${x.id === p.active.id ? '<span class="chip ready">em uso</span>'
             : `<button class="primary small" data-act="profile-use" data-id="${esc(x.id)}">Usar este perfil</button>`}
           <button class="ghost small" data-act="profile-edit" data-id="${esc(x.id)}">Editar</button>
+          <button class="ghost small" data-act="profile-export" data-id="${esc(x.id)}">Exportar</button>
           ${x.id === p.active.id ? '' : `<button class="ghost danger small" data-act="profile-delete" data-id="${esc(x.id)}">Apagar</button>`}
         </li>`).join('')}</ul>
       ${profileFormHtml()}
+      <div class="box">
+        <h3>Levar o perfil para outro PC</h3>
+        <p class="muted">"Exportar" salva um arquivo .zip com o nome, a cor, a foto, a capa, a aparência, as suas capas dos jogos e o progresso (tempo, favoritos, anotações, recados). No outro PC, importe esse arquivo: ele vira um perfil novo, sem apagar nenhum.</p>
+        <div class="row"><button data-act="profile-import">Importar perfil</button></div>
+      </div>
       ${raAccountBox()}
       <div class="box">
         <label class="check"><input type="checkbox" id="profile-ask" ${p.ask_on_start ? 'checked' : ''}>
@@ -758,7 +997,9 @@ const whoPad = { held: {}, nextAt: 0 };
 
 function renderWho() {
   const el = $('#who');
+  const chosen = profiles.list[whoSel];
   el.innerHTML = `
+    ${chosen && chosen.banner ? `<div class="who-art" style="background-image:url('${chosen.banner}')"></div>` : ''}
     <h1>Quem vai jogar?</h1>
     <div class="who-list">${profiles.list.map((x, i) => `
       <button class="who-item${i === whoSel ? ' sel' : ''}" data-i="${i}">${avatar(x, true)}<span>${esc(x.name)}</span></button>`).join('')}</div>
@@ -776,7 +1017,10 @@ function whoOpen() {
 async function whoPick(i) {
   const p = profiles.list[i];
   if (!p) return;
-  if (await switchProfile(p.id)) $('#who').hidden = true;
+  if (await switchProfile(p.id)) {
+    $('#who').hidden = true;
+    if (startingUp) profileReady();
+  }
 }
 
 function whoMove(dx) {
@@ -1878,7 +2122,7 @@ function renderPortDetail(g) {
       ...(g.has_mods ? [['mods', 'Mods', modsBox(g)]] : []),
       ['saves', 'Saves', ''],
       ['conquistas', 'Conquistas', ''],
-      ['ajustes', 'Ajustes', pcCheckBox(g, 'warn') + (filesOk ? filesBox(g) : '') + gfxBox(g) + shaderBox(g) + versionBox(g)
+      ['ajustes', 'Ajustes', pcCheckBox(g, 'warn') + artBox(g) + (filesOk ? filesBox(g) : '') + gfxBox(g) + shaderBox(g) + versionBox(g)
         + shortcutsRow(g) + launchBox(g) + tagsBox(g) + crashScan(g)
         + manageBox(g, 'Abrir pasta do port', g.installed_by_hub
           ? 'Desinstalar apaga a pasta do port, mas guarda seus saves e configurações para a próxima instalação. Remover da biblioteca não apaga nada.'
@@ -2240,23 +2484,63 @@ async function act(action, g, el) {
       break;
     }
     case 'profile-color':
-      profileForm.name = $('#profile-name').value;
+      // No new drawing: what was changed below the colors stays as it is.
       profileForm.color = el.dataset.color;
+      $('#profile-color').value = el.dataset.color;
+      document.querySelectorAll('.swatch').forEach((b) => b.classList.toggle('on', b === el));
+      break;
+    case 'profile-pic':
+    case 'profile-pic-game': {
+      const game = action === 'profile-pic-game' ? $('#profile-pic-game').value : null;
+      if (action === 'profile-pic-game' && !game) {
+        toast('Escolha um jogo na lista.', true);
+        break;
+      }
+      const updated = await call('choose_profile_picture', { id: profileForm.id, which: el.dataset.v, game });
+      if (updated) {
+        profiles = updated;
+        renderProfileChip();
+        render();
+      }
+      break;
+    }
+    case 'profile-pic-clear':
+      profiles = await call('clear_profile_picture', { id: profileForm.id, which: el.dataset.v });
+      renderProfileChip();
       render();
       break;
+    case 'profile-export': {
+      const name = await call('export_profile', { id: el.dataset.id });
+      if (name) toast(`Perfil ${name} salvo. No outro PC, use "Importar perfil" com esse arquivo.`);
+      break;
+    }
+    case 'profile-import': {
+      const updated = await call('import_profile');
+      if (updated) {
+        profiles = updated;
+        render();
+        toast('Perfil importado. Use "Usar este perfil" para jogar com ele.');
+      }
+      break;
+    }
     case 'profile-cancel':
       profileForm = null;
       render();
       break;
     case 'profile-save': {
       const name = $('#profile-name').value;
-      const updated = profileForm.id
-        ? await call('edit_profile', { id: profileForm.id, name, color: profileForm.color })
-        : await call('create_profile', { name, color: profileForm.color });
+      const color = $('#profile-color').value;
+      let updated = profileForm.id
+        ? await call('edit_profile', { id: profileForm.id, name, color })
+        : await call('create_profile', { name, color });
+      if (updated && profileForm.id) {
+        updated = await call('set_profile_look', { id: profileForm.id, accent: $('#look-accent').checked, look: lookFromForm() });
+      }
       if (updated) {
         profiles = updated;
         profileForm = null;
         renderProfileChip();
+        applyLook();
         render();
       }
       break;
@@ -2473,6 +2757,18 @@ async function act(action, g, el) {
       fpsStatus = await invoke('fps_status').catch(() => fpsStatus);
       toast(el.checked ? 'O FPS aparece na próxima vez que um jogo abrir.' : 'Contador de FPS desligado.');
       render();
+      break;
+    case 'art-use':
+      await artChanged(g, await call('set_game_art', { id: g.id, active: el.dataset.v === '' ? null : Number(el.dataset.v) }));
+      break;
+    case 'art-add':
+      await artChanged(g, await call('add_game_art', { id: g.id, kind: el.dataset.v }));
+      break;
+    case 'art-remove':
+      await artChanged(g, await call('remove_game_art', { id: g.id, index: el.dataset.v === '' ? null : Number(el.dataset.v) }));
+      break;
+    case 'resume-clear':
+      setGame(await call('set_resume_note', { id: g.id, text: '', seconds: 0 }));
       break;
     case 'win-security':
       await call('open_windows_security');
@@ -2696,6 +2992,7 @@ listen('session', async (e) => {
   if (state === 'ended' && seconds > 0) {
     const g = games.find((x) => x.id === id);
     toast(`Sessão de ${playTime(seconds).toLowerCase()} somada a ${g ? g.title : id}.`);
+    if (g && seconds >= RESUME_MIN_SECONDS) resumeOpen(g, seconds);
   }
 });
 
@@ -3049,6 +3346,7 @@ function renderCommunityDetail(g) {
           ['conquistas', 'Conquistas', ''],
           ['ajustes', 'Ajustes', `
             ${pcCheckBox(g, 'warn')}
+            ${artBox(g)}
             ${g.status !== 'needs_exe' && !choices ? '<div class="box"><h3>Programa do botão Jogar</h3><div class="row"><button data-act="exe-list">Trocar o programa</button></div></div>' : ''}
             ${gfxBox(g)}
             ${shortcutsRow(g)}
@@ -3130,7 +3428,8 @@ function isShown(el) {
 // What the controller can reach: the open dialog only, when there is one.
 function padTargets() {
   const tour = $('#tour');
-  const root = tour && !tour.hidden ? tour : document;
+  const resume = $('#resume');
+  const root = resume && !resume.hidden ? resume : tour && !tour.hidden ? tour : document;
   return [...root.querySelectorAll(FOCUSABLE)].filter(isShown);
 }
 
@@ -3213,6 +3512,10 @@ function padOk() {
 }
 
 function padBack() {
+  if (resumeAsk) {
+    resumeClose();
+    return;
+  }
   const menu = document.querySelector('.menu-list:not([hidden])');
   if (menu) {
     menu.hidden = true;
@@ -3259,7 +3562,7 @@ function renderPadHints() {
 
 function padPoll(t) {
   const p = readPad();
-  if (p && !tvOn && $('#who').hidden) {
+  if (p && (resumeAsk || (!tvOn && $('#who').hidden))) {
     const e = padEdges(navPad, p, t);
     if (p.changed) renderPadHints();
     if (e.dx || e.dy) padMove(e.dx, e.dy);
@@ -3309,10 +3612,11 @@ let tvGuide = null;      // index of the Guide item in focus, null when closed
 let tvClock = null;
 let tvSlide = '';        // 'l' / 'r' right after changing section, for the slide-in
 
-const TV_SOUND_KEY = 'recomphub-tv-som';
 
+// Part of the profile's look (Perfil > Aparência).
 function tvSoundOn() {
-  try { return localStorage.getItem(TV_SOUND_KEY) !== '0'; } catch { return true; }
+  const l = profiles && profiles.active && profiles.active.look;
+  return !l || l.sounds !== false;
 }
 
 let tvAudio = null;
@@ -3417,13 +3721,16 @@ function tvInfo(x) {
     ['Última vez', lastPlayed(g.last_played)],
   ];
   if (ach && ach[3]) pairs.push(['Conquistas', `${ach[2]} de ${ach[3]}`]);
-  return `${fam}<h1>${esc(g.title)}</h1>${tvMeta(pairs)}`;
+  const note = g.resume ? `<p class="tv-resume">“${esc(g.resume.text)}” · ${daysAgo(g.resume.at)}</p>` : '';
+  return `${fam}<h1>${esc(g.title)}</h1>${tvMeta(pairs)}${note}`;
 }
 
 // The art of the chosen game behind everything: its banner, else its cover.
 function tvArt(x) {
-  if (!x || !x.game) return '';
+  // Nothing chosen (Sistema, an empty section): the profile's own wide picture.
+  if (!x || !x.game) return (profiles && profiles.active.banner) || '';
   const g = x.game;
+  if (g.background) return g.background;
   if (g.in_library && metaCache[g.id] === undefined) {
     metaCache[g.id] = 'loading';
     setTimeout(() => loadMeta(g.id).then(() => { if (tvOn) renderTv(); }), 0);
@@ -3587,9 +3894,10 @@ function tvDetails() {
 function tvSystem(id) {
   if (id === 'perfil') whoOpen();
   else if (id === 'som') {
-    try { localStorage.setItem(TV_SOUND_KEY, tvSoundOn() ? '0' : '1'); } catch { /* stays as it was */ }
-    tvSound('ok');
-    renderTv();
+    const p = profiles.active;
+    invoke('set_profile_look', { id: p.id, accent: p.accent, look: { ...p.look, sounds: !tvSoundOn() } })
+      .then((v) => { profiles = v; tvSound('ok'); renderTv(); })
+      .catch((e) => toast(String(e), true));
   } else if (id === 'estatisticas') tvLeaveTo(openStats);
   else if (id === 'config') tvLeaveTo(() => $('#btn-settings').click());
   else if (id === 'sair') tvClose();
@@ -3647,8 +3955,8 @@ function tvPoll(t) {
   const p = readPad();
   if (p) {
     const e = padEdges(tvPad, p, t);
-    // "Quem vai jogar?" on top reads the controller itself.
-    if (!$('#who').hidden) {
+    // "Quem vai jogar?" and the "Onde você parou?" question on top read the controller themselves.
+    if (!$('#who').hidden || resumeAsk) {
       requestAnimationFrame(tvPoll);
       return;
     }
@@ -3676,7 +3984,7 @@ function tvPoll(t) {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (!tvOn || !$('#who').hidden) return;
+  if (!tvOn || !$('#who').hidden || resumeAsk) return;
   const k = e.key.toLowerCase();
   let done = true;
   if (tvGuide !== null) {
@@ -3896,6 +4204,10 @@ refresh()
     await loadProfiles();
     // A shortcut opening a game skips the question: it is already clear who is playing.
     if (!pending && profiles && profiles.ask_on_start && profiles.list.length > 1) whoOpen();
-    else if (!pending && !tourSeen()) openTour();
+    else {
+      if (!pending) profileReady();
+      startingUp = false;
+      if (!pending && !tourSeen()) openTour();
+    }
   })
   .then(() => invoke('check_updates').then((list) => { games = list; render(); }).catch(() => {}));

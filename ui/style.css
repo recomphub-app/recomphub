@@ -596,3 +596,70 @@ body.pad-on main { padding-bottom: 64px; }
   font-family: var(--mono); font-weight: 600; color: var(--text);
   border: 1.5px solid var(--rule); border-radius: 2px;
 }
+
+/* Personalização: pictures and look of each profile */
+.avatar.img { background: var(--panel-2); border: 2px solid var(--line); overflow: hidden; padding: 0; }
+.avatar.img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-hero {
+  display: flex; align-items: flex-end; gap: 16px; min-height: 180px; padding: 18px; margin-bottom: 18px;
+  background: center / cover no-repeat; border: 1px solid var(--line); position: relative;
+}
+.profile-hero::before { content: ""; position: absolute; inset: 0; background: rgba(19, 17, 15, .45); }
+.profile-hero > * { position: relative; }
+.profile-hero b { font-family: var(--wide); font-stretch: 118%; font-weight: 850; font-size: 26px; }
+.profile-pics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 24px; margin: 14px 0; }
+.profile-pics h4, .covers-page h4, .box h4 { margin: 12px 0 8px; font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.profile-banner-preview {
+  aspect-ratio: 3 / 1; max-width: 520px; background: var(--panel) center / cover no-repeat;
+  border: 1px solid var(--line); display: grid; place-items: center;
+}
+.color-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.color-pick input { width: 34px; height: 30px; padding: 0; border: 1px solid var(--line); background: none; cursor: pointer; }
+.look-grid { display: flex; flex-wrap: wrap; gap: 18px; margin: 8px 0; }
+.look-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+label.check.inline { display: inline-flex; margin: 4px 14px 4px 0; }
+@media (max-width: 700px) { .profile-pics { grid-template-columns: 1fr; } }
+
+/* "Quem vai jogar?" behind the chosen profile's wide picture */
+.who-art { position: absolute; inset: 0; background: center / cover no-repeat; opacity: .32; }
+.who > *:not(.who-art) { position: relative; }
+
+/* Cover size, bigger text, list, no motion (Perfil > Aparência) */
+body.cards-pequeno .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px 16px; }
+body.cards-pequeno .card .title { font-size: 13px; }
+body.cards-grande .grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 34px 26px; }
+body.cards-grande .card .title { font-size: 18px; }
+body.big-text { font-size: 16.5px; }
+body.big-text .card .meta, body.big-text .chip { font-size: 13px; }
+body.list-view .grid { grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--rule); }
+body.list-view .card { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+body.list-view .card .cover { width: 64px; height: 64px; }
+body.list-view .card .cover .placeholder { font-size: 10px; padding: 4px; }
+body.list-view .card .body { padding: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+body.list-view .card .title { margin: 0; }
+body.list-view .card .meta { margin: 0; }
+body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation: none !important; transition: none !important; }
+
+/* Minhas capas on the game page */
+.art-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin: 10px 0; }
+.art-item { border: 2px solid var(--line); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.art-item.on { border-color: var(--red); }
+.art-item img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
+.art-item .row { margin: 0; }
+.art-item input[type=text] { min-width: 0; width: 100%; font-size: 12px; padding: 5px 7px; }
+.art-library { aspect-ratio: 1 / 1; display: grid; place-items: center; text-align: center; padding: 8px; background: var(--panel); color: var(--muted); font-size: 12px; }
+
+/* Onde eu parei */
+.resume { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; padding: 16px; background: rgba(19, 17, 15, .78); }
+.resume[hidden] { display: none; }
+.resume-card { width: min(600px, 100%); background: var(--bg); border: 2px solid var(--rule); border-left: 6px solid var(--red); padding: 22px 24px; }
+.resume-card h2 { margin: 0 0 6px; font-size: 26px; }
+.resume-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.resume-chips .tag { font-size: 13px; padding: 5px 10px; }
+.resume-card input[type=text] { width: 100%; }
+.resume-note { margin: 4px 0 14px; padding: 6px 0 6px 12px; border-left: 3px solid var(--line); }
+.resume-note .k { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.resume-note p { margin: 2px 0; }
+.resume-note.old { border-left-color: var(--red); }
+.resume-note.old p { font-family: var(--wide); font-stretch: 112%; font-weight: 750; font-size: 18px; }
+.tv-resume { margin: 2vh 0 0; font-size: max(17px, 2.4vh); color: var(--text); border-left: 4px solid var(--red); padding-left: 12px; max-width: 40em; }

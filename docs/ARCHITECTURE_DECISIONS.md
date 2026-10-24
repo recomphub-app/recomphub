@@ -366,6 +366,23 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     GitHub só mudam de nome depois de uma versão publicada que aceite os dois endereços, para
     quem usa uma versão antiga continuar recebendo o aviso de atualização.
 
+64. **Cada perfil do seu jeito.** Decidido com o Codex (cada um propôs sem ver o outro, depois
+    um avaliou o outro; ficou só o consenso). O perfil ganha foto e capa (imagem do PC ou a capa
+    de um jogo), qualquer cor (`#rrggbb`), a opção de usar essa cor no lugar do vermelho e uma
+    aparência (tamanho das capas, letras maiores, lista, aba inicial, abas visíveis, animações,
+    sons e abrir no Modo TV). As capas de um jogo podem ser só do perfil, com várias versões e
+    legenda, e um fundo próprio no Modo TV; os outros perfis continuam vendo a capa da
+    biblioteca. As imagens ficam em `profiles/arte/<perfil>/`, com nomes dados pelo programa e
+    conferidas pelos primeiros bytes, até 10 MB. "Exportar" gera um .zip com o perfil (sem a
+    chave do RetroAchievements), o progresso e as imagens; "Importar" sempre cria um perfil
+    novo e descarta referências a imagens que não vieram no arquivo.
+65. **Onde eu parei.** Ao fim de uma sessão de 2 minutos ou mais, o programa pergunta onde o
+    jogador parou (atalhos prontos ou texto, até 140 letras, pelo controle também). O recado é
+    do perfil e aparece acima do Jogar e no Modo TV; depois de 3 dias ele ganha destaque.
+    Ficaram de fora, por falta de consenso: vitrine de jogos e bio, "troca de sofá" e
+    retrospectiva. Descartadas pelos dois: comparar requisitos da Steam com o PC e trocar de
+    perfil pelo controle.
+
 ## Capas
 
 13. **Ordem fixa:** capa escolhida pelo jogador → imagem dos arquivos do próprio jogo → capa
