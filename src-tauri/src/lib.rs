@@ -3070,7 +3070,10 @@ async fn choose_profile_picture(app: AppHandle, id: String, which: String, game:
         return Err("Perfil não encontrado.".into());
     }
     let src = match &game {
-        Some(g) => cover_file(&state, g, None).map(|(p, _)| p).ok_or("Este jogo ainda não tem capa.")?,
+        // A wide picture comes from the game's banner when there is one.
+        Some(g) => (which == "banner").then(|| meta::image(&state.meta_dir, g, "banner")).flatten()
+            .or_else(|| cover_file(&state, g, None).map(|(p, _)| p))
+            .ok_or("Este jogo ainda não tem imagem.")?,
         None => {
             let title = if which == "avatar" { "Escolha a foto do perfil" } else { "Escolha a capa do perfil (imagem larga)" };
             match pick_picture(&app, title) {

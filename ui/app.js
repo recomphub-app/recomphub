@@ -151,7 +151,49 @@ function renderTabs() {
   if (sel) sel.addEventListener('change', () => { tagFilter = sel.value || null; render(); });
 }
 
+// On top of the library: the profile's wide picture, a greeting and "Continuar jogando" with the
+// game played last (and the note left on it).
+function renderLibHero() {
+  const el = $('#lib-hero');
+  if (!el) return;
+  const p = profiles && profiles.active;
+  const l = (p && p.look) || {};
+  if (!p || !p.banner || l.banner_home === false) {
+    el.innerHTML = '';
+    el.className = '';
+    return;
+  }
+  const last = games.filter((g) => g.in_library && !g.hidden && g.last_played && !['not_installed', 'missing'].includes(g.status))
+    .sort((a, b) => b.last_played - a.last_played)[0];
+  const h = new Date().getHours();
+  const hello = h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  el.className = 'lib-hero';
+  el.innerHTML = `
+    <div class="lib-hero-art" style="background-image:url('${p.banner}');background-position:${bannerPos(p)}"></div>
+    <div class="lib-hero-who">${avatar(p, true)}<div><span class="k">${hello},</span><b>${esc(p.name)}</b></div></div>
+    ${last ? `
+      <div class="lib-hero-go">
+        <span class="k">Continuar jogando</span>
+        <b>${esc(last.title)}</b>
+        ${last.resume ? `<p>“${esc(last.resume.text)}”</p>` : `<p class="muted">Última vez ${lastPlayed(last.last_played)}</p>`}
+        <div class="row">
+          <button class="primary" data-hero="play" ${last.status === 'ready' || last.status === 'running' ? '' : 'disabled'}>${last.status === 'running' ? 'Mostrar o jogo' : 'Jogar'}</button>
+          <button class="ghost" data-hero="open">Ver o jogo</button>
+        </div>
+      </div>` : ''}`;
+  const play = el.querySelector('[data-hero="play"]');
+  if (play) {
+    play.addEventListener('click', async () => {
+      await call('play', { id: last.id });
+      setGame(await call('get_game', { id: last.id }));
+    });
+  }
+  const open = el.querySelector('[data-hero="open"]');
+  if (open) open.addEventListener('click', () => openGame(last.id));
+}
+
 function renderGrid() {
+  renderLibHero();
   if (tab === 'community') return renderCommunityGrid();
   $('#community-head').hidden = true;
   renderTabs();
@@ -700,6 +742,13 @@ function artBox(g) {
     </div>`;
 }
 
+// The banner preview follows the chosen part right away.
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'look-banner-pos') return;
+  const prev = $('#banner-preview');
+  if (prev) prev.style.backgroundPosition = `center ${e.target.value}`;
+});
+
 // A caption is kept when the field loses the focus.
 document.addEventListener('change', async (e) => {
   if (!e.target.classList || !e.target.classList.contains('art-caption') || !openId) return;
@@ -866,7 +915,7 @@ async function switchProfile(id) {
 
 function profileFormHtml() {
   const f = profileForm;
-  if (!f) return '<div class="row"><button class="primary" data-act="profile-new">Criar perfil</button></div>';
+  if (!f) return '';
   return `
     <div class="box">
       <h3>${f.id ? 'Editar perfil' : 'Novo perfil'}</h3>
@@ -880,6 +929,9 @@ function profileFormHtml() {
       <div class="row">
         <button class="primary" data-act="profile-save">${f.id ? 'Salvar' : 'Criar'}</button>
         <button class="ghost" data-act="profile-cancel">Cancelar</button>
+        ${f.id && f.id !== profiles.active.id ? `<button data-act="profile-use" data-id="${esc(f.id)}">Usar este perfil</button>` : ''}
+        ${f.id ? `<button class="ghost" data-act="profile-export" data-id="${esc(f.id)}">Exportar</button>` : ''}
+        ${f.id && f.id !== profiles.active.id ? `<button class="ghost danger" data-act="profile-delete" data-id="${esc(f.id)}">Apagar perfil</button>` : ''}
       </div>
     </div>`;
 }
@@ -906,12 +958,18 @@ function profileLookHtml(x) {
       </div>
       <div>
         <h4>Capa do perfil</h4>
-        <div class="profile-banner-preview"${x.banner ? ` style="background-image:url('${x.banner}')"` : ''}>${x.banner ? '' : '<span class="muted">sem capa</span>'}</div>
+        <div class="profile-banner-preview" id="banner-preview"${x.banner ? ` style="background-image:url('${x.banner}');background-position:${bannerPos(x)}"` : ''}>${x.banner ? '' : '<span class="muted">sem capa</span>'}</div>
         <div class="row">
           <button class="small" data-act="profile-pic" data-v="banner">Escolher imagem larga</button>
+          ${withCover.length ? `<select id="profile-banner-game"><option value="">ou a arte de um jogo…</option>${withCover.map((g) => `<option value="${esc(g.id)}">${esc(g.title)}</option>`).join('')}</select>
+            <button class="small" data-act="profile-pic-game" data-v="banner">Usar a arte</button>` : ''}
           ${x.banner ? '<button class="ghost small danger" data-act="profile-pic-clear" data-v="banner">Tirar</button>' : ''}
         </div>
-        <p class="muted small-text">Aparece no alto do perfil, no "Quem vai jogar?" e no fundo do Modo TV.</p>
+        ${x.banner ? `<label class="inline-field">Parte que aparece
+          <select id="look-banner-pos">${opt('top', 'De cima', l.banner_pos)}${opt('center', 'Do meio', l.banner_pos)}${opt('bottom', 'De baixo', l.banner_pos)}</select></label>` : ''}
+        <label class="check"><input type="checkbox" id="look-banner-home" ${l.banner_home !== false ? 'checked' : ''}>
+          Mostrar a capa no alto da biblioteca, com "Continuar jogando".</label>
+        <p class="muted small-text">Aparece também no "Quem vai jogar?", no alto de "Gerenciar perfis" e no fundo do Modo TV.</p>
       </div>
     </div>
     <h4>Aparência</h4>
@@ -942,6 +1000,8 @@ function lookFromForm() {
     sounds: $('#look-sounds').checked,
     start_tv: $('#look-tv').checked,
     hidden_tabs: [...document.querySelectorAll('.look-tab')].filter((c) => !c.checked).map((c) => c.value),
+    banner_pos: $('#look-banner-pos') ? $('#look-banner-pos').value : 'center',
+    banner_home: $('#look-banner-home').checked,
   };
 }
 
@@ -950,20 +1010,24 @@ function renderProfiles() {
   $('#detail').innerHTML = `
     <button class="ghost back" data-act="back">← Biblioteca</button>
     <div class="covers-page">
-      ${p.active.banner ? `<div class="profile-hero" style="background-image:url('${p.active.banner}')">${avatar(p.active, true)}<b>${esc(p.active.name)}</b></div>` : ''}
-      <h2>Perfis</h2>
-      <p>Cada perfil tem o próprio tempo de jogo, histórico, favoritos, ocultos, estado dos jogos e anotações.
-        Os jogos instalados são os mesmos para todos.</p>
-      <ul class="profiles">${p.list.map((x) => `
-        <li class="${x.id === p.active.id ? 'on' : ''}">
-          ${avatar(x, true)}
-          <b>${esc(x.name)}</b>
-          ${x.id === p.active.id ? '<span class="chip ready">em uso</span>'
-            : `<button class="primary small" data-act="profile-use" data-id="${esc(x.id)}">Usar este perfil</button>`}
-          <button class="ghost small" data-act="profile-edit" data-id="${esc(x.id)}">Editar</button>
-          <button class="ghost small" data-act="profile-export" data-id="${esc(x.id)}">Exportar</button>
-          ${x.id === p.active.id ? '' : `<button class="ghost danger small" data-act="profile-delete" data-id="${esc(x.id)}">Apagar</button>`}
-        </li>`).join('')}</ul>
+      ${(() => {
+        const hp = (profileForm && profileForm.id && p.list.find((x) => x.id === profileForm.id)) || p.active;
+        return hp.banner ? `<div class="profile-hero" style="background-image:url('${hp.banner}');background-position:${bannerPos(hp)}">${avatar(hp, true)}<b>${esc(hp.name)}</b></div>` : '';
+      })()}
+      <h2 class="manage-title">Gerenciar perfis</h2>
+      <p class="muted manage-sub">Escolha um perfil para mudar foto, capa, cor e aparência. Cada um tem o próprio tempo de jogo,
+        histórico, favoritos, conquistas e recados; os jogos instalados são os mesmos para todos.</p>
+      <div class="who-list manage">
+        ${p.list.map((x) => `
+          <button class="who-item${profileForm && profileForm.id === x.id ? ' sel' : ''}" data-act="profile-edit" data-id="${esc(x.id)}">
+            <span class="who-face">${avatar(x, true)}<span class="who-pen">✎</span></span>
+            <span class="who-name">${esc(x.name)}${x.id === p.active.id ? '<small>em uso</small>' : ''}</span>
+          </button>`).join('')}
+        ${p.list.length < MAX_PROFILES ? `
+          <button class="who-item who-add${profileForm && !profileForm.id ? ' sel' : ''}" data-act="profile-new">
+            <span class="who-face"><span class="who-plus">+</span></span><span class="who-name">Adicionar perfil</span>
+          </button>` : ''}
+      </div>
       ${profileFormHtml()}
       <div class="box">
         <h3>Levar o perfil para outro PC</h3>
@@ -991,20 +1055,64 @@ async function openProfiles() {
   render();
 }
 
-// "Quem vai jogar?": mouse, keyboard (setas + Enter) or controller (direcional + A).
-let whoSel = 0;
+// "Quem vai jogar?", as the Netflix profile screen: big pictures in a row, the name under each,
+// "Adicionar perfil" at the end and "Gerenciar perfis" below. Mouse, keyboard (setas + Enter)
+// or controller (direcional + A). Opened by the profile button too, to switch at any time.
+let whoSel = 0;          // 0..n-1 a profile, n "Adicionar perfil", -1 "Gerenciar perfis"
 const whoPad = { held: {}, nextAt: 0 };
+const MAX_PROFILES = 12;
+
+// Where a wide picture is cut, as the profile chose (Perfil > Capa do perfil).
+function bannerPos(p) {
+  const pos = (p && p.look && p.look.banner_pos) || 'center';
+  return `center ${pos}`;
+}
+
+function whoCanAdd() {
+  return profiles.list.length < MAX_PROFILES;
+}
 
 function renderWho() {
   const el = $('#who');
+  const n = profiles.list.length;
   const chosen = profiles.list[whoSel];
+  const tile = (i, face, name, cls = '') => `
+    <button class="who-item${cls}${i === whoSel ? ' sel' : ''}" data-i="${i}">
+      <span class="who-face">${face}</span><span class="who-name">${name}</span>
+    </button>`;
   el.innerHTML = `
-    ${chosen && chosen.banner ? `<div class="who-art" style="background-image:url('${chosen.banner}')"></div>` : ''}
+    ${chosen && chosen.banner ? `<div class="who-art" style="background-image:url('${chosen.banner}');background-position:${bannerPos(chosen)}"></div>` : ''}
     <h1>Quem vai jogar?</h1>
-    <div class="who-list">${profiles.list.map((x, i) => `
-      <button class="who-item${i === whoSel ? ' sel' : ''}" data-i="${i}">${avatar(x, true)}<span>${esc(x.name)}</span></button>`).join('')}</div>
-    <p class="muted">Use o mouse, as setas e Enter, ou o direcional e o botão ${padName('ok')} do controle.</p>`;
-  el.querySelectorAll('.who-item').forEach((b) => b.addEventListener('click', () => whoPick(Number(b.dataset.i))));
+    <div class="who-list">
+      ${profiles.list.map((x, i) => tile(i, avatar(x, true), esc(x.name), x.id === profiles.active.id ? ' current' : '')).join('')}
+      ${whoCanAdd() ? tile(n, '<span class="who-plus">+</span>', 'Adicionar perfil', ' who-add') : ''}
+    </div>
+    <button class="who-manage${whoSel === -1 ? ' sel' : ''}" data-manage>Gerenciar perfis</button>
+    ${startingUp ? '' : `<p class="muted who-hint"><b>${padKind !== null ? padName('back') : 'Esc'}</b> volta sem trocar</p>`}`;
+  el.querySelectorAll('.who-item').forEach((b) => {
+    b.addEventListener('click', () => whoPick(Number(b.dataset.i)));
+    b.addEventListener('mouseenter', () => { whoSel = Number(b.dataset.i); whoMark(); });
+  });
+  el.querySelector('[data-manage]').addEventListener('click', () => whoPick(-1));
+}
+
+// Only the marks change on hover, so the picture behind does not blink.
+function whoMark() {
+  document.querySelectorAll('#who .who-item').forEach((b) => b.classList.toggle('sel', Number(b.dataset.i) === whoSel));
+  const m = document.querySelector('#who .who-manage');
+  if (m) m.classList.toggle('sel', whoSel === -1);
+  const chosen = profiles.list[whoSel];
+  const art = document.querySelector('#who .who-art');
+  if (chosen && chosen.banner) {
+    if (art) {
+      art.style.backgroundImage = `url('${chosen.banner}')`;
+      art.style.backgroundPosition = bannerPos(chosen);
+    } else {
+      renderWho();
+    }
+  } else if (art) {
+    art.remove();
+  }
 }
 
 function whoOpen() {
@@ -1014,18 +1122,39 @@ function whoOpen() {
   requestAnimationFrame(whoPoll);
 }
 
-async function whoPick(i) {
-  const p = profiles.list[i];
-  if (!p) return;
-  if (await switchProfile(p.id)) {
-    $('#who').hidden = true;
-    if (startingUp) profileReady();
-  }
+function whoClose() {
+  $('#who').hidden = true;
+  if (startingUp) profileReady();
 }
 
-function whoMove(dx) {
-  whoSel = (whoSel + dx + profiles.list.length) % profiles.list.length;
-  renderWho();
+async function whoPick(i) {
+  if (i === -1 || i === profiles.list.length) {
+    // "Gerenciar perfis" / "Adicionar perfil": the profiles page, with the new profile form open.
+    whoClose();
+    await openProfiles();
+    if (i !== -1) {
+      profileForm = { id: null, name: '', color: profiles.colors[profiles.list.length % profiles.colors.length] };
+      render();
+    }
+    return;
+  }
+  const p = profiles.list[i];
+  if (!p) return;
+  if (await switchProfile(p.id)) whoClose();
+}
+
+// Left and right go through the profiles (and "Adicionar"); down reaches "Gerenciar perfis".
+function whoMove(dx, dy = 0) {
+  const last = whoCanAdd() ? profiles.list.length : profiles.list.length - 1;
+  if (dy > 0) whoSel = -1;
+  else if (dy < 0 && whoSel === -1) whoSel = 0;
+  else if (dx && whoSel !== -1) whoSel = Math.max(0, Math.min(last, whoSel + dx));
+  whoMark();
+}
+
+function whoBack() {
+  // At start someone has to be chosen; later the screen closes without switching.
+  if (!startingUp) $('#who').hidden = true;
 }
 
 function whoPoll(t) {
@@ -1035,16 +1164,18 @@ function whoPoll(t) {
     if (p.changed) renderWho();
     const e = padEdges(whoPad, p, t, [400, 160]);
     if (e.ok) whoPick(whoSel);
-    if (e.dx || e.dy) whoMove(e.dx || e.dy);
+    if (e.back) whoBack();
+    if (e.dx || e.dy) whoMove(e.dx, e.dy);
   }
   requestAnimationFrame(whoPoll);
 }
 
 document.addEventListener('keydown', (e) => {
   if ($('#who').hidden) return;
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { whoMove(-1); e.preventDefault(); }
-  else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { whoMove(1); e.preventDefault(); }
+  const keys = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (keys[e.key]) { whoMove(...keys[e.key]); e.preventDefault(); }
   else if (e.key === 'Enter') { whoPick(whoSel); e.preventDefault(); }
+  else if (e.key === 'Escape') { whoBack(); e.preventDefault(); }
 });
 
 // ---- Conquistas ----
@@ -1470,7 +1601,9 @@ function decorateMeta(g) {
   const detail = document.querySelector('#detail .detail');
   if (!detail) return;
   const m = metaCache[g.id];
-  if (m && m.banner) detail.insertAdjacentHTML('beforebegin', `<img class="hero" src="${m.banner}" alt="">`);
+  // The profile's own background for the game (Minhas capas) comes before the downloaded banner.
+  const hero = g.background || (m && m.banner);
+  if (hero) detail.insertAdjacentHTML('beforebegin', `<img class="hero" src="${hero}" alt="">`);
   const geral = document.querySelector('#pane-geral');
   if (geral) geral.insertAdjacentHTML('afterbegin', aboutBox(g));
 }
@@ -2491,7 +2624,7 @@ async function act(action, g, el) {
       break;
     case 'profile-pic':
     case 'profile-pic-game': {
-      const game = action === 'profile-pic-game' ? $('#profile-pic-game').value : null;
+      const game = action === 'profile-pic-game' ? $(el.dataset.v === 'banner' ? '#profile-banner-game' : '#profile-pic-game').value : null;
       if (action === 'profile-pic-game' && !game) {
         toast('Escolha um jogo na lista.', true);
         break;
@@ -3783,7 +3916,7 @@ function renderTv() {
   const ach = achSummary ? `<span class="tv-trophy">🏆 ${achSummary.unlocked}</span>` : '';
   const shoulder = (k, kb) => `<span class="tv-key">${padKind !== null ? padName(k) : kb}</span>`;
   $('#tv').innerHTML = `
-    <div class="tv-art"${art ? ` style="background-image:url('${art.replace(/'/g, '%27')}')"` : ''}></div>
+    <div class="tv-art"${art ? ` style="background-image:url('${art.replace(/'/g, '%27')}')${p && art === p.banner ? `;background-position:${bannerPos(p)}` : ''}"` : ''}></div>
     <div class="tv-scrim"></div>
     <header class="tv-top">
       <div class="brand">Black <span>Flag</span></div>
@@ -4158,7 +4291,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('#tour').hidden) closeTour();
 });
 
-$('#btn-profile').addEventListener('click', openProfiles);
+$('#btn-profile').addEventListener('click', () => (profiles ? whoOpen() : openProfiles()));
 $('#btn-stats').addEventListener('click', openStats);
 $('#btn-settings').addEventListener('click', async () => {
   settings = await call('get_settings');

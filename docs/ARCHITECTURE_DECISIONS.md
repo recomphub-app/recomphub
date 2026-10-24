@@ -383,6 +383,16 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     retrospectiva. Descartadas pelos dois: comparar requisitos da Steam com o PC e trocar de
     perfil pelo controle.
 
+66. **Perfis como na Netflix.** "Quem vai jogar?" mostra fotos quadradas grandes com o nome
+    embaixo, moldura clara no escolhido, "Adicionar perfil" no fim e "Gerenciar perfis" abaixo
+    (setas, controle e mouse); o botão do perfil no topo abre essa tela para trocar a qualquer
+    hora, e Esc/B volta sem trocar (menos ao abrir o programa, quando alguém precisa ser
+    escolhido). "Gerenciar perfis" usa os mesmos quadrados com um lápis; clicar abre a edição.
+    A capa do perfil ganhou a parte que aparece (de cima, do meio, de baixo), pode vir da arte de
+    um jogo (o banner baixado, senão a capa) e, se o jogador quiser, fica no alto da biblioteca
+    com um "Continuar jogando" do último jogo e o recado dele. O fundo próprio de um jogo
+    também aparece no alto da página do jogo, não só no Modo TV.
+
 ## Capas
 
 13. **Ordem fixa:** capa escolhida pelo jogador → imagem dos arquivos do próprio jogo → capa

@@ -67,6 +67,16 @@ pub struct Look {
     /// Open straight in the Modo TV.
     #[serde(default)]
     pub start_tv: bool,
+    /// Which part of the wide profile picture shows when it is cut: "top", "center" or "bottom".
+    #[serde(default = "center")]
+    pub banner_pos: String,
+    /// The wide profile picture on top of the library, with "Continuar jogando".
+    #[serde(default = "yes")]
+    pub banner_home: bool,
+}
+
+fn center() -> String {
+    "center".into()
 }
 
 fn medium() -> String {
@@ -79,7 +89,7 @@ fn all_tab() -> String {
 
 impl Default for Look {
     fn default() -> Self {
-        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false }
+        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false, banner_pos: center(), banner_home: true }
     }
 }
 
@@ -96,6 +106,9 @@ impl Look {
         }
         self.hidden_tabs.retain(|t| TABS.contains(&t.as_str()) && t != "all");
         self.hidden_tabs.dedup();
+        if !["top", "center", "bottom"].contains(&self.banner_pos.as_str()) {
+            self.banner_pos = center();
+        }
         if self.hidden_tabs.contains(&self.home) {
             self.home = all_tab();
         }
@@ -377,8 +390,9 @@ mod tests {
 
     #[test]
     fn looks_keep_only_known_values() {
-        let l = Look { cards: "gigante".into(), home: "port".into(), hidden_tabs: vec!["port".into(), "all".into(), "x".into()], ..Default::default() }.cleaned();
+        let l = Look { cards: "gigante".into(), home: "port".into(), banner_pos: "lado".into(), hidden_tabs: vec!["port".into(), "all".into(), "x".into()], ..Default::default() }.cleaned();
         assert_eq!(l.cards, "medio");
+        assert_eq!(l.banner_pos, "center");
         assert_eq!(l.hidden_tabs, vec!["port".to_string()]);
         assert_eq!(l.home, "all", "a hidden tab is never the first one");
         let old: Profile = serde_json::from_str(r##"{"id":"a","name":"A","color":"#e0a32e","created":1}"##).unwrap();

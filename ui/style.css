@@ -433,20 +433,48 @@ button.small { font-size: 12px; padding: 4px 10px; }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
 .swatch { width: 30px; height: 30px; border-radius: 2px; padding: 0; border: 2px solid transparent; }
 .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg) inset; }
+/* "Quem vai jogar?" as the Netflix profile screen: big square pictures, the name under each, a
+   light frame on the chosen one, "Adicionar perfil" and "Gerenciar perfis". */
 .who {
   position: fixed; inset: 0; z-index: 50; background: var(--bg);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; padding: 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4.5vh; padding: 16px;
 }
 .who[hidden] { display: none; }
-.who h1 { font-size: 36px; font-stretch: 125%; font-weight: 900; margin: 0; }
-.who-list { display: flex; gap: 26px; flex-wrap: wrap; justify-content: center; }
+.who h1 { font-size: clamp(32px, 5vw, 60px); font-stretch: 125%; font-weight: 900; margin: 0; }
+.who-list { display: flex; gap: clamp(16px, 2.4vw, 36px); flex-wrap: wrap; justify-content: center; max-width: 1200px; }
 .who-item {
-  display: flex; flex-direction: column; align-items: center; gap: 12px; width: 150px; padding: 16px 10px;
-  background: transparent; border: 2px solid transparent; border-radius: 0; font-size: 17px;
-  transition: transform .1s, border-color .1s;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  width: clamp(110px, 11vw, 190px); padding: 0;
+  background: none; border: 0; border-radius: 0; color: var(--muted); font-size: clamp(15px, 1.5vw, 21px);
 }
-.who-item .avatar.big { width: 84px; height: 84px; font-size: 38px; }
-.who-item.sel, .who-item:hover:not(:disabled) { border-color: var(--red); transform: scale(1.04); }
+.who-item:hover:not(:disabled) { border-color: transparent; }
+.who-face {
+  position: relative; display: block; width: 100%; aspect-ratio: 1 / 1;
+  outline: 4px solid transparent; outline-offset: 0; transition: outline-color .12s, transform .12s;
+}
+.who-face .avatar.big { width: 100%; height: 100%; font-size: clamp(46px, 5.5vw, 96px); border-width: 0; }
+.who-item.sel .who-face, .who-item:hover .who-face { outline-color: var(--rule); transform: scale(1.05); }
+.who-item.sel .who-name, .who-item:hover .who-name { color: var(--text); }
+.who-name small { display: block; margin-top: 4px; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--red); }
+.who-plus {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  border: 2px dashed var(--line); color: var(--muted); font: 300 clamp(48px, 5vw, 80px) var(--wide);
+}
+.who-pen {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(19, 17, 15, .5); color: var(--text); font-size: clamp(28px, 3vw, 44px);
+}
+.who-manage {
+  background: none; border: 1.5px solid var(--muted); color: var(--muted); border-radius: 0;
+  padding: 10px 28px; font: 600 14px var(--mono); letter-spacing: .14em; text-transform: uppercase;
+}
+.who-manage.sel, .who-manage:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+.who-hint b { font-family: var(--mono); color: var(--text); border: 1.5px solid var(--rule); padding: 0 6px; }
+/* The same tiles on "Gerenciar perfis", a little smaller and with a pencil. */
+.who-list.manage { justify-content: flex-start; margin: 18px 0 8px; }
+.who-list.manage .who-item { width: clamp(100px, 9vw, 150px); font-size: 15px; }
+.manage-title { margin-bottom: 4px; }
+.manage-sub { margin-top: 0; max-width: 46em; }
 
 .ach-box summary { cursor: pointer; }
 .ach-box .progress { margin: 10px 0; }
@@ -663,3 +691,21 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation:
 .resume-note.old { border-left-color: var(--red); }
 .resume-note.old p { font-family: var(--wide); font-stretch: 112%; font-weight: 750; font-size: 18px; }
 .tv-resume { margin: 2vh 0 0; font-size: max(17px, 2.4vh); color: var(--text); border-left: 4px solid var(--red); padding-left: 12px; max-width: 40em; }
+
+/* The profile's wide picture on top of the library, with "Continuar jogando" */
+.lib-hero {
+  position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  min-height: 250px; margin: -28px -24px 26px; padding: 28px 24px; overflow: hidden; border-bottom: 2px solid var(--rule);
+}
+.lib-hero-art { position: absolute; inset: 0; background: center / cover no-repeat; }
+.lib-hero::before { content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(19, 17, 15, .5); }
+.lib-hero > :not(.lib-hero-art) { position: relative; z-index: 2; }
+.lib-hero-who { display: flex; align-items: center; gap: 16px; }
+.lib-hero-who .avatar.big { width: 72px; height: 72px; font-size: 32px; }
+.lib-hero .k { display: block; font: 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--rule); }
+.lib-hero-who b { font: 900 clamp(26px, 3.4vw, 40px)/1 var(--wide); font-stretch: 125%; }
+.lib-hero-go { width: min(400px, 100%); padding: 14px 16px; background: var(--bg); border: 1px solid var(--rule); border-left: 4px solid var(--red); }
+.lib-hero-go b { display: block; margin: 2px 0 4px; font: 800 20px var(--wide); font-stretch: 115%; }
+.lib-hero-go p { margin: 0 0 6px; }
+.lib-hero-go .row { margin: 8px 0 0; }
+.inline-field { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; color: var(--muted); }
