@@ -1,4 +1,4 @@
-//! The games RecompHUB knows, read from catalog.json (the copy built into RecompHUB, or a
+//! The games Black Flag knows, read from catalog.json (the copy built into Black Flag, or a
 //! newer revision downloaded from the project's repository). Each entry says where the
 //! port is published, how to recognise an installed copy, and how to check the files the
 //! player provides from their own copy. Adding a port is a data change, not a code change.
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-/// The catalog built into this version of RecompHUB.
+/// The catalog built into this version of Black Flag.
 pub const BUILTIN: &str = include_str!("../catalog.json");
 /// Format this version understands; catalogs of a newer format are ignored.
 pub const FORMAT: u32 = 1;
@@ -23,7 +23,7 @@ pub struct GuideLink {
 #[derive(Deserialize, Clone)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Verifier {
-    /// An N64: Recompiled port: the player picks a ROM, RecompHUB checks it the way the
+    /// An N64: Recompiled port: the player picks a ROM, Black Flag checks it the way the
     /// port does (XXH3 of the .z64 byte order) and copies it where the port looks for it.
     N64Rom {
         /// XXH3-64 from the port's own source (GameEntry::rom_hash), as "0x…".
@@ -40,12 +40,12 @@ pub enum Verifier {
         /// Lowercase word expected in the ROM's internal name, to tell another game apart.
         name_hint: String,
     },
-    /// A PS4 game: the player picks the dump folder; RecompHUB checks param.sfo and writes
+    /// A PS4 game: the player picks the dump folder; Black Flag checks param.sfo and writes
     /// the folder into the port's own settings file.
     Ps4Dump {
         title_ids: Vec<String>,
         tested_versions: Vec<String>,
-        /// Where the port's launcher keeps its settings. No {install} here: RecompHUB versions
+        /// Where the port's launcher keeps its settings. No {install} here: Black Flag versions
         /// before 0.23 refuse it, and would drop the whole game from their catalog.
         settings_file: String,
         /// The settings next to the port's program ({install} allowed), which newer versions of
@@ -189,7 +189,7 @@ fn slug(s: &str) -> bool {
     !s.is_empty() && s.len() <= 40 && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
-/// Everything RecompHUB relies on before trusting an entry, most of all for a catalog
+/// Everything Black Flag relies on before trusting an entry, most of all for a catalog
 /// that came over the network.
 pub fn validate(g: &GameDef) -> Result<(), String> {
     let err = |what: &str| Err(format!("{}: {what}", g.id));

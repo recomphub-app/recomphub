@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "RecompHUB",
+  "productName": "Black Flag",
   "version": "0.28.0",
   "identifier": "io.github.recomphub",
   "build": {
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "RecompHUB",
+        "title": "Black Flag",
         "width": 1180,
         "height": 760,
         "minWidth": 900,

@@ -239,7 +239,7 @@ pub fn restore(root: &Path, id: &str, file: &str, targets: &[(String, PathBuf)])
         return Err("Backup não encontrado.".into());
     }
     let path = game_dir(root, id).join(file);
-    let manifest = read_manifest(&path).ok_or("Este backup está danificado ou não é do RecompHUB.")?;
+    let manifest = read_manifest(&path).ok_or("Este backup está danificado ou não é do Black Flag.")?;
     if manifest.game != id {
         return Err("Este backup é de outro jogo.".into());
     }

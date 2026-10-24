@@ -2,7 +2,7 @@
 //! has its own play time, last session, favorites, hidden games, completion, play count,
 //! notes, history and (later) achievements.
 //!
-//! The active profile's progress always lives in library.json, so the rest of RecompHUB
+//! The active profile's progress always lives in library.json, so the rest of Black Flag
 //! needs no change: switching profiles stores the current progress in
 //! `profiles/<id>.json` and loads the other one's. Switching is refused while a game runs.
 
@@ -32,7 +32,7 @@ pub struct Profile {
 pub struct Profiles {
     pub active: String,
     pub list: Vec<Profile>,
-    /// Show "Quem vai jogar?" when RecompHUB opens (with more than one profile).
+    /// Show "Quem vai jogar?" when Black Flag opens (with more than one profile).
     #[serde(default = "yes")]
     pub ask_on_start: bool,
     /// Games whose saves are kept apart for each profile (swapped when the profile changes).

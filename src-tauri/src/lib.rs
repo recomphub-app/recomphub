@@ -53,7 +53,7 @@ pub struct AppState {
     pub settings: Mutex<covers::Settings>,
     pub settings_path: PathBuf,
     pub covers: covers::Dirs,
-    /// Where RecompHUB installs ports; only folders under it are ever deleted.
+    /// Where Black Flag installs ports; only folders under it are ever deleted.
     pub games_root: PathBuf,
     /// Saves moved out of uninstalled ports, one folder per port id.
     pub pending_root: PathBuf,
@@ -117,10 +117,10 @@ struct GameView {
     ignore_updates: bool,
     /// Release tag the player chose to skip.
     skipped_version: Option<String>,
-    /// Installed by RecompHUB, the folder is there, but the port's files are not: usually the
+    /// Installed by Black Flag, the folder is there, but the port's files are not: usually the
     /// antivirus removed them.
     lost_files: bool,
-    /// Installed by RecompHUB (it may uninstall it), not added from the player's folder.
+    /// Installed by Black Flag (it may uninstall it), not added from the player's folder.
     installed_by_hub: bool,
     /// Saves kept from an uninstall, waiting for the next install.
     pending_saves: bool,
@@ -271,7 +271,7 @@ fn view(state: &AppState, game: &'static GameDef) -> GameView {
     }
 }
 
-/// A PC game the player added: RecompHUB only opens it and times it.
+/// A PC game the player added: Black Flag only opens it and times it.
 fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
     let (running, launching, session_started) = {
         let s = state.sessions.lock().unwrap();
@@ -439,7 +439,7 @@ async fn add_pc_game(app: AppHandle) -> Result<Option<GameView>, String> {
     }
     if too_broad(&dir) {
         return Err(format!(
-            "O jogo está direto em {}. Coloque-o numa pasta só dele: o RecompHUB conta o tempo de jogo por pasta, e aqui contaria outros programas também.",
+            "O jogo está direto em {}. Coloque-o numa pasta só dele: o Black Flag conta o tempo de jogo por pasta, e aqui contaria outros programas também.",
             dir.display()
         ));
     }
@@ -826,7 +826,7 @@ fn set_notes(app: AppHandle, id: String, notes: String) -> Result<GameView, Stri
 struct GameHistory {
     /// Newest first, at most 30.
     sessions: Vec<history::Record>,
-    /// Sessions in the history (older ones may have been played before RecompHUB 0.12).
+    /// Sessions in the history (older ones may have been played before Black Flag 0.12).
     recorded: u32,
     average_seconds: u64,
     longest_seconds: u64,
@@ -997,7 +997,7 @@ async fn set_github_token(app: AppHandle, token: String, clear: bool) -> Result<
         return Err("Isso não parece um token do GitHub. Ele começa com ghp_ ou github_pat_; copie de novo da página do GitHub.".into());
     }
     let message = if clear {
-        "Token apagado. O RecompHUB volta a usar o limite de 60 consultas por hora.".to_string()
+        "Token apagado. O Black Flag volta a usar o limite de 60 consultas por hora.".to_string()
     } else {
         let (remaining, limit) = github::rate_limit(&token).await?;
         format!("Token funcionando: {remaining} de {limit} consultas por hora disponíveis.")
@@ -1152,7 +1152,7 @@ struct AppUpdate {
     url: String,
 }
 
-/// RecompHUB's own releases, as Ports Launcher checks its GitHub page. While the repository
+/// Black Flag's own releases, as Ports Launcher checks its GitHub page. While the repository
 /// is private the API answers 404 and nothing is shown.
 #[tauri::command]
 async fn check_app_update() -> Option<AppUpdate> {
@@ -1167,11 +1167,18 @@ async fn check_app_update() -> Option<AppUpdate> {
         .ok()?;
     let rel: Rel = resp.error_for_status().ok()?.json().await.ok()?;
     let newer = version_tuple(&rel.tag_name)? > version_tuple(env!("CARGO_PKG_VERSION"))?;
-    let page = format!("https://github.com/{APP_REPO}/releases/");
-    (newer && rel.html_url.starts_with(&page)).then(|| AppUpdate { version: rel.tag_name, url: rel.html_url })
+    (newer && release_page(&rel.html_url)).then(|| AppUpdate { version: rel.tag_name, url: rel.html_url })
 }
 
 const APP_REPO: &str = "recomphub-app/recomphub";
+/// Where the project goes when the GitHub organization and repository take the new name
+/// (decision 63); GitHub then sends the old address there.
+const APP_REPO_NEXT: &str = "blackflag-app/blackflag";
+
+/// A release page of this project, under the current or the next name.
+fn release_page(url: &str) -> bool {
+    [APP_REPO, APP_REPO_NEXT].iter().any(|r| url.starts_with(&format!("https://github.com/{r}/releases/")))
+}
 
 /// "v0.7.0" → (0, 7, 0).
 fn version_tuple(v: &str) -> Option<(u32, u32, u32)> {
@@ -1181,7 +1188,7 @@ fn version_tuple(v: &str) -> Option<(u32, u32, u32)> {
 
 #[tauri::command]
 fn open_app_update(app: AppHandle, url: String) -> Result<(), String> {
-    if !url.starts_with(&format!("https://github.com/{APP_REPO}/releases/")) {
+    if !release_page(&url) {
         return Err("Link desconhecido.".into());
     }
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
@@ -1193,7 +1200,7 @@ fn open_app_update(app: AppHandle, url: String) -> Result<(), String> {
 struct CommunityItemView {
     #[serde(flatten)]
     item: community::Item,
-    /// Same project in RecompHUB's verified catalog: its id.
+    /// Same project in Black Flag's verified catalog: its id.
     catalog_id: Option<String>,
     /// Already in the library as a community port: its id.
     installed_id: Option<String>,
@@ -1705,7 +1712,7 @@ fn reset_playtime(app: AppHandle, id: String) -> Result<GameView, String> {
     view_any(&state, &id)
 }
 
-/// Deletes a port RecompHUB installed, keeping the player's files for the next install.
+/// Deletes a port Black Flag installed, keeping the player's files for the next install.
 /// A port added from the player's own folder is never deleted.
 #[tauri::command]
 fn uninstall_game(app: AppHandle, id: String) -> Result<Vec<String>, String> {
@@ -1714,7 +1721,7 @@ fn uninstall_game(app: AppHandle, id: String) -> Result<Vec<String>, String> {
     let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
     let dir = PathBuf::from(&entry.install_dir);
     if entry.version.is_none() || !dir.starts_with(&state.games_root) || dir == state.games_root {
-        return Err("Este port foi adicionado de uma pasta sua: o RecompHUB não apaga arquivos que não instalou. Use \"Remover da biblioteca\".".into());
+        return Err("Este port foi adicionado de uma pasta sua: o Black Flag não apaga arquivos que não instalou. Use \"Remover da biblioteca\".".into());
     }
     {
         let s = state.sessions.lock().unwrap();
@@ -1904,7 +1911,7 @@ async fn backup_now(app: AppHandle, id: String) -> Result<String, String> {
         let state = app.state::<AppState>();
         let sources = save_sources(&state, &id);
         if sources.is_empty() {
-            return Err("O RecompHUB não sabe onde este jogo guarda os saves.".to_string());
+            return Err("O Black Flag não sabe onde este jogo guarda os saves.".to_string());
         }
         let keep = state.settings.lock().unwrap().backup_keep as usize;
         match autosave::make(&state.auto_root, &id, &sources, "manual", keep, library::now())? {
@@ -1925,7 +1932,7 @@ async fn restore_backup(app: AppHandle, id: String, file: String) -> Result<Stri
         not_running(&state, &id)?;
         let sources = save_sources(&state, &id);
         if sources.is_empty() {
-            return Err("O RecompHUB não sabe onde este jogo guarda os saves.".to_string());
+            return Err("O Black Flag não sabe onde este jogo guarda os saves.".to_string());
         }
         let keep = state.settings.lock().unwrap().backup_keep as usize;
         // Nothing is trimmed until the restore is done, so the chosen backup cannot go away.
@@ -2306,7 +2313,7 @@ fn choose_mod(state: &AppState, id: &str, package: &str, on: bool) -> Result<(),
 }
 
 /// mods.json gets exactly the chosen packages (and their dependencies) on, among the ones
-/// RecompHUB installed; mods the player put there by hand are left alone.
+/// Black Flag installed; mods the player put there by hand are left alone.
 fn apply_mods(_state: &AppState, _id: &str, installed: &mods::InstalledSet, chosen: &std::collections::BTreeSet<String>, data: &Path) -> Result<(), String> {
     let on_packages = mods::with_dependencies(installed, chosen);
     let mut on = Vec::new();
@@ -2473,7 +2480,7 @@ fn known_mod_page(state: &AppState, url: &str) -> bool {
 // ---- Conquistas ----
 
 /// The numbers a game's achievements can use: play time and sessions of the active profile,
-/// and what the game's save says (when RecompHUB knows how to read it).
+/// and what the game's save says (when Black Flag knows how to read it).
 fn game_stats(state: &AppState, id: &str) -> BTreeMap<String, u64> {
     let mut stats = BTreeMap::new();
     let Some(entry) = state.library.lock().unwrap().games.get(id).cloned() else { return stats };
@@ -2709,7 +2716,7 @@ fn test_achievement_notice(app: AppHandle) {
             &app2,
             vec![Notice {
                 kind: "test",
-                game: "RecompHUB".into(),
+                game: "Black Flag".into(),
                 title: "Aviso de teste".into(),
                 description: "É assim que as conquistas aparecem por cima do jogo.".into(),
                 badge: "🏆".into(),
@@ -2848,7 +2855,7 @@ async fn get_ra(app: AppHandle, id: String, force: bool) -> Result<RaView, Strin
     .map_err(|e| e.to_string())?
 }
 
-/// A RetroAchievements game page RecompHUB itself linked to (from a cached lookup).
+/// A RetroAchievements game page Black Flag itself linked to (from a cached lookup).
 fn known_ra_page(state: &AppState, url: &str) -> bool {
     let Some(id) = url.strip_prefix("https://retroachievements.org/game/") else { return false };
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {
@@ -2920,7 +2927,7 @@ fn create_profile(app: AppHandle, name: String, color: String) -> Result<Profile
     {
         let mut p = state.profiles.lock().unwrap();
         if p.list.len() >= 12 {
-            return Err("O RecompHUB guarda até 12 perfis.".into());
+            return Err("O Black Flag guarda até 12 perfis.".into());
         }
         let id = profiles::new_id(&p, &name, library::now());
         p.list.push(profiles::Profile { id, name, color: clean_color(&color), created: library::now(), ra_user: String::new(), ra_key: String::new() });
@@ -3157,7 +3164,7 @@ fn play(app: AppHandle, id: String) -> Result<(), String> {
             e.run_as_admin = true;
         }
         save(&state)?;
-        let _ = app.emit("notify", "Este jogo pede permissão de administrador. Daqui em diante o RecompHUB já abre pedindo a permissão do Windows.");
+        let _ = app.emit("notify", "Este jogo pede permissão de administrador. Daqui em diante o Black Flag já abre pedindo a permissão do Windows.");
     }
     Ok(())
 }
@@ -3318,7 +3325,7 @@ fn shortcut_target(app: &AppHandle, id: &str) -> Result<(String, PathBuf), Strin
     })
 }
 
-/// "Adicionar à Steam": a non-Steam shortcut that opens the game through RecompHUB, with the
+/// "Adicionar à Steam": a non-Steam shortcut that opens the game through Black Flag, with the
 /// game's cover and banner as its artwork.
 #[tauri::command]
 async fn add_to_steam(app: AppHandle, id: String) -> Result<String, String> {
@@ -3355,7 +3362,7 @@ fn create_shortcut(app: AppHandle, id: String, location: String) -> Result<Strin
             .path()
             .data_dir()
             .map_err(|e| e.to_string())?
-            .join("Microsoft\\Windows\\Start Menu\\Programs\\RecompHUB"),
+            .join("Microsoft\\Windows\\Start Menu\\Programs\\Black Flag"),
     };
     shortcut::create(&folder, &title, &id, &icon).map(|p| p.display().to_string())
 }
@@ -3383,7 +3390,7 @@ fn handle_args(app: &AppHandle, args: &[String]) {
     let ready = v.status == "ready";
     let launched = ready && play(app.clone(), id.clone()).is_ok();
     if !launched {
-        // The page may not be loaded yet (RecompHUB just started): it asks on load.
+        // The page may not be loaded yet (Black Flag just started): it asks on load.
         *app.state::<AppState>().pending_open.lock().unwrap() = Some(id.clone());
         let _ = app.emit("open-game", id);
         if let Some(w) = app.get_webview_window("main") {
@@ -3429,12 +3436,12 @@ pub fn run() {
         return;
     }
     tauri::Builder::default()
-        // A shortcut opened while RecompHUB is running goes to the open window.
+        // A shortcut opened while Black Flag is running goes to the open window.
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             tray::show_window(app);
             handle_args(app, &args);
         }))
-        // Closing the window keeps RecompHUB in the tray (setting "Fechar para a bandeja").
+        // Closing the window keeps Black Flag in the tray (setting "Fechar para a bandeja").
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let to_tray = window.app_handle().state::<AppState>().settings.lock().unwrap().close_to_tray;
@@ -3611,7 +3618,7 @@ pub fn run() {
             open_folder
         ])
         .build(tauri::generate_context!())
-        .expect("error while starting RecompHUB")
+        .expect("error while starting Black Flag")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 play::flush(app);

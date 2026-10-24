@@ -1,7 +1,7 @@
-//! "Outros jogos de PC": RecompHUB does not know where they keep their saves, but Ludusavi
+//! "Outros jogos de PC": Black Flag does not know where they keep their saves, but Ludusavi
 //! (mtkennerly/ludusavi, MIT) knows more than 19 000 games. When the player has Ludusavi,
-//! RecompHUB asks it, through its JSON command line (`--api`), to find the game and back it
-//! up into Ludusavi's own backup folder. RecompHUB never downloads or installs Ludusavi.
+//! Black Flag asks it, through its JSON command line (`--api`), to find the game and back it
+//! up into Ludusavi's own backup folder. Black Flag never downloads or installs Ludusavi.
 
 use serde_json::Value;
 use std::os::windows::process::CommandExt;

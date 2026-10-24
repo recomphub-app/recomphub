@@ -1,4 +1,4 @@
-//! Small Windows registry helpers (no administrator needed for what RecompHUB reads and writes).
+//! Small Windows registry helpers (no administrator needed for what Black Flag reads and writes).
 
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use windows_sys::Win32::System::Registry::{

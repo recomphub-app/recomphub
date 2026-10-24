@@ -1,5 +1,5 @@
-//! "Adicionar à Steam": the game becomes a non-Steam shortcut that opens through RecompHUB
-//! ("RecompHUB.exe --play <id>"), so Big Picture and the Steam controller settings work and the
+//! "Adicionar à Steam": the game becomes a non-Steam shortcut that opens through Black Flag
+//! ("recomphub.exe --play <id>"), so Big Picture and the Steam controller settings work and the
 //! session is still timed. As GithubLauncher's ShortcutHelper, it edits the account's
 //! userdata/<id>/config/shortcuts.vdf, which Steam only reads at start and rewrites on exit, so
 //! Steam must be closed.
@@ -110,7 +110,7 @@ pub fn write(items: &[(Vec<u8>, Val)]) -> Vec<u8> {
 
 pub struct Shortcut {
     pub name: String,
-    /// RecompHUB.exe, written in quotes as Steam does.
+    /// recomphub.exe, written in quotes as Steam does.
     pub exe: PathBuf,
     pub icon: PathBuf,
     pub launch_options: String,
@@ -155,7 +155,7 @@ fn str_val(s: &str) -> Val {
     Val::Str(s.as_bytes().to_vec())
 }
 
-/// Adds the shortcut, or updates RecompHUB's earlier one for the same game (same launch
+/// Adds the shortcut, or updates Black Flag's earlier one for the same game (same launch
 /// options and program) instead of making a copy. Returns the shortcut's app id and whether it
 /// was already there. Other shortcuts are kept exactly as they were; a file whose
 /// "shortcuts" is not a list is refused rather than replaced.
@@ -309,7 +309,7 @@ pub fn add(sc: &Shortcut, cover: Option<&Path>, banner: Option<&Path>) -> Result
         Err(e) => return Err(format!("Não consegui ler o arquivo de atalhos da Steam: {e}")),
     };
     let (app_id, updated) = upsert(&mut items, sc).map_err(|e| format!("Não entendi o arquivo de atalhos da Steam ({e}), então não mexi nele."))?;
-    // The player's list as it was before RecompHUB ever touched it.
+    // The player's list as it was before Black Flag ever touched it.
     let backup = config.join("shortcuts.vdf.recomphub-backup");
     if path.is_file() && !backup.exists() {
         std::fs::copy(&path, &backup).map_err(|e| format!("Não consegui guardar uma cópia dos atalhos da Steam: {e}"))?;
@@ -347,7 +347,7 @@ mod tests {
     fn sc(name: &str, id: &str) -> Shortcut {
         Shortcut {
             name: name.into(),
-            exe: PathBuf::from(r"C:\Programas\RecompHUB\RecompHUB.exe"),
+            exe: PathBuf::from(r"C:\Programas\Black Flag\recomphub.exe"),
             icon: PathBuf::from(r"C:\Jogos\banjo\BanjoRecompiled.exe"),
             launch_options: format!("--play {id}"),
         }
@@ -385,8 +385,8 @@ mod tests {
         let Val::Obj(e) = &list[1].1 else { panic!() };
         assert_eq!(get(e, "appid"), Some(&Val::Int(id)));
         assert_eq!(get(e, "LaunchOptions"), Some(&str_val("--play banjo")));
-        assert_eq!(get(e, "Exe"), Some(&str_val(r#""C:\Programas\RecompHUB\RecompHUB.exe""#)));
-        assert_eq!(get(e, "StartDir"), Some(&str_val(r#""C:\Programas\RecompHUB""#)));
+        assert_eq!(get(e, "Exe"), Some(&str_val(r#""C:\Programas\Black Flag\recomphub.exe""#)));
+        assert_eq!(get(e, "StartDir"), Some(&str_val(r#""C:\Programas\Black Flag""#)));
     }
 
     #[test]
@@ -394,7 +394,7 @@ mod tests {
         let mut items = Vec::new();
         let (id, existed) = upsert(&mut items, &sc("Banjo", "banjo")).unwrap();
         assert!(!existed);
-        // Renamed in RecompHUB: same shortcut, same id (Steam keeps its play time).
+        // Renamed in Black Flag: same shortcut, same id (Steam keeps its play time).
         let (id2, existed2) = upsert(&mut items, &sc("Banjo-Kazooie", "banjo")).unwrap();
         assert!(existed2);
         assert_eq!(id, id2);

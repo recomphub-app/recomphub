@@ -1,4 +1,4 @@
-// The FPS counter over the game: numbers come from RecompHUB (fps.rs), about twice a second.
+// The FPS counter over the game: numbers come from Black Flag (fps.rs), about twice a second.
 const box = document.getElementById('fps');
 window.__TAURI__.event.listen('fps', (e) => {
   const n = Number(e.payload) || 0;

@@ -1,5 +1,5 @@
 //! Desktop and Start Menu shortcuts. As in Hydra, a shortcut opens the game through the
-//! launcher ("RecompHUB.exe --play <id>"), so the session is still timed.
+//! launcher ("recomphub.exe --play <id>"), so the session is still timed.
 
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -28,7 +28,7 @@ pub fn create(folder: &Path, title: &str, id: &str, icon: &Path) -> Result<PathB
         .env("RH_ARGS", format!("--play {id}"))
         .env("RH_WORKDIR", exe.parent().unwrap_or(Path::new(".")))
         .env("RH_ICON", format!("{},0", icon.display()))
-        .env("RH_DESC", format!("{title} (RecompHUB)"))
+        .env("RH_DESC", format!("{title} (Black Flag)"))
         .creation_flags(CREATE_NO_WINDOW)
         .status()
         .map_err(|e| format!("Não consegui criar o atalho: {e}"))?;

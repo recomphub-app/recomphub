@@ -1,6 +1,6 @@
 # Catálogo de ports (`src-tauri/catalog.json`)
 
-O RecompHUB não tem jogos escritos no código: cada port é uma entrada deste arquivo. Para
+O Black Flag não tem jogos escritos no código: cada port é uma entrada deste arquivo. Para
 incluir um port novo, basta adicionar uma entrada e aumentar o `revision`.
 
 ## Regras para entrar no catálogo
@@ -16,7 +16,7 @@ Estas regras vêm dos princípios do `SPEC.md`:
 
 ## Como o catálogo chega ao programa
 
-1. O RecompHUB já vem com uma cópia (`include_str!`).
+1. O Black Flag já vem com uma cópia (`include_str!`).
 2. Em "Verificar atualizações", ele baixa o `catalog.json` deste repositório. Se for válido e
    tiver `revision` maior, passa a usá-lo e guarda uma cópia na pasta de dados.
 3. Cada entrada passa por `catalog::validate` antes de ser usada. Uma entrada inválida é
@@ -49,7 +49,7 @@ Enquanto o repositório for privado, o endereço remoto responde 404 e só a có
 
 ### `n64_rom`
 
-Para ports feitos com N64: Recompiled. O usuário escolhe a ROM; o RecompHUB a converte para a
+Para ports feitos com N64: Recompiled. O usuário escolhe a ROM; o Black Flag a converte para a
 ordem `.z64` (aceita `.n64` e `.v64`), confere o XXH3 e a copia para onde o port procura:
 `%LOCALAPPDATA%\<program_id>\<game_id>.z64`, ou a pasta do port quando existe `portable.txt`.
 
@@ -62,13 +62,13 @@ ordem `.z64` (aceita `.n64` e `.v64`), confere o XXH3 e a copia para onde o port
 
 ### `ps4_dump`
 
-Para ports de PS4 que leem um dump. O RecompHUB confere `eboot.bin`, `sce_module` e o
+Para ports de PS4 que leem um dump. O Black Flag confere `eboot.bin`, `sce_module` e o
 `sce_sys/param.sfo` (`TITLE_ID` e `APP_VER`) e grava a pasta na configuração do próprio port.
 
 | Campo | O que é |
 | --- | --- |
 | `title_ids`, `tested_versions` | Códigos aceitos e versões testadas pelo port. |
-| `settings_file` | Arquivo JSON de configuração do port. Sem `{install}`: versões do RecompHUB antes da 0.23 recusam e tirariam o jogo do catálogo delas. |
+| `settings_file` | Arquivo JSON de configuração do port. Sem `{install}`: versões do Black Flag antes da 0.23 recusam e tirariam o jogo do catálogo delas. |
 | `portable_settings_file` | Opcional. O mesmo arquivo dentro da pasta do port (`{install}` permitido), para ports que passaram a guardar lá. É lido e gravado primeiro; `settings_file` fica de reserva. |
 | `game_dir_key`, `update_dir_key`, `user_dir_key` | Chaves desse arquivo. |
 

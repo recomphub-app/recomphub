@@ -4,7 +4,7 @@
 //! DirectX and Vulkan alike.
 //!
 //! Reading those events needs administrator or the "Performance Log Users" group. The player
-//! chose to grant it once: an elevated copy of RecompHUB adds their account to the group, which
+//! chose to grant it once: an elevated copy of Black Flag adds their account to the group, which
 //! counts from the next sign-in.
 
 use serde::Serialize;
@@ -21,7 +21,7 @@ const DOWNLOAD_PREFIX: &str = "https://github.com/GameTechDev/PresentMon/release
 /// Windows language).
 const PERF_LOG_USERS: &str = "S-1-5-32-559";
 pub const GRANT_FLAG: &str = "--liberar-contador-fps";
-const SESSION: &str = "RecompHUB-FPS";
+const SESSION: &str = "Black Flag-FPS";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const MAX_TOOL_SIZE: u64 = 32 * 1024 * 1024;
 
@@ -63,7 +63,7 @@ pub fn parse_user_sid(csv: &str) -> Option<String> {
     valid_sid(&sid).then_some(sid)
 }
 
-/// Runs in the elevated copy of RecompHUB: adds `sid` to "Performance Log Users". Returns the
+/// Runs in the elevated copy of Black Flag: adds `sid` to "Performance Log Users". Returns the
 /// process exit code (0 = done or already a member).
 pub fn grant(sid: &str) -> i32 {
     use windows_sys::Win32::Foundation::LocalFree;

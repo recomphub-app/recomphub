@@ -1,6 +1,6 @@
 //! Cover art, in the style of PCSX2's cover downloader (and the xlenore/ps2-covers
 //! collection it reads): each game's picture is fetched once from an address built from a
-//! template such as `https://…/${serial}.jpg`, then kept in RecompHUB's data folder.
+//! template such as `https://…/${serial}.jpg`, then kept in Black Flag's data folder.
 //!
 //! Where a cover comes from, first match wins:
 //! 1. a picture the player chose;
@@ -17,13 +17,13 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 pub(crate) const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
 pub const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp"];
 
-/// RecompHUB's own settings (settings.json).
+/// Black Flag's own settings (settings.json).
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Settings {
     /// The player's own cover addresses, one template per line, with ${serial} and ${title}.
     #[serde(default)]
     pub cover_templates: Vec<String>,
-    /// Closing the window keeps RecompHUB in the tray, timing games (as Ports Launcher).
+    /// Closing the window keeps Black Flag in the tray, timing games (as Ports Launcher).
     #[serde(default = "yes")]
     pub close_to_tray: bool,
     /// Library shows hidden games too.
@@ -63,7 +63,7 @@ pub struct Settings {
     /// The one-time permission was granted; it counts after the next Windows sign-in.
     #[serde(default)]
     pub fps_permission_granted: bool,
-    /// Look for Steam, Epic and GOG games each time RecompHUB opens (stores.rs).
+    /// Look for Steam, Epic and GOG games each time Black Flag opens (stores.rs).
     #[serde(default = "yes")]
     pub store_import: bool,
 }
@@ -201,7 +201,7 @@ pub(crate) fn store(dir: &Path, id: &str, bytes: &[u8]) -> Result<PathBuf, Strin
     Ok(path)
 }
 
-/// "Escolher capa": copies the player's picture into RecompHUB's folder.
+/// "Escolher capa": copies the player's picture into Black Flag's folder.
 pub fn set_custom(dirs: &Dirs, id: &str, picture: &Path) -> Result<(), String> {
     let size = std::fs::metadata(picture).map(|m| m.len()).map_err(|e| e.to_string())?;
     if size > MAX_IMAGE_BYTES {

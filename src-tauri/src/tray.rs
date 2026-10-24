@@ -1,6 +1,6 @@
-//! The tray icon, as Ports Launcher's: left click shows RecompHUB; right click lists the
-//! five most recently played games (straight to Play), "Abrir RecompHUB" and "Sair".
-//! Closing the window keeps RecompHUB here, so play time is still counted.
+//! The tray icon, as Ports Launcher's: left click shows Black Flag; right click lists the
+//! five most recently played games (straight to Play), "Abrir Black Flag" and "Sair".
+//! Closing the window keeps Black Flag here, so play time is still counted.
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -47,14 +47,14 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         menu.append(&MenuItem::with_id(app, format!("play:{id}"), format!("Jogar {title}"), true, None::<&str>)?)?;
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&MenuItem::with_id(app, "open", "Abrir RecompHUB", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "open", "Abrir Black Flag", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?)?;
     Ok(menu)
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("RecompHUB")
+        .tooltip("Black Flag")
         .menu(&menu(app)?)
         .menu_on_left_click(false)
         .on_menu_event(|app, event| {

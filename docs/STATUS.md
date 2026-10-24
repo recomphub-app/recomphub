@@ -1,4 +1,4 @@
-# Situação do RecompHUB
+# Situação do Black Flag
 
 ## Marcos
 
@@ -8,7 +8,7 @@
 - [x] **v0.4** Capas no estilo do PCSX2
 - [x] **v0.5** Fase 1: catálogo aberto (`catalog.json`) com verificação genérica, aba Descobrir, 5 ports
 - [x] **v0.6** Fase 2: escolher versão, aviso por port, desinstalar guardando saves, backup em .zip, zerar tempo
-- [x] **v0.7** Fase 3: opções de inicialização, favoritos e ocultos, bandeja, Modo TV, aviso de versão do RecompHUB
+- [x] **v0.7** Fase 3: opções de inicialização, favoritos e ocultos, bandeja, Modo TV, aviso de versão do Black Flag
 - [x] **v0.8** Fase 4: decisões de arquitetura, este arquivo, mais testes automáticos
 - [x] **v0.9** Aba Comunidade: ports da lista awesome-unofficial-pc-ports e dos tópicos do GitHub, instalação experimental com aviso, escolha do programa, atualização e desinstalação
 - [x] **v0.10** Arrastar e soltar a ROM ou a pasta do dump na página do jogo, botão "Procurar na pasta Downloads"
@@ -16,7 +16,7 @@
 - [x] **v0.12** Perfis e Conquistas, fase 1: histórico de sessões, estado do jogo, vezes jogado, anotações, página Estatísticas
 - [x] **v0.13** Fase 2: backup automático ao fechar o jogo (só quando mudou), limite por jogo, travar, restaurar com segurança, vigia da pasta de saves, Ludusavi para jogos de PC
 - [x] **v0.14** Fase 3: perfis (progresso, histórico e anotações por jogador, "Quem vai jogar?" com mouse, teclado ou controle, saves separados por perfil jogo a jogo)
-- [x] **v0.15** Fase 4: conquistas do RecompHUB (gerais por tempo e sessões; Banjo-Kazooie pelo save), aviso por cima do jogo com som, 100%, aviso de teste
+- [x] **v0.15** Fase 4: conquistas do Black Flag (gerais por tempo e sessões; Banjo-Kazooie pelo save), aviso por cima do jogo com som, 100%, aviso de teste
 - [x] **v0.16** Fase 5: RetroAchievements só leitura, por perfil, jogo achado pelo MD5 da ROM
 - [x] **v0.17** Jogos que exigem administrador abrem pelo pedido de permissão do Windows (UAC); opção "Abrir como administrador" por jogo
 - [x] **v0.18** Central de Mods (Thunderstore) para Majora's Mask e Banjo: instalar com dependências, ligar e desligar, atualizar, desinstalar, mods por perfil, coleções
@@ -28,15 +28,14 @@
 - [x] **v0.24** Comunidade: .7z e .exe portátil, instaladores explicados, nome do jogo nos cartões (inFAMOUS, The Last Guardian…), tópicos native-port, xenonrecomp e ps3recomp
 - [x] **v0.25** Fotos na aba Comunidade (capa da SteamGridDB/IGDB ou imagem do README do projeto)
 - [x] **v0.26** "O jogo fechou com erro": código de saída, registro de erros do Windows, crash dumps e log do port viram uma explicação com botões (driver, Visual C++, Vulkan, cache de shaders) e um relatório para colar numa issue; visual mais enxuto (menus Mais e Adicionar, página do jogo e Configurações em abas) e tutorial de boas-vindas com a chave da SteamGridDB; biblioteca com contagem nas abas e filtros em menus; Comunidade com filtro de console e ordem (Recomendados, Em alta, Mais estrelas, Atualizados há pouco, Nome)
-- [x] **v0.27** Antes de jogar: DLLs que faltam (lidas do programa e das DLLs da pasta), arquivos só na nuvem do OneDrive, caminhos longos e pasta sem permissão, com Visual C++ e DirectX instalados com 1 clique (só da Microsoft, hash e assinatura conferidos, um pedido de administrador); "Mostrar o jogo" quando já está aberto; arquivo em uso diz qual programa o segura. O programa inteiro com controle: navegação por todas as telas, botões do controle em uso (✕ ○ ou A B), LB/RB nas abas, Menu abre o Modo TV, e segurar o botão Xbox/PS (ou View + Menu) traz o RecompHUB de volta de dentro do jogo. Modo TV novo, com ideias do PS4 e do Xbox 360: fileira de jogos com o escolhido maior e a arte dele no fundo, seções Jogos, Descobrir, Conquistas e Sistema no LB/RB, barra com o que cada botão faz, Guia no Menu/Options, som e vibração que dá para desligar
+- [x] **v0.27** Antes de jogar: DLLs que faltam (lidas do programa e das DLLs da pasta), arquivos só na nuvem do OneDrive, caminhos longos e pasta sem permissão, com Visual C++ e DirectX instalados com 1 clique (só da Microsoft, hash e assinatura conferidos, um pedido de administrador); "Mostrar o jogo" quando já está aberto; arquivo em uso diz qual programa o segura. O programa inteiro com controle: navegação por todas as telas, botões do controle em uso (✕ ○ ou A B), LB/RB nas abas, Menu abre o Modo TV, e segurar o botão Xbox/PS (ou View + Menu) traz o Black Flag de volta de dentro do jogo. Modo TV novo, com ideias do PS4 e do Xbox 360: fileira de jogos com o escolhido maior e a arte dele no fundo, seções Jogos, Descobrir, Conquistas e Sistema no LB/RB, barra com o que cada botão faz, Guia no Menu/Options, som e vibração que dá para desligar
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 
 ## Rumo novo: launcher de jogos geral (decidido em 24/10/2026)
 
 O Gustavo decidiu que o programa deixa de ser só de ports nativos e vira um launcher que
-reconhece jogos de vários lugares e configura tudo pelo próprio programa. Ele também vai
-ganhar um nome novo (ainda não escolhido). Fases, cada uma testada antes da próxima:
+reconhece jogos de vários lugares e configura tudo pelo próprio programa, e passa a se chamar Black Flag. Fases, cada uma testada antes da próxima:
 
 - [x] **Fase 1: jogos das lojas** (v0.28, Steam, Epic e GOG). Achar os jogos instalados da Steam, da Epic e da GOG, só
   lendo os arquivos e o registro de cada loja (sem login). Abrir pela loja, contar o tempo
@@ -80,7 +79,7 @@ Rodam no GitHub Actions antes de gerar o instalador (`cargo test --lib`):
 | FPS | Quadros por segundo a partir do CSV do PresentMon; SID e nome do programa do PresentMon validados |
 | Steam | CRC igual ao padrão; atalhos existentes regravados byte a byte; clicar de novo atualiza sem duplicar e mantém o id; arquivo quebrado ou com dados sobrando é recusado |
 | Antes de jogar | Tabelas de importação de programas de 32 e 64 bits (normais e de carga atrasada); arquivo danificado não é lido além do fim; DLLs separadas em Visual C++, Visual C++ antigo, DirectX, Vulkan e arquivo do jogo; OneDrive pelos atributos; teste de escrita apaga o arquivo; downloads só de endereços da Microsoft, SHA-256 do endereço e assinatura `O=Microsoft Corporation`; códigos de saída do instalador |
-| Controle | Botões que chamam o RecompHUB (Xbox, View + Menu); dispara uma vez por toque longo, depois de 0,7 s |
+| Controle | Botões que chamam o Black Flag (Xbox, View + Menu); dispara uma vez por toque longo, depois de 0,7 s |
 | Lojas | Formato de texto da Steam (aspas, chaves, comentários, os dois formatos do `libraryfolders.vdf`); só jogos instalados de verdade, sem ferramentas nem Proton; manifestos da Epic sem DLC, plugin ou instalação pela metade; programa da GOG dentro da pasta; o jogador mantém nome, tempo e favorito; jogo removido não volta e o desinstalado sai guardando o tempo; só endereços `steam://` e `com.epicgames.launcher://` abrem |
 | Outros | Argumentos com aspas, nomes de variáveis, nomes de atalho, datas, comparação de versões |
 

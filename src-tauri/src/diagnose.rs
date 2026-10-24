@@ -1,11 +1,11 @@
-//! "O jogo fechou com erro": after a session ends badly, RecompHUB looks for what Windows and the
+//! "O jogo fechou com erro": after a session ends badly, Black Flag looks for what Windows and the
 //! port left behind and says, in plain words, what it means and what to try. Everything is read
 //! on this PC; nothing is sent anywhere.
 //!
 //! Sources, from the ports' own issue trackers (most reports are one of these):
-//! - the exit code of the program RecompHUB started (a missing DLL never reaches the event log);
+//! - the exit code of the program Black Flag started (a missing DLL never reaches the event log);
 //! - Windows' "Application Error" events (id 1000), which name the exception code and the module
-//!   it happened in, also for games started as administrator or from outside RecompHUB;
+//!   it happened in, also for games started as administrator or from outside Black Flag;
 //! - crash dumps in %LOCALAPPDATA%\CrashDumps;
 //! - the port's own log files (catalog field `logs`), whose last lines go into the report.
 
@@ -168,7 +168,7 @@ pub fn findings(c: &Context) -> Vec<Finding> {
             out.push(Finding {
                 level: "bad",
                 text: format!(
-                    "O jogo não conseguiu carregar uma DLL ({code}). Quase sempre é o Visual C++ 2015-2022 (x64) da Microsoft{}. Instale ou repare (o RecompHUB baixa da Microsoft) e abra o jogo de novo. Se continuar, o antivírus pode ter apagado uma DLL da pasta do port: reinstale o port.",
+                    "O jogo não conseguiu carregar uma DLL ({code}). Quase sempre é o Visual C++ 2015-2022 (x64) da Microsoft{}. Instale ou repare (o Black Flag baixa da Microsoft) e abra o jogo de novo. Se continuar, o antivírus pode ter apagado uma DLL da pasta do port: reinstale o port.",
                     if c.vc_runtime { ", que pode estar danificado" } else { ", que não está instalado no seu PC" }
                 ),
                 action: Some(Action { label: "Instalar Visual C++".into(), act: "fix-runtime", value: Some("vc_x64".into()) }),
@@ -471,7 +471,7 @@ pub fn report(game: &str, version: &str, d: &Diagnosis, pc: &str, logs: &[(Strin
     if let Some(sec) = d.seconds {
         s += &format!("Tempo aberto: {sec} s\n");
     }
-    s += &format!("\n--- PC ---\n{pc}\n\n--- O que o RecompHUB achou ---\n");
+    s += &format!("\n--- PC ---\n{pc}\n\n--- O que o Black Flag achou ---\n");
     for f in &d.findings {
         s += &format!("- {}\n", f.text);
     }

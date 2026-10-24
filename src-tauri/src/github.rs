@@ -114,7 +114,7 @@ pub async fn rate_limit(token: &str) -> Result<(u64, u64), String> {
 
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
-        .user_agent(concat!("RecompHUB/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("BlackFlag/", env!("CARGO_PKG_VERSION")))
         .build()
         .expect("http client")
 }

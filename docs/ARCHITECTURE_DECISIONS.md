@@ -5,7 +5,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 
 ## Princípios que viram código
 
-1. **Nenhum arquivo de jogo passa pelo RecompHUB.** O launcher baixa só o *port* (código do
+1. **Nenhum arquivo de jogo passa pelo Black Flag.** O launcher baixa só o *port* (código do
    projeto, do GitHub oficial). ROMs e dumps vêm da cópia do usuário e só são lidos para
    conferência; a ROM conferida é copiada para onde o port espera (`files::n64`), nunca enviada.
 2. **Catálogo fechado e validado.** Ports são dados (`src-tauri/catalog.json`), não código.
@@ -14,7 +14,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
    só com `%APPDATA%`, `%LOCALAPPDATA%`, `%USERPROFILE%` e `{install}`. Não há "fontes de
    terceiros" configuráveis. Um catálogo baixado só substitui o embutido com `revision` maior.
 3. **Links abertos só do catálogo.** `open_link` recusa qualquer endereço que não esteja numa
-   entrada do catálogo; o aviso de versão do RecompHUB só abre a página de releases do projeto.
+   entrada do catálogo; o aviso de versão do Black Flag só abre a página de releases do projeto.
 
 ## Plataforma
 
@@ -37,8 +37,8 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
    aberto por fora. Salva a cada 30 s; intervalos maiores que 30 s (PC dormindo) não contam.
    Por isso pastas amplas demais (raiz do disco, Área de Trabalho, Downloads) são recusadas para
    "Outros jogos de PC".
-9. **O RecompHUB só apaga o que instalou.** "Desinstalar" exige que o port tenha sido instalado
-   pelo RecompHUB *e* que a pasta esteja dentro de `%LOCALAPPDATA%\io.github.recomphub\games`.
+9. **O Black Flag só apaga o que instalou.** "Desinstalar" exige que o port tenha sido instalado
+   pelo Black Flag *e* que a pasta esteja dentro de `%LOCALAPPDATA%\io.github.recomphub\games`.
    Antes de apagar, os arquivos do jogador (`keep_on_update` e saves dentro do port) vão para
    `saves-pendentes\<id>` e voltam na próxima instalação.
 10. **Atualizar nunca sobrescreve o que é do jogador.** A extração pula os caminhos de
@@ -48,7 +48,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 
 11. **Dados de verificação vêm do código-fonte do port**, não de listas de terceiros: o XXH3, o
     `game_id` e o `program_id` dos ports N64: Recompiled saem do `src/main/main.cpp` de cada
-    projeto. Assim o RecompHUB aceita exatamente o que o port aceita.
+    projeto. Assim o Black Flag aceita exatamente o que o port aceita.
 12. **Explicar, não só recusar.** Uma ROM errada é identificada pelo cabeçalho (jogo, região,
     revisão) e a mensagem diz o que é e o que falta.
 
@@ -66,7 +66,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     buscado de novo no GitHub (nunca vem da página) e precisa começar com
     `https://github.com/<repo>/releases/download/`. Só repositórios que estão na lista da
     Comunidade (ou já instalados por ela) são aceitos. Só `.zip` de Windows; se o projeto não
-    tem um, a página manda para o README. O RecompHUB nunca procura nem baixa arquivos de jogos.
+    tem um, a página manda para o README. O Black Flag nunca procura nem baixa arquivos de jogos.
 17. **Programa escolhido pelo jogador.** Depois de instalar, os `.exe` da pasta são listados; com
     um só, ele vira o botão Jogar; com vários, o jogador escolhe ("Escolher programa").
 
@@ -82,13 +82,13 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 20. **Sem extrator ou patcher em segundo plano.** Os ports do catálogo leem os arquivos do
     jogador quando abrem; não há passo de extração. Se um port precisar disso, o passo entra no
     `catalog.json` como dado conferido e roda com progresso visível, nunca escondido. Programas
-    de ports da Comunidade nunca são rodados pelo RecompHUB além do botão Jogar.
+    de ports da Comunidade nunca são rodados pelo Black Flag além do botão Jogar.
 
 ## Histórico e estado
 
 23. **Uma linha por sessão em `history.json`, separado da biblioteca.** Cada sessão guarda início,
     fim e o tempo que contou (sem o tempo com o PC dormindo). Sessões com menos de 10 segundos
-    não entram; o arquivo guarda no máximo 20 mil sessões. Ao fechar o RecompHUB com um jogo
+    não entram; o arquivo guarda no máximo 20 mil sessões. Ao fechar o Black Flag com um jogo
     aberto, a sessão é registrada até ali.
 24. **Estado do jogo como no Playnite.** Não jogado, Na fila, Jogando, Pausado, Zerado, Completo
     e Abandonado. Enquanto o jogador não escolhe, o estado vem do tempo de jogo; a primeira sessão
@@ -107,10 +107,10 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     contra a lista dele; a pasta nova é escrita ao lado da atual e as duas são trocadas por
     renomeação. Com o jogo aberto, restaurar é recusado.
 27. **Vigia de saves por consulta, não por eventos do Windows.** As pastas de saves são pequenas
-    e o RecompHUB já olha os processos a cada 3 segundos; a cada 15 segundos ele olha o arquivo
+    e o Black Flag já olha os processos a cada 3 segundos; a cada 15 segundos ele olha o arquivo
     mais novo da pasta do jogo aberto e avisa a página ("save-changed"). As conquistas vão usar
     esse mesmo aviso.
-28. **Ludusavi para os Outros jogos de PC, só se o jogador tiver.** O RecompHUB procura o
+28. **Ludusavi para os Outros jogos de PC, só se o jogador tiver.** O Black Flag procura o
     `ludusavi.exe` (escolhido pelo jogador, winget, scoop ou PATH), nunca baixa nem instala. Usa
     a linha de comando JSON dele (`find --api` e `backup --force --api`), e o backup fica na
     pasta configurada no próprio Ludusavi. Só um arquivo chamado `ludusavi.exe` é executado.
@@ -120,7 +120,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 29. **O perfil ativo mora na biblioteca.** O que é de cada jogador (tempo, última sessão,
     favoritos, ocultos, estado, vezes jogado, anotações) fica no `library.json` para o perfil em
     uso; trocar de perfil guarda isso em `profiles/<id>.json` e carrega o do outro. Assim o resto
-    do RecompHUB não precisa saber de perfis. O que está instalado e onde é o mesmo para todos.
+    do Black Flag não precisa saber de perfis. O que está instalado e onde é o mesmo para todos.
     As sessões do histórico levam o perfil; as antigas são do perfil "Principal".
 30. **Trocar de perfil só com tudo fechado.** Com um jogo aberto ou uma instalação em andamento,
     a troca é recusada, para o tempo de jogo nunca ir para o perfil errado.
@@ -133,10 +133,10 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 
 32. **Conquistas próprias, nunca do RetroAchievements.** Os ports não avisam conquistas, e o
     RetroAchievements só aceita desbloqueios dos emuladores aprovados por ele; ler a memória do
-    jogo para isso iria contra as regras deles. As conquistas do RecompHUB têm o formato das do
+    jogo para isso iria contra as regras deles. As conquistas do Black Flag têm o formato das do
     RetroAchievements (título, descrição, pontos, tipo, ícone, oculta) e ficam em
     `achievements.json`, conferido como o catálogo (ids, pontos de 1 a 100, contadores conhecidos).
-33. **Gatilhos só com o que o RecompHUB já lê.** Gerais (todo jogo): sessões, tempo total, maior
+33. **Gatilhos só com o que o Black Flag já lê.** Gerais (todo jogo): sessões, tempo total, maior
     sessão e dias jogados, do perfil em uso. Por jogo: o progresso lido do save, só leitura, com o
     formato tirado da decompilação pública do jogo (Banjo-Kazooie: `n64decomp/banjo-kazooie`, CC0;
     vale o melhor dos três saves). Um jogo novo ganha leitor só com o formato conferido e testado.
@@ -165,14 +165,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 
 38. **Pedir a permissão do Windows em vez de falhar.** Um programa cujo manifesto exige
     administrador não abre por CreateProcess (erro 740) e o Windows não mostra o UAC sozinho.
-    Nesse caso o RecompHUB abre o jogo com ShellExecuteEx "runas", que mostra o pedido de
+    Nesse caso o Black Flag abre o jogo com ShellExecuteEx "runas", que mostra o pedido de
     permissão, e marca o jogo para abrir assim das próximas vezes (o jogador pode desligar). O
-    RecompHUB em si continua sem administrador. Como um jogo com administrador pode esconder o
+    Black Flag em si continua sem administrador. Como um jogo com administrador pode esconder o
     caminho do programa, o vigia de sessões também o reconhece pelo nome do programa; e "Fechar
     jogo" avisa que o Windows não deixa fechá-lo de fora.
-    Um programa aberto por "runas" não herda as variáveis de ambiente do RecompHUB. Quando o
+    Um programa aberto por "runas" não herda as variáveis de ambiente do Black Flag. Quando o
     jogo tem variáveis (Opções de inicialização), o pedido de permissão é para uma cópia do
-    RecompHUB com `--abrir-jogo-como-admin` e o pedido (programa, pasta, argumentos e
+    Black Flag com `--abrir-jogo-como-admin` e o pedido (programa, pasta, argumentos e
     variáveis) em base64 na linha de comando, não num arquivo, para nada mudar entre o UAC e a
     abertura. Essa cópia abre o jogo já como administrador e termina antes de abrir janela. Sem
     variáveis, o jogo é aberto direto, como antes (v0.20.1).
@@ -185,7 +185,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     adultos não aparecem e os descontinuados só aparecem se já estiverem instalados. Os downloads
     só são aceitos de `thunderstore.io` e seus subdomínios, em https. Autor e página sempre à vista.
 40. **Instalar do jeito que o port lê.** O N64ModernRuntime carrega os `.nrm` (e `.rtz`) de
-    `<dados>/mods` e liga os mods listados em `<dados>/mods.json`. O RecompHUB copia só esses
+    `<dados>/mods` e liga os mods listados em `<dados>/mods.json`. O Black Flag copia só esses
     arquivos (achatados, nomes conferidos, extração em streaming para pacotes de vários GB), lê o
     `mod.json` de cada `.nrm` para saber o id e recusa mod de outro jogo. Um arquivo de outro
     pacote nunca é sobrescrito; dependências vêm antes, e as que ninguém mais usa saem junto ao
@@ -208,10 +208,10 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 44. **Pular uma versão, não todas.** "Pular esta versão" guarda a tag da versão nova; o aviso
     volta quando sair outra. Instalar limpa a escolha. "Avisar sobre versões novas: desligado"
     (decisão antiga) continua para quem não quer aviso nenhum.
-45. **Adicionar à Steam como jogo não Steam.** O RecompHUB edita o `shortcuts.vdf` da conta que
-    usou a Steam por último. O atalho abre `RecompHUB.exe --play <id>`, então o tempo continua
+45. **Adicionar à Steam como jogo não Steam.** O Black Flag edita o `shortcuts.vdf` da conta que
+    usou a Steam por último. O atalho abre `recomphub.exe --play <id>`, então o tempo continua
     sendo contado, e a Steam dá Big Picture e a configuração de controle. Regras: só com a Steam
-    fechada (ela regrava o arquivo ao sair); um arquivo que o RecompHUB não entende por inteiro
+    fechada (ela regrava o arquivo ao sair); um arquivo que o Black Flag não entende por inteiro
     não é tocado; os outros atalhos são regravados byte a byte; clicar de novo atualiza o mesmo
     atalho (mesmo programa e mesmo `--play <id>`) e mantém o id dele; uma cópia do arquivo
     original fica em `shortcuts.vdf.recomphub-backup`. O id é o que a própria Steam calcularia,
@@ -222,7 +222,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 46. **Avisar antes, com o que o próprio PC diz.** As causas mais comuns de "o port não abre"
     nos issues dos projetos são do PC: processador sem as instruções que o código do jogo usa
     (gow3_pc com Sandy/Ivy Bridge e Xeons antigos, erro 0xc000001d), driver de vídeo antigo ou
-    ausente, Windows desatualizado e Visual C++ faltando. O RecompHUB lê isso sem administrador
+    ausente, Windows desatualizado e Visual C++ faltando. O Black Flag lê isso sem administrador
     (CPUID, com o XGETBV para as instruções AVX; Win32_VideoController pelo PowerShell, uma vez
     por execução; registro do Windows; DLLs do System32) e mostra na página do jogo. Instruções
     exigidas vêm do catálogo (`cpu_features`) e só entram com confirmação do projeto. O aviso
@@ -233,7 +233,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     fechado, porque trocar para Vulkan resolveu notebooks que renderizavam na placa integrada.
 48. **Antivírus explicado, não contornado.** Os erros 225/226 do Windows e o programa do port
     sumido de uma pasta que ainda existe viram uma explicação com o caminho até o Histórico de
-    proteção. O RecompHUB nunca cria exclusões nem desliga o antivírus, e diz para só restaurar
+    proteção. O Black Flag nunca cria exclusões nem desliga o antivírus, e diz para só restaurar
     arquivos de ports vindos da página oficial.
 
 ## Contador de FPS (v0.22)
@@ -243,7 +243,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     descartado: não mede FPS e é um programa fechado. O PresentMon não vem no instalador: é
     baixado só quando o jogador pede, da release oficial da Intel no GitHub, e só é usado com
     assinatura digital válida da Intel. A leitura exige o grupo "Performance Log Users" (SID
-    S-1-5-32-559): por escolha do jogador, uma cópia elevada do RecompHUB coloca a conta nele uma
+    S-1-5-32-559): por escolha do jogador, uma cópia elevada do Black Flag coloca a conta nele uma
     única vez (NetLocalGroupAddMembers, pelo SID, para funcionar em qualquer idioma do Windows),
     e vale a partir do próximo login. O número aparece numa janela transparente, sem foco e que
     ignora cliques, no canto de cima; em tela cheia exclusiva o Windows a esconde. A medição
@@ -255,14 +255,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     release, programa e lugar das configurações). O catálogo usa os nomes novos e guarda o
     programa antigo (`legacy_exe`), para uma instalação antiga continuar jogável até a atualização.
     Os marcadores são `run.py` e `scripts/prepare.py`, presentes em todas as versões de Windows,
-    da gow3_pc 2.0 à SpartanPort 2.6.0, então até versões antigas do RecompHUB reconhecem as duas
+    da gow3_pc 2.0 à SpartanPort 2.6.0, então até versões antigas do Black Flag reconhecem as duas
     (`legacy_markers` existe para quando não houver arquivos em comum). O caminho antigo das configurações fica em `settings_file`, que as
-    versões antigas do RecompHUB entendem, e o novo em `portable_settings_file`; assim quem ainda
-    não atualizou o RecompHUB continua vendo o jogo e já recebe o download certo. Os dados vêm do
+    versões antigas do Black Flag entendem, e o novo em `portable_settings_file`; assim quem ainda
+    não atualizou o Black Flag continua vendo o jogo e já recebe o download certo. Os dados vêm do
     código do projeto (`legacy.py`, `USER_FILES` do launcher), não de suposição.
-51. **Shaders: o port compila, o RecompHUB cuida do cache.** Um launcher não consegue compilar
+51. **Shaders: o port compila, o Black Flag cuida do cache.** Um launcher não consegue compilar
     os shaders pelo port (só o jogo sabe quais vai usar), e os ports já compilam em segundo plano.
-    O RecompHUB mostra o tamanho do cache, avisa na primeira vez que travadinhas são normais,
+    O Black Flag mostra o tamanho do cache, avisa na primeira vez que travadinhas são normais,
     lembra o driver de vídeo com que o cache foi feito e avisa quando ele mudou (cache de outro
     driver pode fechar o jogo ao abrir). "Limpar" move a pasta para `.recomphub-anterior` e
     "Desfazer" a devolve; nada é apagado sem uma cópia. Compartilhar cache entre jogadores fica de
@@ -273,7 +273,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
 52. **Mais formatos, nenhum instalador.** Ports da Comunidade podem vir em .zip, .7z ou como um
     .exe portátil. No .7z, cada nome é conferido antes de gravar (nada fora da pasta, nenhum nome
     de dispositivo do Windows, links ignorados) e o pacote é recusado inteiro se um falhar.
-    Instaladores (Setup .exe, .msi) nunca são rodados pelo RecompHUB: a página explica e leva à
+    Instaladores (Setup .exe, .msi) nunca são rodados pelo Black Flag: a página explica e leva à
     página de versões do projeto; depois o jogador adiciona o jogo como jogo de PC. A página
     também separa "o projeto ainda não publicou versão" de "só há arquivos para outros sistemas".
 53. **O nome do jogo, não o do repositório.** Resultados por tópico do GitHub não dizem o jogo, e
@@ -288,7 +288,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     botões de doação, até 8 MB, com limite de pixels e de memória antes de abrir a imagem. As
     miniaturas (360×360, JPEG) ficam em `comunidade-imagens/` e chegam aos poucos, em segundo
     plano; um port sem imagem é tentado de novo depois de uma semana.
-55. **Diagnóstico de erro só com o que o PC já guarda.** Quando uma sessão termina, o RecompHUB
+55. **Diagnóstico de erro só com o que o PC já guarda.** Quando uma sessão termina, o Black Flag
     junta quatro fontes: o código de saída do programa que ele abriu (uma DLL faltando nunca
     chega ao registro do Windows), o evento 1000 "Application Error" do Windows (código e
     módulo, vale também para jogos abertos como administrador ou por fora), os crash dumps de
@@ -307,7 +307,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     passos explica o programa e ajuda a colar a chave da SteamGridDB; ele volta em Mais > Tutorial.
     Telas virtuais (Parsec, Spacedesk, monitores IDD) não contam como placa de vídeo.
 57. **Antes de jogar: conferir sem mudar nada, corrigir só com um clique.** Ao abrir a página de
-    um jogo instalado (port, comunidade ou jogo de PC), o RecompHUB lê as tabelas de importação
+    um jogo instalado (port, comunidade ou jogo de PC), o Black Flag lê as tabelas de importação
     do programa (normais e de carga atrasada) e das DLLs da própria pasta, um nível por vez, e
     procura cada DLL na pasta do jogo, no System32 (SysWOW64 para programas de 32 bits), no
     Windows e no PATH. Também acusa arquivos só na nuvem do OneDrive (lidos pelos atributos,
@@ -318,7 +318,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     DirectX" baixam de endereços fixos no código (`aka.ms` e `download.microsoft.com`), seguem
     redirecionamentos só para `*.microsoft.com`, conferem o SHA-256 quando o endereço final o
     traz (Visual C++) e a assinatura Authenticode com `O=Microsoft Corporation` antes de abrir.
-    O instalador roda em modo silencioso com um único pedido de administrador e o RecompHUB
+    O instalador roda em modo silencioso com um único pedido de administrador e o Black Flag
     espera o código de saída (3010 = reiniciar). Visual C++ antigo (2005 a 2013) só ganha o link
     da página da Microsoft. "Jogar" com o jogo já aberto traz a janela dele para a frente, e
     um arquivo que não pôde ser gravado diz qual programa o está usando (Restart Manager).
@@ -326,12 +326,12 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     para o item mais próximo na direção apertada (navegação espacial), em qualquer tela; LB/RB
     trocam as abas, Menu/Options abre o Modo TV, e uma barra embaixo mostra os botões do
     controle em uso (✕ ○ no PlayStation, A B no Xbox; na Nintendo o A, à direita, confirma). A
-    barra some quando o mouse mexe. Com o RecompHUB atrás de um jogo, a página não recebe o
+    barra some quando o mouse mexe. Com o Black Flag atrás de um jogo, a página não recebe o
     controle, então um processo nativo lê o XInput (`XInputGetStateEx`, que inclui o botão
     Xbox): segurar o botão Xbox/PS ou View + Menu por 0,7 s traz a janela de volta. Segurar,
     não apertar, porque o toque curto é da Xbox Game Bar. Controles PlayStation só são vistos
     assim através da Steam ou do DS4Windows.
-60. **Modo TV com ideias de console, desenho do RecompHUB.** Do PS4 vem a fileira única de jogos
+60. **Modo TV com ideias de console, desenho do Black Flag.** Do PS4 vem a fileira única de jogos
     em que o escolhido cresce e fica na borda esquerda, com a arte dele (banner da SteamGridDB,
     senão a capa) no fundo, escurecida por uma camada lisa. Do Xbox 360 vêm as seções trocadas
     com LB/RB (Jogos, Descobrir, Conquistas, Sistema), a barra que diz o que cada botão faz agora
@@ -354,6 +354,17 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     jogador. Um jogo de loja removido pelo jogador vai para `excluded` e não volta sozinho; um
     jogo desinstalado na loja sai da biblioteca guardando o tempo de jogo. A capa da Steam vem
     do cache local dela (`appcache\librarycache`).
+
+63. **O nome passa a ser Black Flag** (escolha do Gustavo em 24/10/2026, avisado de que é também
+    o subtítulo de Assassin's Creed IV e o nome de uma banda). Muda o que o jogador vê: nome do
+    programa, janela, instalador, ícone (bandeira vermelha no quadrado preto), site e textos.
+    Ficam iguais, de propósito, os nomes internos: o identificador `io.github.recomphub` (é
+    a pasta dos dados: biblioteca, saves, perfis), o programa `recomphub.exe` (atalhos e jogos
+    na Steam apontam para ele) e os nomes de arquivos temporários e de backup. Como o
+    instalador usa o nome do produto, o Black Flag instala numa pasta nova e o RecompHUB
+    antigo deve ser desinstalado à mão (os dados ficam). A organização e o repositório no
+    GitHub só mudam de nome depois de uma versão publicada que aceite os dois endereços, para
+    quem usa uma versão antiga continuar recebendo o aviso de atualização.
 
 ## Capas
 

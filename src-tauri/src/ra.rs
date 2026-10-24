@@ -1,6 +1,6 @@
 //! RetroAchievements, read only: with the player's own username and Web API key, the game
 //! page shows what they earned in the ORIGINAL game, played in emulators RetroAchievements
-//! approves. RecompHUB never unlocks anything there (decision 32).
+//! approves. Black Flag never unlocks anything there (decision 32).
 //!
 //! The game is found by the ROM itself: RetroAchievements identifies N64 games by the MD5 of
 //! the ROM in .z64 byte order, which is exactly how the ports store the player's ROM. The
@@ -45,7 +45,7 @@ pub struct Progress {
 
 fn http() -> reqwest::blocking::Client {
     reqwest::blocking::Client::builder()
-        .user_agent(concat!("RecompHUB/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("BlackFlag/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("http client")

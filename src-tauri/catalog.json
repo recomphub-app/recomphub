@@ -41,7 +41,7 @@
         "Você precisa de um PS4 com o God of War III Remastered instalado: do disco ou comprado na sua conta.",
         "Com uma ferramenta de dump para PS4, copie o jogo instalado para um HD externo. O resultado é uma pasta com eboot.bin, sce_module e sce_sys.",
         "Se o seu PS4 tiver a atualização 01.02, copie também a pasta da atualização: o port aceita as duas versões.",
-        "Passe a pasta para o PC e escolha-a aqui no RecompHUB. Ele confere o código do jogo e a versão."
+        "Passe a pasta para o PC e escolha-a aqui no Black Flag. Ele confere o código do jogo e a versão."
       ],
       "guide_links": [
         { "label": "Instruções do SpartanPort", "url": "https://github.com/FelipePrado0/SpartanPort#download-and-play" }
@@ -83,7 +83,7 @@
       "guide": [
         "Você precisa do cartucho original do Banjo-Kazooie norte-americano (NTSC-U).",
         "Ligue um leitor de cartuchos de N64 ao PC e copie o cartucho para um arquivo .z64.",
-        "Escolha o arquivo aqui no RecompHUB. Ele confere se é exatamente a versão USA 1.0 e explica o que estiver diferente."
+        "Escolha o arquivo aqui no Black Flag. Ele confere se é exatamente a versão USA 1.0 e explica o que estiver diferente."
       ],
       "guide_links": [
         { "label": "Sanni Cart Reader (leitor de cartuchos aberto)", "url": "https://github.com/sanni/cartreader" },
@@ -126,7 +126,7 @@
       "guide": [
         "Você precisa do cartucho original de Majora's Mask norte-americano (NTSC-U).",
         "Ligue um leitor de cartuchos de N64 ao PC e copie o cartucho para um arquivo .z64.",
-        "Escolha o arquivo aqui no RecompHUB. Ele confere se é exatamente a versão USA 1.0 e explica o que estiver diferente."
+        "Escolha o arquivo aqui no Black Flag. Ele confere se é exatamente a versão USA 1.0 e explica o que estiver diferente."
       ],
       "guide_links": [
         { "label": "Sanni Cart Reader (leitor de cartuchos aberto)", "url": "https://github.com/sanni/cartreader" },
@@ -168,7 +168,7 @@
       "guide": [
         "Você precisa do cartucho original de Donkey Kong 64 norte-americano (NTSC-U).",
         "Ligue um leitor de cartuchos de N64 ao PC e copie o cartucho para um arquivo .z64.",
-        "Escolha o arquivo aqui no RecompHUB. Ele confere se é exatamente a versão USA e explica o que estiver diferente."
+        "Escolha o arquivo aqui no Black Flag. Ele confere se é exatamente a versão USA e explica o que estiver diferente."
       ],
       "guide_links": [
         { "label": "Sanni Cart Reader (leitor de cartuchos aberto)", "url": "https://github.com/sanni/cartreader" },
@@ -210,7 +210,7 @@
       "guide": [
         "Você precisa do cartucho original de Harvest Moon 64 norte-americano (NTSC-U).",
         "Ligue um leitor de cartuchos de N64 ao PC e copie o cartucho para um arquivo .z64.",
-        "Escolha o arquivo aqui no RecompHUB. Ele confere se é exatamente a versão USA e explica o que estiver diferente."
+        "Escolha o arquivo aqui no Black Flag. Ele confere se é exatamente a versão USA e explica o que estiver diferente."
       ],
       "guide_links": [
         { "label": "Sanni Cart Reader (leitor de cartuchos aberto)", "url": "https://github.com/sanni/cartreader" },

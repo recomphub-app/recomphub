@@ -227,7 +227,7 @@ function filesBox(g) {
       <h3>${esc(files ? files.summary : 'Faltam os arquivos do jogo')}</h3>
       ${details.length ? `<ul>${details.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
       <p><b>O que você precisa:</b> ${esc(g.needs)}</p>
-      <p class="muted">${esc(g.files_help)} O RecompHUB nunca baixa arquivos de jogos: eles vêm da sua cópia.</p>
+      <p class="muted">${esc(g.files_help)} O Black Flag nunca baixa arquivos de jogos: eles vêm da sua cópia.</p>
       ${dropZone(g)}
       <div class="row"><button class="primary" data-act="files">${label}</button>${searchBtn}</div>
       ${downloadsBox(g)}
@@ -299,7 +299,7 @@ function playRow(g, what) {
 // After "Pular esta versão": which one was skipped, and the way back.
 function skippedNote(g) {
   if (!g.skipped_version || g.update_available) return '';
-  return `<p class="muted">Você pulou a versão ${esc(g.skipped_version)}. O RecompHUB avisa de novo quando sair uma mais nova.
+  return `<p class="muted">Você pulou a versão ${esc(g.skipped_version)}. O Black Flag avisa de novo quando sair uma mais nova.
     <button class="link" data-act="unskip-update">Avisar desta também</button></p>`;
 }
 
@@ -313,7 +313,7 @@ function shortcutsRow(g) {
         <button data-act="steam-add">Na Steam</button>
         ${g.kind === 'port' ? '<button class="ghost" data-act="saves">Abrir pasta de saves</button>' : ''}
       </div>
-      <p class="muted">Os atalhos abrem o jogo pelo RecompHUB, então o tempo de jogo continua contando. Na Steam ele aparece
+      <p class="muted">Os atalhos abrem o jogo pelo Black Flag, então o tempo de jogo continua contando. Na Steam ele aparece
         como "jogo não Steam" e funciona no Big Picture; feche a Steam antes.</p>
     </div>`;
 }
@@ -322,7 +322,7 @@ function renderPcDetail(g) {
   const missing = g.status === 'missing' ? `
     <div class="box bad">
       <h3>Programa não encontrado</h3>
-      <p>O RecompHUB não achou mais ${esc(g.install_dir)}. Se você moveu o jogo, remova-o da biblioteca e adicione de novo.</p>
+      <p>O Black Flag não achou mais ${esc(g.install_dir)}. Se você moveu o jogo, remova-o da biblioteca e adicione de novo.</p>
     </div>` : '';
   $('#detail').innerHTML = `
     <button class="ghost back" data-act="back">← Biblioteca</button>
@@ -568,8 +568,8 @@ function backupsBoxHtml(g) {
       return `
         <div class="box">
           <h3>Backups dos saves</h3>
-          <p class="muted">O RecompHUB não sabe onde este jogo guarda os saves. Com o <b>Ludusavi</b> (gratuito, conhece mais de
-            19 mil jogos) instalado neste PC, o RecompHUB pede o backup a ele.</p>
+          <p class="muted">O Black Flag não sabe onde este jogo guarda os saves. Com o <b>Ludusavi</b> (gratuito, conhece mais de
+            19 mil jogos) instalado neste PC, o Black Flag pede o backup a ele.</p>
           <div class="row">
             <button class="link" data-act="link" data-url="https://github.com/mtkennerly/ludusavi">Página do Ludusavi</button>
             <button class="ghost" data-act="open-settings">Configurar em Configurações</button>
@@ -579,7 +579,7 @@ function backupsBoxHtml(g) {
     return `
       <div class="box">
         <h3>Backups dos saves (pelo Ludusavi)</h3>
-        <p class="muted">Nome do jogo no Ludusavi (deixe vazio para o RecompHUB procurar pelo nome da biblioteca):</p>
+        <p class="muted">Nome do jogo no Ludusavi (deixe vazio para o Black Flag procurar pelo nome da biblioteca):</p>
         <div class="tags-edit">
           <input type="text" id="ludusavi-name" value="${esc(b.ludusavi_name || '')}" placeholder="${esc(g.title)}">
           <button data-act="ludusavi-name">Salvar nome</button>
@@ -734,7 +734,7 @@ function renderProfiles() {
       ${raAccountBox()}
       <div class="box">
         <label class="check"><input type="checkbox" id="profile-ask" ${p.ask_on_start ? 'checked' : ''}>
-          Perguntar "Quem vai jogar?" ao abrir o RecompHUB (quando houver mais de um perfil).</label>
+          Perguntar "Quem vai jogar?" ao abrir o Black Flag (quando houver mais de um perfil).</label>
         <div class="row"><button data-act="profile-options">Salvar</button></div>
       </div>
       <p class="muted">Saves separados por perfil: ligue na caixa "Backups dos saves" da página de cada jogo.
@@ -835,7 +835,7 @@ function achievementsBoxHtml(g) {
       <summary><h3>Conquistas: ${c.unlocked} de ${c.total} · ${c.points} de ${c.total_points} pontos</h3></summary>
       <div class="progress"><div style="width:${c.total ? Math.round((c.unlocked / c.total) * 100) : 0}%"></div></div>
       <ul class="achs">${c.list.map(achItem).join('')}</ul>
-      <p class="muted">Conquistas do RecompHUB, do perfil ${esc(profiles ? profiles.active.name : '')}: tempo de jogo e sessões${c.source ? `, além do progresso lido do seu save (só leitura; o save nunca é alterado). ${c.save_read ? '' : '<b>O save deste jogo ainda não foi encontrado.</b>'}` : '.'}
+      <p class="muted">Conquistas do Black Flag, do perfil ${esc(profiles ? profiles.active.name : '')}: tempo de jogo e sessões${c.source ? `, além do progresso lido do seu save (só leitura; o save nunca é alterado). ${c.save_read ? '' : '<b>O save deste jogo ainda não foi encontrado.</b>'}` : '.'}
         Não são conquistas do RetroAchievements.</p>
       ${own.length && c.source ? `<p class="muted small-text">${esc(c.source)}</p>` : ''}
     </details>`;
@@ -921,7 +921,7 @@ function raBoxHtml(g) {
           <span class="ach-pts">${a.points}</span>
         </li>`).join('')}</ul>
       <p class="muted">Conquistas que você ganhou no RetroAchievements jogando o jogo original em emuladores aprovados por
-        ele. O RecompHUB só mostra; jogar o port não desbloqueia nada lá. Atualizado em ${sessionDate(r.fetched_at)}
+        ele. O Black Flag só mostra; jogar o port não desbloqueia nada lá. Atualizado em ${sessionDate(r.fetched_at)}
         (no máximo a cada 6 horas). ${earnedCount ? '' : 'Ainda nenhuma ganha.'}</p>
       <div class="row">
         <button class="ghost" data-act="ra-refresh">Atualizar agora</button>
@@ -1101,7 +1101,7 @@ function renderModsPage(id) {
             <button class="ghost small danger" data-act="collection-delete" data-name="${esc(c.name)}">Apagar</button></li>`).join('')}</ul>` : ''}
       </div>
       ${v.gone.length ? `<p class="muted">Instalados mas fora da Thunderstore agora: ${v.gone.map(esc).join(', ')}.</p>` : ''}
-      <p class="muted">Mods são programas feitos pela comunidade: o RecompHUB só baixa da Thunderstore e confere se cada mod é
+      <p class="muted">Mods são programas feitos pela comunidade: o Black Flag só baixa da Thunderstore e confere se cada mod é
         deste jogo, mas não garante o que eles fazem. Antes de instalar ou ligar um mod, ele faz backup dos seus saves.
         Mods nunca trazem arquivos do jogo original. Pasta dos mods: <code>${esc(v.mods_folder)}</code>
         <button class="link small-text" data-act="mods-folder">abrir</button></p>`;
@@ -1193,7 +1193,7 @@ function renderStats() {
             <span class="name">${esc(title(g.id))}</span>
             <span class="track"><span style="width:${Math.round((g.seconds / topMax) * 100)}%"></span></span>
             <span class="muted">${shortTime(g.seconds)} · ${g.sessions} sessão(ões)</span>
-          </li>`).join('')}</ul>` : '<p class="muted">Ainda não há sessões registradas. Jogue algo pelo RecompHUB!</p>'}
+          </li>`).join('')}</ul>` : '<p class="muted">Ainda não há sessões registradas. Jogue algo pelo Black Flag!</p>'}
         ${s.longest ? `<p class="muted">Maior sessão: ${shortTime(s.longest.seconds)} de ${esc(title(s.longest.id))}, em ${sessionDate(s.longest.start)}.</p>` : ''}
       </div>
       <div class="box">
@@ -1256,14 +1256,14 @@ function renderCovers() {
     <button class="ghost back" data-act="back">← Biblioteca</button>
     <div class="covers-page">
       <h2>Capas</h2>
-      <p>Funciona como o baixador de capas do PCSX2: para cada jogo da biblioteca sem capa, o RecompHUB
+      <p>Funciona como o baixador de capas do PCSX2: para cada jogo da biblioteca sem capa, o Black Flag
         tenta os endereços abaixo e guarda a primeira imagem que encontrar. Cada capa é baixada uma vez só.</p>
       <div class="box">
         <h3>Ordem das capas</h3>
         <ol>
           <li>A imagem que você escolheu na página do jogo.</li>
           <li>A imagem dos seus próprios arquivos do jogo (por exemplo, o ícone do dump de PS4).</li>
-          <li>Uma capa baixada: primeiro das fontes do catálogo do RecompHUB, depois dos seus endereços.</li>
+          <li>Uma capa baixada: primeiro das fontes do catálogo do Black Flag, depois dos seus endereços.</li>
           <li>Uma capa da SteamGridDB ou da IGDB, se você colocou sua chave em Configurações.</li>
           <li>Para jogos de PC sem capa, o ícone do programa.</li>
         </ol>
@@ -1284,7 +1284,7 @@ function renderCovers() {
           (como <code>CUSA01715</code>) e <code>\${title}</code> para o nome do jogo.</p>
         <textarea id="templates" spellcheck="false" placeholder="https://exemplo.com/capas/\${serial}.jpg">${esc((coverTemplates || []).join('\n'))}</textarea>
         <div class="row"><button data-act="covers-save">Salvar endereços</button></div>
-        <p class="muted">As capas ficam só no seu PC. Os endereços são escolhidos por você; o RecompHUB só aceita imagens (PNG, JPG ou WEBP) de até 10 MB.</p>
+        <p class="muted">As capas ficam só no seu PC. Os endereços são escolhidos por você; o Black Flag só aceita imagens (PNG, JPG ou WEBP) de até 10 MB.</p>
       </div>
     </div>`;
   document.querySelectorAll('#detail [data-act]').forEach((el) =>
@@ -1358,8 +1358,8 @@ function pcCheckBox(g, which = 'bad') {
     .map((x) => `<li class="${x.level === 'bad' ? 'bad-text' : ''}">${esc(x.text)}${findingLink(x)}</li>`).join('');
   const fixable = list.some((x) => x.level === 'bad' && x.fix);
   const checked = g.kind === 'pc_game'
-    ? 'O RecompHUB conferiu os arquivos que o jogo usa (DLLs, OneDrive, caminhos longos).'
-    : 'O RecompHUB conferiu processador, placa de vídeo, driver, Windows, o Visual C++ e os arquivos que o jogo usa. Detalhes em Configurações > Seu PC.';
+    ? 'O Black Flag conferiu os arquivos que o jogo usa (DLLs, OneDrive, caminhos longos).'
+    : 'O Black Flag conferiu processador, placa de vídeo, driver, Windows, o Visual C++ e os arquivos que o jogo usa. Detalhes em Configurações > Seu PC.';
   return `
     <div class="box ${bad ? 'bad' : 'warn'}">
       <h3>${!bad ? 'Antes de jogar: pode dar problema' : fixable ? 'Antes de jogar: falta uma coisa' : 'Este jogo não deve abrir assim'}</h3>
@@ -1376,7 +1376,7 @@ function lostFilesBox(g) {
       <p>A pasta continua lá, mas o programa do jogo não. Quase sempre é o antivírus. Com programas novos e sem
         assinatura pode ser alarme falso, mas nem sempre é.</p>
       <p>Veja o arquivo em Segurança do Windows > Proteção contra vírus e ameaças > Histórico de proteção. Só restaure se o
-        port veio da página oficial do projeto pelo RecompHUB; na dúvida, pergunte no GitHub do projeto antes. Depois
+        port veio da página oficial do projeto pelo Black Flag; na dúvida, pergunte no GitHub do projeto antes. Depois
         clique em Reinstalar. Seus saves são mantidos.</p>
       <div class="row">
         <button data-act="win-security">Abrir Segurança do Windows</button>
@@ -1585,9 +1585,9 @@ function launchBox(g) {
     <details class="box" ${g.launch_args || g.env.length || g.run_as_admin ? 'open' : ''}>
       <summary><h3>Opções de inicialização</h3></summary>
       <label class="check"><input type="checkbox" data-act="run-admin" ${g.run_as_admin ? 'checked' : ''}>
-        Abrir como administrador: o Windows pede a sua permissão toda vez que o jogo abrir. O RecompHUB liga isto
+        Abrir como administrador: o Windows pede a sua permissão toda vez que o jogo abrir. O Black Flag liga isto
         sozinho quando o jogo exige administrador. Nesse modo as variáveis de ambiente abaixo não são usadas.</label>
-      <p class="muted">Para usuários avançados. Valem quando o jogo é aberto pelo RecompHUB (botão Jogar, atalhos e bandeja).</p>
+      <p class="muted">Para usuários avançados. Valem quando o jogo é aberto pelo Black Flag (botão Jogar, atalhos e bandeja).</p>
       <p><b>Argumentos</b></p>
       <input type="text" id="launch-args" class="wide" value="${esc(g.launch_args)}" placeholder='Ex.: --fullscreen  ou  --rom "C:\\Meus jogos\\rom.z64"'>
       <p><b>Variáveis de ambiente</b> (uma por linha, NOME=valor)</p>
@@ -1638,7 +1638,7 @@ function crashScan(g) {
   return `
     <div class="box">
       <h3>O jogo fecha sozinho?</h3>
-      <p class="muted">O RecompHUB procura o erro nos registros do Windows dos últimos 7 dias, explica o que encontrou e monta
+      <p class="muted">O Black Flag procura o erro nos registros do Windows dos últimos 7 dias, explica o que encontrou e monta
         um relatório para pedir ajuda no GitHub do port.</p>
       <div class="row"><button data-act="crash-scan">Procurar o erro</button></div>
     </div>`;
@@ -1654,7 +1654,7 @@ function keysBox() {
   return `
     <div class="box">
       <h3>Capa, banner e descrição dos jogos</h3>
-      <p>Com uma chave gratuita sua, o RecompHUB busca na <b>SteamGridDB</b> (capas e banners feitos pela comunidade)
+      <p>Com uma chave gratuita sua, o Black Flag busca na <b>SteamGridDB</b> (capas e banners feitos pela comunidade)
         e na <b>IGDB</b> (descrição, ano, gêneros, capa e arte) as informações dos jogos da sua biblioteca.
         Cada jogo é buscado uma vez e fica guardado no seu PC.</p>
       <p><b>SteamGridDB</b> ${saved(settings.has_steamgriddb)}
@@ -1675,7 +1675,7 @@ function keysBox() {
         <summary>Como pegar a chave da IGDB (5 minutos)</summary>
         <ol>
           <li>A IGDB é da Twitch. Entre no console da Twitch com a sua conta; ela precisa ter a verificação em duas etapas ligada.</li>
-          <li>Clique em "Register Your Application". Nome: qualquer um (ex.: RecompHUB do Fulano). OAuth Redirect URL:
+          <li>Clique em "Register Your Application". Nome: qualquer um (ex.: Black Flag do Fulano). OAuth Redirect URL:
             <code>http://localhost</code>. Categoria: Application Integration. Tipo: Confidential.</li>
           <li>Depois de criar, clique em "Manage": copie o Client ID e clique em "New Secret" para gerar o Client Secret.</li>
           <li>Cole os dois abaixo e clique em "Salvar e testar".</li>
@@ -1688,7 +1688,7 @@ function keysBox() {
         ${settings.has_steamgriddb || settings.has_igdb ? '<button class="ghost danger" data-act="keys-clear">Apagar as chaves</button>' : ''}
       </div>
       ${results}
-      <p class="muted">As chaves ficam só neste PC (no arquivo de configurações do RecompHUB) e só são enviadas para os próprios sites.
+      <p class="muted">As chaves ficam só neste PC (no arquivo de configurações do Black Flag) e só são enviadas para os próprios sites.
         Basta uma das duas; com as duas, a capa e o banner vêm primeiro da SteamGridDB e a descrição da IGDB.</p>
     </div>`;
 }
@@ -1703,9 +1703,9 @@ function githubTokenBox() {
       <p>Sem login, o GitHub responde 60 consultas por hora para cada PC. Quem tem muitos jogos ou usa bastante a aba
         Comunidade pode chegar nesse limite. Com um token seu, ele sobe para 5.000 por hora.</p>
       <p>${settings.has_github_token ? '<span class="chip ready">token guardado</span>' : '<span class="chip">sem token</span>'}
-        <button class="link" data-act="link" data-url="https://github.com/settings/tokens/new?description=RecompHUB">criar um token no GitHub</button></p>
+        <button class="link" data-act="link" data-url="https://github.com/settings/tokens/new?description=Black Flag">criar um token no GitHub</button></p>
       <p class="muted">Na página do GitHub, escolha a validade e clique em Generate token sem marcar nenhuma permissão:
-        o RecompHUB só lê páginas públicas.</p>
+        o Black Flag só lê páginas públicas.</p>
       <input type="password" id="gh-token" class="wide" autocomplete="off" placeholder="${settings.has_github_token ? 'Deixe vazio para manter o token guardado' : 'ghp_… ou github_pat_…'}">
       <div class="row">
         <button data-act="gh-token-save">Salvar e testar</button>
@@ -1741,7 +1741,7 @@ function backupSettingsBox() {
         <button class="ghost" data-act="choose-ludusavi">Escolher o ludusavi.exe</button>
         <button class="link" data-act="link" data-url="${esc(b.ludusavi_page)}">Página do Ludusavi</button>
       </div>
-      <p class="muted">O RecompHUB não baixa nem instala o Ludusavi: instale pela página dele (ou pelo winget) e ele é encontrado sozinho.</p>
+      <p class="muted">O Black Flag não baixa nem instala o Ludusavi: instale pela página dele (ou pelo winget) e ele é encontrado sozinho.</p>
     </div>`;
 }
 
@@ -1754,12 +1754,12 @@ function renderSettings() {
         ['geral', 'Geral', `
           <div class="box">
             <label class="check"><input type="checkbox" id="set-tray" ${settings.close_to_tray ? 'checked' : ''}>
-              Fechar para a bandeja: ao fechar a janela, o RecompHUB continua perto do relógio e segue contando o tempo de jogo.
+              Fechar para a bandeja: ao fechar a janela, o Black Flag continua perto do relógio e segue contando o tempo de jogo.
               Para sair de vez, use "Sair" no ícone da bandeja.</label>
             <label class="check"><input type="checkbox" id="set-hidden" ${settings.show_hidden ? 'checked' : ''}>
               Mostrar jogos ocultos na biblioteca.</label>
             <label class="check"><input type="checkbox" id="set-stores" ${settings.store_import ? 'checked' : ''}>
-              Procurar jogos da Steam, da Epic e da GOG sempre que o RecompHUB abrir. Ele só lê os arquivos das lojas neste PC, sem login.</label>
+              Procurar jogos da Steam, da Epic e da GOG sempre que o Black Flag abrir. Ele só lê os arquivos das lojas neste PC, sem login.</label>
             <div class="row"><button data-act="settings-save">Salvar</button>
               <button class="ghost" data-act="stores-unexclude">Trazer de volta os jogos das lojas que removi</button></div>
           </div>
@@ -1768,7 +1768,7 @@ function renderSettings() {
             <p class="muted">Um passo a passo curto: como instalar um port, onde fica cada coisa e como ligar as capas.</p>
             <div class="row"><button data-act="tour">Ver o tutorial</button></div>
           </div>
-          <p class="muted">RecompHUB versão ${esc(settings.version)}.</p>`],
+          <p class="muted">Black Flag versão ${esc(settings.version)}.</p>`],
         ['pc', 'Seu PC', pcInfoBox()],
         ['jogo', 'Durante o jogo', fpsBox() + achievementSettingsBox()],
         ['saves', 'Saves', backupSettingsBox()],
@@ -1846,7 +1846,7 @@ function renderPortDetail(g) {
     main = lostFilesBox(g) + pcCheckBox(g, 'bad') + `
       <div class="box">
         <h3>Instalar</h3>
-        <p>O RecompHUB baixa a versão mais recente do port na página oficial do projeto${latest ? ` (${esc(latest)})` : ''} e depois pede os arquivos da sua cópia.</p>
+        <p>O Black Flag baixa a versão mais recente do port na página oficial do projeto${latest ? ` (${esc(latest)})` : ''} e depois pede os arquivos da sua cópia.</p>
         <p class="muted">Requisitos: ${esc(g.requirements)}</p>
         ${g.pending_saves ? '<p><b>Seus saves da instalação anterior estão guardados</b> e voltam para o lugar quando você instalar.</p>' : ''}
         <div class="row">
@@ -1882,7 +1882,7 @@ function renderPortDetail(g) {
         + shortcutsRow(g) + launchBox(g) + tagsBox(g) + crashScan(g)
         + manageBox(g, 'Abrir pasta do port', g.installed_by_hub
           ? 'Desinstalar apaga a pasta do port, mas guarda seus saves e configurações para a próxima instalação. Remover da biblioteca não apaga nada.'
-          : 'Este port foi adicionado de uma pasta sua: o RecompHUB nunca apaga esses arquivos. Remover da biblioteca não apaga nada.')],
+          : 'Este port foi adicionado de uma pasta sua: o Black Flag nunca apaga esses arquivos. Remover da biblioteca não apaga nada.')],
     ]);
   }
 
@@ -2064,7 +2064,7 @@ async function act(action, g, el) {
     case 'shortcut-start': {
       const location = action === 'shortcut-desktop' ? 'desktop' : 'start_menu';
       await call('create_shortcut', { id: g.id, location });
-      toast(location === 'desktop' ? 'Atalho criado na área de trabalho.' : 'Atalho criado no menu Iniciar (pasta RecompHUB).');
+      toast(location === 'desktop' ? 'Atalho criado na área de trabalho.' : 'Atalho criado no menu Iniciar (pasta Black Flag).');
       break;
     }
     case 'remove':
@@ -2345,7 +2345,7 @@ async function act(action, g, el) {
       const big = r.file_size > 500 * 1048576 ? '\n\nÉ um pacote grande: o download pode demorar.' : '';
       const msg = r.installed
         ? `Atualizar ${r.name} para a versão ${r.version}?`
-        : `Instalar ${r.name}, de ${r.owner} (${sizeLabel(r.file_size)})?${deps.length ? `\n\nTambém serão instalados: ${deps.join(', ')}.` : ''}${big}\n\nMods são feitos pela comunidade. Antes, o RecompHUB faz backup dos seus saves.`;
+        : `Instalar ${r.name}, de ${r.owner} (${sizeLabel(r.file_size)})?${deps.length ? `\n\nTambém serão instalados: ${deps.join(', ')}.` : ''}${big}\n\nMods são feitos pela comunidade. Antes, o Black Flag faz backup dos seus saves.`;
       if (!confirm(msg)) break;
       m.busy = r.full_name;
       m.progress = null;
@@ -2625,8 +2625,8 @@ async function addExisting() {
 
 function storeCredit(g) {
   return g.store === 'GOG'
-    ? 'Jogo da GOG, achado pelo RecompHUB no seu PC. O RecompHUB abre o jogo direto e conta o tempo.'
-    : `Jogo da ${esc(g.store)}, achado pelo RecompHUB no seu PC. A ${esc(g.store)} abre o jogo (com as atualizações e os saves na nuvem dela) e o RecompHUB conta o tempo.`;
+    ? 'Jogo da GOG, achado pelo Black Flag no seu PC. O Black Flag abre o jogo direto e conta o tempo.'
+    : `Jogo da ${esc(g.store)}, achado pelo Black Flag no seu PC. A ${esc(g.store)} abre o jogo (com as atualizações e os saves na nuvem dela) e o Black Flag conta o tempo.`;
 }
 
 function storeReport(r) {
@@ -2839,7 +2839,7 @@ function renderCommunityGrid() {
   if (!communityArt) loadCommunityArt();
   const data = communityData || { items: [], errors: [], fetched_at: 0 };
   head.innerHTML = `
-    <p>Ports feitos pela comunidade e achados no GitHub. <b>Não foram verificados pelo RecompHUB</b>: instale só de projetos em
+    <p>Ports feitos pela comunidade e achados no GitHub. <b>Não foram verificados pelo Black Flag</b>: instale só de projetos em
       que você confia. Os marcados "No catálogo" têm a versão verificada em Descobrir.</p>
     <div class="row community-meta">
       ${data.fetched_at ? `<span class="muted">Lista de ${lastPlayed(data.fetched_at)}</span>` : ''}
@@ -2891,9 +2891,9 @@ function communityWarning() {
     <div class="box warn">
       <h3>Instalação experimental: port não verificado</h3>
       <ul>
-        <li>O RecompHUB baixa o .zip para Windows da página de releases deste projeto, mas não conferiu o port nem os arquivos que ele pede.</li>
+        <li>O Black Flag baixa o .zip para Windows da página de releases deste projeto, mas não conferiu o port nem os arquivos que ele pede.</li>
         <li>É um programa feito pela comunidade: só instale se confiar no projeto.</li>
-        <li>Siga o README do projeto para colocar os arquivos da sua própria cópia do jogo. O RecompHUB nunca baixa arquivos de jogos.</li>
+        <li>Siga o README do projeto para colocar os arquivos da sua própria cópia do jogo. O Black Flag nunca baixa arquivos de jogos.</li>
       </ul>
     </div>`;
 }
@@ -2908,7 +2908,7 @@ function renderCommunityItem(repo) {
     install = `
       <div class="box ok">
         <h3>Este port está no catálogo verificado</h3>
-        <p>Use a versão do catálogo: o RecompHUB confere os arquivos do jogo e explica o que falta.</p>
+        <p>Use a versão do catálogo: o Black Flag confere os arquivos do jogo e explica o que falta.</p>
         <div class="row"><button class="primary" data-cact="catalog">Abrir no catálogo</button></div>
       </div>`;
   } else if (i.installed_id) {
@@ -2926,7 +2926,7 @@ function renderCommunityItem(repo) {
       files = `
         <p>A versão <b>${esc(rel.tag)}</b> vem com instalador próprio:</p>
         <ul class="versions">${rel.installers.map((a) => `<li><span>${esc(a.name)} · ${(a.size / 1048576).toFixed(0)} MB</span></li>`).join('')}</ul>
-        <p class="muted">O RecompHUB não roda instaladores de outros projetos. Baixe e instale pela página de versões; depois use
+        <p class="muted">O Black Flag não roda instaladores de outros projetos. Baixe e instale pela página de versões; depois use
           "Adicionar jogo de PC" na biblioteca para ter tempo de jogo, atalhos e backup dos saves.</p>
         <div class="row"><button data-cact="releases">Abrir a página de versões</button></div>`;
     } else if (rel && !rel.assets.length) {
@@ -2983,7 +2983,7 @@ function renderCommunityItem(repo) {
     render();
   });
   on('install', async (el) => {
-    const ok = confirm(`Instalar ${i.name} em modo experimental?\n\nEste port não foi verificado pelo RecompHUB. Ele será baixado da página de releases de ${repo} no GitHub. Só continue se confiar no projeto.`);
+    const ok = confirm(`Instalar ${i.name} em modo experimental?\n\nEste port não foi verificado pelo Black Flag. Ele será baixado da página de releases de ${repo} no GitHub. Só continue se confiar no projeto.`);
     if (!ok) return;
     progress[id] = { id, stage: 'download', done: 0, total: 0 };
     render();
@@ -3044,7 +3044,7 @@ function renderCommunityDetail(g) {
         ${pcCheckBox(g, 'bad')}
         ${exeBox}
         ${pageTabs(g.id, [
-          ['geral', 'Visão geral', '<p class="muted">Port não verificado pelo RecompHUB: os arquivos do jogo seguem o README do projeto.</p>'],
+          ['geral', 'Visão geral', '<p class="muted">Port não verificado pelo Black Flag: os arquivos do jogo seguem o README do projeto.</p>'],
           ['saves', 'Saves', ''],
           ['conquistas', 'Conquistas', ''],
           ['ajustes', 'Ajustes', `
@@ -3293,7 +3293,7 @@ document.addEventListener('keydown', (e) => {
 
 // A row of games (the chosen one grows, its art fills the screen), sections switched with LB/RB,
 // a bar saying what each button does now, and a Guide panel on Menu/Options. Ideas from the PS4
-// home screen and the Xbox 360 dashboard, drawn in RecompHUB's own look.
+// home screen and the Xbox 360 dashboard, drawn in Black Flag's own look.
 
 let tvOn = false;
 let tvPad = { held: {}, nextAt: 0 };
@@ -3479,7 +3479,7 @@ function renderTv() {
     <div class="tv-art"${art ? ` style="background-image:url('${art.replace(/'/g, '%27')}')"` : ''}></div>
     <div class="tv-scrim"></div>
     <header class="tv-top">
-      <div class="brand">Recomp<span>HUB</span></div>
+      <div class="brand">Black <span>Flag</span></div>
       <nav class="tv-sections">${shoulder('lb', 'Q')}${TV_SECTIONS.map(([k, label], i) =>
         `<span class="tv-sec${i === tvSection ? ' on' : ''}" data-sec="${i}">${label}</span>`).join('')}${shoulder('rb', 'E')}</nav>
       <div class="tv-me">${p ? `${avatar(p)}<span>${esc(p.name)}</span>` : ''}${ach}</div>
@@ -3725,9 +3725,9 @@ function tourSteps() {
   const sgdb = settings.has_steamgriddb;
   return [
     {
-      title: 'Bem-vindo ao RecompHUB',
+      title: 'Bem-vindo ao Black Flag',
       html: `<p>Aqui ficam os seus <b>ports</b>: jogos de console refeitos para rodar direto no PC, sem emulador.</p>
-        <p>O RecompHUB instala o port pela página oficial do projeto, confere os arquivos do seu jogo, abre o jogo, conta o
+        <p>O Black Flag instala o port pela página oficial do projeto, confere os arquivos do seu jogo, abre o jogo, conta o
           tempo jogado e guarda backup dos saves.</p>
         <p class="muted">Ele nunca baixa jogos: os arquivos vêm da sua própria cópia.</p>`,
     },
@@ -3736,7 +3736,7 @@ function tourSteps() {
       html: `<ol>
           <li>Abra a aba <b>Descobrir</b> e escolha um jogo.</li>
           <li>Clique em <b>Instalar</b>. O port vem do GitHub do projeto.</li>
-          <li>Arraste o arquivo da sua cópia (a ROM ou a pasta do dump) para a página do jogo. O RecompHUB confere se é o certo.</li>
+          <li>Arraste o arquivo da sua cópia (a ROM ou a pasta do dump) para a página do jogo. O Black Flag confere se é o certo.</li>
           <li>Clique em <b>Jogar</b>.</li>
         </ol>
         <p class="muted">Se o port já está no seu PC, use Adicionar > Port que já está no PC.</p>`,
@@ -3748,15 +3748,15 @@ function tourSteps() {
         <ul>
           <li><b>Visão geral</b>: descrição, tempo de jogo e anotações.</li>
           <li><b>Saves</b>: backups automáticos, restaurar e travar.</li>
-          <li><b>Conquistas</b>: as do RecompHUB e as do RetroAchievements.</li>
+          <li><b>Conquistas</b>: as do Black Flag e as do RetroAchievements.</li>
           <li><b>Ajustes</b>: vídeo, versão do port, atalhos e desinstalar.</li>
         </ul>
-        <p class="muted">Se o jogo fechar com erro, o RecompHUB mostra o motivo provável e o que tentar.</p>`,
+        <p class="muted">Se o jogo fechar com erro, o Black Flag mostra o motivo provável e o que tentar.</p>`,
     },
     {
       title: 'Comunidade',
       html: `<p>A aba <b>Comunidade</b> mostra outros ports achados no GitHub, de vários consoles.</p>
-        <p>Eles <b>não</b> foram conferidos pelo RecompHUB: instale só de projetos em que você confia, e leia o README de cada
+        <p>Eles <b>não</b> foram conferidos pelo Black Flag: instale só de projetos em que você confia, e leia o README de cada
           um para saber quais arquivos do jogo ele pede.</p>`,
     },
     {
@@ -3873,7 +3873,7 @@ async function checkAppUpdate() {
     const u = await invoke('check_app_update');
     if (!u) return;
     const bar = $('#app-update');
-    bar.innerHTML = `<span>Versão nova do RecompHUB: <b>${esc(u.version)}</b></span><button class="primary">Baixar</button>`;
+    bar.innerHTML = `<span>Versão nova do Black Flag: <b>${esc(u.version)}</b></span><button class="primary">Baixar</button>`;
     bar.hidden = false;
     bar.querySelector('button').addEventListener('click', () => call('open_app_update', { url: u.url }));
   } catch { /* offline */ }

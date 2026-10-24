@@ -5,11 +5,11 @@
 //! How the ports load mods (N64ModernRuntime): every `.nrm` (and container types the game
 //! registers, such as Majora's Mask's `.rtz` texture packs) in `<data>/mods` is scanned, and
 //! `<data>/mods.json` lists the ids of the enabled ones (`enabled_mods`). A `.nrm` is a zip
-//! whose `mod.json` holds that id and the `game_id` it is for. So RecompHUB installs a
+//! whose `mod.json` holds that id and the `game_id` it is for. So Black Flag installs a
 //! package's mod files there, reads their ids, and turns mods on or off in `mods.json`, only
 //! while the game is closed (the game rewrites that file).
 //!
-//! What RecompHUB installed is kept in `mods/instalados/<game>.json`; what each profile has
+//! What Black Flag installed is kept in `mods/instalados/<game>.json`; what each profile has
 //! turned on in `mods/perfis/<profile>/<game>.json`; named sets in `mods/colecoes/<game>.json`.
 
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 const API: &str = "https://thunderstore.io/c/";
 pub const LIST_MAX_AGE: u64 = 6 * 3600;
-/// File types RecompHUB copies into the mods folder.
+/// File types Black Flag copies into the mods folder.
 const MOD_EXTS: &[&str] = &["nrm", "rtz"];
 /// Biggest mod file and biggest package taken from a download, so a broken or hostile .zip
 /// cannot fill the disk. The largest texture packs on Thunderstore are well below this.
@@ -285,9 +285,9 @@ fn extract_into<R: std::io::Read + std::io::Seek>(reader: R, staging: &Path, per
         let copied = std::io::copy(&mut (&mut e).take(room + 1), &mut file).map_err(|err| format!("O pacote está danificado: {err}"))?;
         if copied > room {
             return Err(if room == per_file {
-                format!("{name} passa de {} MB, o limite do RecompHUB para um arquivo de mod. O pacote não foi instalado.", mb(per_file))
+                format!("{name} passa de {} MB, o limite do Black Flag para um arquivo de mod. O pacote não foi instalado.", mb(per_file))
             } else {
-                format!("O pacote passa de {} MB no total, o limite do RecompHUB. Ele não foi instalado.", mb(total))
+                format!("O pacote passa de {} MB no total, o limite do Black Flag. Ele não foi instalado.", mb(total))
             });
         }
         used += copied;

@@ -1,11 +1,11 @@
-//! Aba Comunidade: ports listed live from GitHub, outside RecompHUB's verified catalog.
+//! Aba Comunidade: ports listed live from GitHub, outside Black Flag's verified catalog.
 //!
 //! Two sources, merged by repository:
 //! - the curated list Sebastrion/awesome-unofficial-pc-ports (MIT), read from its README;
 //! - GitHub topic searches (`pc-port`, `n64recomp`).
 //!
 //! The result is kept for 12 hours (GitHub allows 10 searches a minute and 60 API calls an
-//! hour without login). Nothing here is checked by RecompHUB: installing one of these ports
+//! hour without login). Nothing here is checked by Black Flag: installing one of these ports
 //! is experimental, and the page says so.
 
 use serde::{Deserialize, Serialize};
@@ -383,10 +383,10 @@ pub struct CommunityRelease {
     pub tag: String,
     pub published: u64,
     pub prerelease: bool,
-    /// Files RecompHUB can install (.zip, .7z, a portable .exe) that look like a Windows
+    /// Files Black Flag can install (.zip, .7z, a portable .exe) that look like a Windows
     /// build, the most likely first.
     pub assets: Vec<Asset>,
-    /// Windows installers (Setup .exe, .msi): RecompHUB does not run them; the player installs
+    /// Windows installers (Setup .exe, .msi): Black Flag does not run them; the player installs
     /// from the project's page and adds the game as a PC game.
     #[serde(default)]
     pub installers: Vec<Asset>,
@@ -420,14 +420,14 @@ fn other_platform(n: &str) -> bool {
     OTHER.iter().any(|o| n.contains(o))
 }
 
-/// A Windows installer: RecompHUB never runs one.
+/// A Windows installer: Black Flag never runs one.
 pub fn is_installer(name: &str) -> bool {
     let n = name.to_lowercase();
     !other_platform(&n) && (n.ends_with(".msi") || (n.ends_with(".exe") && (n.contains("setup") || n.contains("install"))))
 }
 
 /// 0 = clearly Windows, 1 = archive with no platform named, 2 = a portable .exe, None = another
-/// platform, an installer or a file RecompHUB cannot install.
+/// platform, an installer or a file Black Flag cannot install.
 pub fn windows_rank(name: &str) -> Option<u8> {
     let n = name.to_lowercase();
     if is_installer(&n) {

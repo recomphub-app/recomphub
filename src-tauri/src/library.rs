@@ -1,5 +1,5 @@
 //! The player's library: which games are installed where, and the play time. Saved as
-//! library.json in RecompHUB's data folder.
+//! library.json in Black Flag's data folder.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -11,10 +11,10 @@ pub enum EntryKind {
     /// A game from the catalog, recognised by its port's files.
     #[default]
     Port,
-    /// Any other PC game the player added by pointing at its program. RecompHUB does not
+    /// Any other PC game the player added by pointing at its program. Black Flag does not
     /// try to tell where it came from.
     PcGame,
-    /// A community port installed from its GitHub release without RecompHUB's checks
+    /// A community port installed from its GitHub release without Black Flag's checks
     /// (aba Comunidade, instalação experimental).
     Community,
 }
@@ -37,7 +37,7 @@ pub struct Entry {
     /// The player's own labels, for filtering the library.
     #[serde(default)]
     pub tags: Vec<String>,
-    /// Release tag installed by RecompHUB; None for a copy added from a folder.
+    /// Release tag installed by Black Flag; None for a copy added from a folder.
     #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]

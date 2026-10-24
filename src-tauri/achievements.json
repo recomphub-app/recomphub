@@ -2,7 +2,7 @@
   "format": 1,
   "revision": 1,
   "generic": [
-    { "id": "primeira-sessao", "title": "Primeiros passos", "description": "Jogue uma sessão pelo RecompHUB.", "points": 5, "type": "progression", "badge": "👣", "trigger": { "stat": "play_count", "at_least": 1 } },
+    { "id": "primeira-sessao", "title": "Primeiros passos", "description": "Jogue uma sessão pelo Black Flag.", "points": 5, "type": "progression", "badge": "👣", "trigger": { "stat": "play_count", "at_least": 1 } },
     { "id": "uma-hora", "title": "Uma hora de aventura", "description": "Jogue por 1 hora no total.", "points": 10, "type": "progression", "badge": "⏱️", "trigger": { "stat": "play_seconds", "at_least": 3600 } },
     { "id": "dez-horas", "title": "Dedicação", "description": "Jogue por 10 horas no total.", "points": 25, "type": "progression", "badge": "🔥", "trigger": { "stat": "play_seconds", "at_least": 36000 } },
     { "id": "cinquenta-horas", "title": "Veterano", "description": "Jogue por 50 horas no total.", "points": 50, "type": "progression", "badge": "🏅", "trigger": { "stat": "play_seconds", "at_least": 180000 } },

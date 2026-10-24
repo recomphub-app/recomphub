@@ -1,6 +1,6 @@
-//! RecompHUB's own achievements. The ports do not report achievements, and
-//! RetroAchievements only accepts unlocks from its approved emulators, so RecompHUB never
-//! unlocks anything there. Instead each achievement here has a trigger on a number RecompHUB
+//! Black Flag's own achievements. The ports do not report achievements, and
+//! RetroAchievements only accepts unlocks from its approved emulators, so Black Flag never
+//! unlocks anything there. Instead each achievement here has a trigger on a number Black Flag
 //! can read itself:
 //! - play time, sessions and days played (every game, from the library and the history);
 //! - progress read from the game's own save (read only), with the save layout taken from

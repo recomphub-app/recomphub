@@ -1,6 +1,6 @@
-//! Which catalog is in use: the one built into RecompHUB, or a newer revision published in
+//! Which catalog is in use: the one built into Black Flag, or a newer revision published in
 //! the project's repository (as Ports Launcher refreshes its ports.json). A downloaded
-//! catalog is kept in RecompHUB's data folder and used only when it validates and its
+//! catalog is kept in Black Flag's data folder and used only when it validates and its
 //! revision is higher than the built-in one.
 
 use std::path::Path;
@@ -8,7 +8,7 @@ use std::path::Path;
 use crate::catalog;
 
 /// The catalog in the project's repository. While the repository is private this address
-/// answers 404 and RecompHUB keeps the built-in catalog.
+/// answers 404 and Black Flag keeps the built-in catalog.
 const REMOTE_URL: &str = "https://raw.githubusercontent.com/recomphub-app/recomphub/main/src-tauri/catalog.json";
 const CACHE_FILE: &str = "catalog.json";
 const MAX_BYTES: usize = 2 * 1024 * 1024;

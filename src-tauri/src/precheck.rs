@@ -575,7 +575,7 @@ pub fn install(rt: &Runtime) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
     let client = reqwest::blocking::Client::builder()
-        .user_agent(concat!("RecompHUB/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("BlackFlag/", env!("CARGO_PKG_VERSION")))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() > 8 || !microsoft_url(attempt.url().as_str()) {
                 attempt.stop()
@@ -605,7 +605,7 @@ pub fn install(rt: &Runtime) -> Result<String, String> {
             return Err("O arquivo baixado não confere com o da Microsoft (download corrompido). Tente de novo.".into());
         }
     }
-    let dir = std::env::temp_dir().join("RecompHUB");
+    let dir = std::env::temp_dir().join("Black Flag");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(rt.file);
     std::fs::write(&path, &bytes).map_err(|e| crate::play::antivirus_error(&e).unwrap_or_else(|| e.to_string()))?;

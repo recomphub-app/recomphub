@@ -1,4 +1,4 @@
-//! "Seu PC": what RecompHUB can tell about this computer without administrator, to warn before
+//! "Seu PC": what Black Flag can tell about this computer without administrator, to warn before
 //! a port that cannot run here (the most common reasons a port "does not open", from the
 //! ports' own issue trackers) and to fill problem reports.
 
@@ -316,7 +316,7 @@ pub fn report(info: &PcInfo) -> String {
         .collect::<Vec<_>>()
         .join("; ");
     format!(
-        "Sistema: {}\nProcessador: {}\nInstruções: {}\nMemória: {} GB\nPlaca de vídeo: {}\nVisual C++: {}\nRecompHUB: {}",
+        "Sistema: {}\nProcessador: {}\nInstruções: {}\nMemória: {} GB\nPlaca de vídeo: {}\nVisual C++: {}\nBlack Flag: {}",
         info.windows,
         info.cpu,
         info.cpu_features.join(", "),

@@ -90,7 +90,7 @@ fn host_of(url: &str) -> &str {
     url.strip_prefix("https://").and_then(|r| r.split(['/', '?', '#']).next()).unwrap_or("")
 }
 
-/// Turns a picture address in `repo`'s README into one RecompHUB may download, or None.
+/// Turns a picture address in `repo`'s README into one Black Flag may download, or None.
 pub fn resolve(repo: &str, src: &str) -> Option<String> {
     let src = src.trim().trim_matches(['<', '>']);
     if src.is_empty() || src.starts_with("data:") || src.starts_with('#') || src.contains("..") {

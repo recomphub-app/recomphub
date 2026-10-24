@@ -1,7 +1,7 @@
 //! Game information from SteamGridDB (covers and banners made by its community) and IGDB
 //! (description, release date, genres, cover and artwork), with the player's own keys.
 //!
-//! Each game is looked up once and kept in RecompHUB's data folder, so the network is only
+//! Each game is looked up once and kept in Black Flag's data folder, so the network is only
 //! used again when the player asks ("Buscar de novo") or after a lookup that found nothing:
 //! - `meta/<id>.json`: what was found and where it came from;
 //! - `meta/<id>/cover.<ext>` and `meta/<id>/banner.<ext>`: the pictures.

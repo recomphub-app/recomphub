@@ -1,8 +1,8 @@
 //! Starting ports and timing sessions. Like Hydra's process watcher, a background thread
 //! looks every few seconds for programs running from each game's folder, so a game counts
-//! whether RecompHUB opened it or not. A port can hand over to other programs in its folder
+//! whether Black Flag opened it or not. A port can hand over to other programs in its folder
 //! (gow3_pc starts bin\gow3-probe.exe); the session lasts while any of them runs. Play time
-//! is written every 30 seconds, so a crash or closing RecompHUB loses little.
+//! is written every 30 seconds, so a crash or closing Black Flag loses little.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -41,7 +41,7 @@ pub struct Session {
 pub struct Sessions {
     pub running: HashMap<String, Session>,
     launching: HashMap<String, Instant>,
-    /// Programs RecompHUB started, to read how they ended (diagnose.rs).
+    /// Programs Black Flag started, to read how they ended (diagnose.rs).
     children: HashMap<String, std::process::Child>,
     /// Crash code of the started program, kept until its session ends.
     exit_codes: HashMap<String, u32>,
@@ -97,7 +97,7 @@ fn refresh(sys: &mut System) {
 }
 
 /// Processes whose program is inside the folder `prefix`. A game running as administrator
-/// may not show its path to RecompHUB; then its program name (`exe_name`) is used.
+/// may not show its path to Black Flag; then its program name (`exe_name`) is used.
 fn processes_in(sys: &System, prefix: &str, exe_name: Option<&str>) -> Vec<Pid> {
     sys.processes()
         .iter()
@@ -302,7 +302,7 @@ fn watch_saves(app: &AppHandle, ids: &[String]) {
     }
 }
 
-/// Writes the play time still in memory (RecompHUB is closing). Sessions still running go
+/// Writes the play time still in memory (Black Flag is closing). Sessions still running go
 /// into the history as they are; if the game keeps running, the next start begins a new one.
 pub fn flush(app: &AppHandle) {
     let (credits, records) = {
@@ -405,7 +405,7 @@ const ERROR_VIRUS_DELETED: i32 = 226;
 
 /// What to tell the player when the antivirus is the reason. Ports are new, unsigned programs,
 /// and Windows Defender sometimes flags one (a false positive, as with Donkey Kong 64).
-pub const ANTIVIRUS_HELP: &str = "O antivírus bloqueou ou apagou um arquivo do port. Com programas novos e sem assinatura isso pode ser alarme falso, mas nem sempre é. Veja o arquivo em Segurança do Windows > Proteção contra vírus e ameaças > Histórico de proteção. Só restaure se o port veio da página oficial do projeto pelo RecompHUB; na dúvida, pergunte no GitHub do projeto antes.";
+pub const ANTIVIRUS_HELP: &str = "O antivírus bloqueou ou apagou um arquivo do port. Com programas novos e sem assinatura isso pode ser alarme falso, mas nem sempre é. Veja o arquivo em Segurança do Windows > Proteção contra vírus e ameaças > Histórico de proteção. Só restaure se o port veio da página oficial do projeto pelo Black Flag; na dúvida, pergunte no GitHub do projeto antes.";
 
 pub fn antivirus_error(e: &std::io::Error) -> Option<String> {
     matches!(e.raw_os_error(), Some(ERROR_VIRUS_INFECTED) | Some(ERROR_VIRUS_DELETED)).then(|| ANTIVIRUS_HELP.to_string())
@@ -434,7 +434,7 @@ pub fn join_args(args: &[String]) -> String {
         .join(" ")
 }
 
-/// The first argument of an elevated copy of RecompHUB that only opens a game (see
+/// The first argument of an elevated copy of Black Flag that only opens a game (see
 /// `start_as_admin`).
 pub const ELEVATED_FLAG: &str = "--abrir-jogo-como-admin";
 /// Windows limits a command line to 32,767 characters.
@@ -453,7 +453,7 @@ pub struct ElevatedLaunch {
 pub fn encode_launch(l: &ElevatedLaunch) -> Result<String, String> {
     use base64::Engine;
     // A path that is not valid Unicode cannot be written as JSON.
-    let json = serde_json::to_vec(l).map_err(|_| "O caminho do jogo tem caracteres que o RecompHUB não consegue repassar.".to_string())?;
+    let json = serde_json::to_vec(l).map_err(|_| "O caminho do jogo tem caracteres que o Black Flag não consegue repassar.".to_string())?;
     // URL-safe base64 has no spaces or quotes, so it is one plain argument.
     Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json))
 }
@@ -488,7 +488,7 @@ pub fn run_elevated_launch(payload: &str) -> Result<(), String> {
 pub fn show_error(message: &str) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
     let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
-    let (text, title) = (wide(message), wide("RecompHUB"));
+    let (text, title) = (wide(message), wide("Black Flag"));
     // SAFETY: both strings are NUL-terminated and live until the call returns.
     unsafe {
         MessageBoxW(std::ptr::null_mut(), text.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR);
@@ -496,9 +496,9 @@ pub fn show_error(message: &str) {
 }
 
 /// ShellExecuteEx with the "runas" verb: Windows shows the UAC prompt and starts the program
-/// as administrator. A program started this way does not get RecompHUB's environment, so when
+/// as administrator. A program started this way does not get Black Flag's environment, so when
 /// the game has variables (Opções de inicialização) the elevated program is a copy of
-/// RecompHUB that opens the game with them.
+/// Black Flag that opens the game with them.
 fn start_as_admin(exe_path: &Path, dir: &Path, args: &[String], env: &[(String, String)]) -> Result<(), String> {
     if env.is_empty() {
         return shell_runas(exe_path, dir, &join_args(args));
@@ -582,7 +582,7 @@ pub fn runas_and_wait(exe_path: &Path, params: &str) -> Result<u32, String> {
         });
     }
     if process.is_null() {
-        return Err("O Windows abriu o instalador, mas não deixou o RecompHUB acompanhar. Confira em Configurações > Aplicativos se ele foi instalado.".into());
+        return Err("O Windows abriu o instalador, mas não deixou o Black Flag acompanhar. Confira em Configurações > Aplicativos se ele foi instalado.".into());
     }
     let mut code: u32 = 0;
     // SAFETY: `process` is a valid handle from ShellExecuteExW, closed once.
@@ -628,7 +628,7 @@ fn find_window(pids: Vec<u32>, title: Option<&str>) -> Option<windows_sys::Win32
     (!search.found.is_null()).then_some(search.found)
 }
 
-/// Puts a window in front even when RecompHUB is not the foreground program (Windows only lets
+/// Puts a window in front even when Black Flag is not the foreground program (Windows only lets
 /// the program in front hand the focus over, so the input of both is joined for a moment).
 fn force_foreground(hwnd: windows_sys::Win32::Foundation::HWND) -> bool {
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
@@ -668,12 +668,12 @@ pub fn focus(install_dir: &Path, exe_name: Option<&str>) -> bool {
     find_window(pids, None).map(force_foreground).unwrap_or(false)
 }
 
-/// RecompHUB's own main window in front (the controller's "call back", pad.rs).
+/// Black Flag's own main window in front (the controller's "call back", pad.rs).
 pub fn bring_own_window() -> bool {
-    find_window(vec![std::process::id()], Some("RecompHUB")).map(force_foreground).unwrap_or(false)
+    find_window(vec![std::process::id()], Some("Black Flag")).map(force_foreground).unwrap_or(false)
 }
 
-/// Store addresses RecompHUB may open: only the stores' own protocols.
+/// Store addresses Black Flag may open: only the stores' own protocols.
 pub fn store_url_ok(url: &str) -> bool {
     ["steam://rungameid/", "com.epicgames.launcher://apps/"].iter().any(|p| url.starts_with(p)) && !url.contains(['"', ' ', '\n'])
 }
@@ -784,7 +784,7 @@ pub fn stop(install_dir: &Path, exe_name: Option<&str>) -> Result<usize, String>
         return Err("O jogo não está aberto.".into());
     }
     if closed == 0 {
-        return Err("O jogo está rodando como administrador e o Windows não deixa o RecompHUB fechá-lo. Feche pelo próprio jogo.".into());
+        return Err("O jogo está rodando como administrador e o Windows não deixa o Black Flag fechá-lo. Feche pelo próprio jogo.".into());
     }
     Ok(closed)
 }

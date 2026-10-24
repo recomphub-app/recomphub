@@ -1,4 +1,4 @@
-//! The controller brings RecompHUB back: holding the Xbox/PS button, or View + Menu together,
+//! The controller brings Black Flag back: holding the Xbox/PS button, or View + Menu together,
 //! shows the window again from inside a game. The page reads the controller only while it has
 //! the focus (Gamepad API), so this is read natively, through XInput (Xbox controllers, and
 //! PlayStation controllers through Steam Input or DS4Windows).
@@ -51,7 +51,7 @@ fn load() -> Option<GetState> {
     None
 }
 
-/// The buttons that call RecompHUB back.
+/// The buttons that call Black Flag back.
 pub fn calls_back(buttons: u16) -> bool {
     buttons & GUIDE != 0 || (buttons & BACK != 0 && buttons & START != 0)
 }
