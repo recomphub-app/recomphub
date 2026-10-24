@@ -3187,11 +3187,20 @@ fn edit_art<T>(state: &AppState, game: &str, f: impl FnOnce(&mut profiles::GameA
     Ok(out)
 }
 
+/// Covers one profile keeps for one game.
+const MAX_GAME_COVERS: usize = 12;
+
 /// "Adicionar capa" (a new picture becomes the one shown) or "Escolher fundo".
 #[tauri::command]
 async fn add_game_art(app: AppHandle, id: String, kind: String) -> Result<Option<ArtView>, String> {
     let state = app.state::<AppState>();
     let profile = state.profiles.lock().unwrap().active.clone();
+    if kind != "background" {
+        let full = state.profiles.lock().unwrap().active().art.get(&id).map(|a| a.covers.len() >= MAX_GAME_COVERS).unwrap_or(false);
+        if full {
+            return Err(format!("Você já tem {MAX_GAME_COVERS} capas para este jogo. Tire uma antes de adicionar outra."));
+        }
+    }
     let title = if kind == "background" { "Escolha o fundo do jogo no Modo TV (imagem larga)" } else { "Escolha uma capa sua para o jogo" };
     let Some(src) = pick_picture(&app, title) else { return Ok(None) };
     let file = store_art(&state, &profile, &art_stem(if kind == "background" { "fundo" } else { "capa" }, Some(&id)), &src)?;
@@ -3199,7 +3208,7 @@ async fn add_game_art(app: AppHandle, id: String, kind: String) -> Result<Option
         if kind == "background" {
             art.background.replace(file)
         } else {
-            if art.covers.len() >= 12 {
+            if art.covers.len() >= MAX_GAME_COVERS {
                 return Some(file);
             }
             art.covers.push(profiles::ArtPicture { file, caption: String::new() });
@@ -3272,6 +3281,8 @@ fn set_resume_note(app: AppHandle, id: String, text: String, seconds: u64) -> Re
 const PROFILE_FILE: &str = "perfil.json";
 const PROGRESS_FILE: &str = "progresso.json";
 const MAX_PROFILE_JSON: u64 = 20 * 1024 * 1024;
+/// All the pictures of one imported profile together.
+const MAX_PROFILE_PICTURES_BYTES: u64 = 150 * 1024 * 1024;
 
 /// One .zip with the profile (no RetroAchievements key), its progress and its pictures.
 #[tauri::command]
@@ -3358,14 +3369,23 @@ async fn import_profile(app: AppHandle) -> Result<Option<ProfilesView>, String> 
     let mut profile: Option<profiles::Profile> = None;
     let mut progress: BTreeMap<String, profiles::Progress> = BTreeMap::new();
     let mut pictures: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut total: u64 = 0;
     for i in 0..z.len().min(200) {
         let name = z.by_index(i).map_err(|e| e.to_string())?.name().to_string();
         if name == PROFILE_FILE {
             profile = serde_json::from_slice(&zip_bytes(&mut z, i, MAX_PROFILE_JSON)?).ok();
         } else if name == PROGRESS_FILE {
-            progress = serde_json::from_slice(&zip_bytes(&mut z, i, MAX_PROFILE_JSON)?).unwrap_or_default();
+            // A progress file that cannot be read stops the import instead of becoming an empty
+            // profile that looks fine.
+            progress = serde_json::from_slice(&zip_bytes(&mut z, i, MAX_PROFILE_JSON)?)
+                .map_err(|_| "O progresso dentro do arquivo do perfil está danificado; nada foi importado.".to_string())?;
         } else if let Some(pic) = name.strip_prefix("arte/").filter(|n| profiles::safe_file(n)) {
-            pictures.push((pic.to_string(), zip_bytes(&mut z, i, covers::MAX_IMAGE_BYTES)?));
+            let bytes = zip_bytes(&mut z, i, covers::MAX_IMAGE_BYTES)?;
+            total += bytes.len() as u64;
+            if total > MAX_PROFILE_PICTURES_BYTES {
+                return Err("As imagens do arquivo do perfil passam de 150 MB; nada foi importado.".into());
+            }
+            pictures.push((pic.to_string(), bytes));
         }
     }
     let mut profile = profile.ok_or("Este arquivo não é um perfil do Black Flag.")?;
