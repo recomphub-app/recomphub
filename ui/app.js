@@ -2463,24 +2463,31 @@ function coverKeys() {
   return settings.has_steamgriddb || settings.has_igdb;
 }
 
+// PS1 and PS2 discs get their cover by serial (xlenore's collections), with no key.
+const serialCovers = (g) => g.kind === 'emulated' && (g.system === 'ps1' || g.system === 'ps2');
+
 function coverTodo() {
-  return games.filter((g) => g.in_library && !g.cover && !coverTried.has(g.id));
+  return games.filter((g) => g.in_library && !g.cover && !coverTried.has(g.id) && (coverKeys() || serialCovers(g)));
 }
 
 async function coversInBackground() {
-  if (coverBusy || !coverKeys()) return;
+  if (coverBusy) return;
   coverBusy = true;
   try {
     for (let g = coverTodo()[0]; g; g = coverTodo()[0]) {
       coverTried.add(g.id);
       coverStatus(g);
       try {
-        const m = await invoke('game_meta', { id: g.id, term: null, again: false });
-        if (metaCache[g.id] === undefined) metaCache[g.id] = m;
+        let got = serialCovers(g) ? await invoke('emu_cover', { id: g.id }) : null;
+        if (!(got && got.cover) && coverKeys()) {
+          const m = await invoke('game_meta', { id: g.id, term: null, again: false });
+          if (metaCache[g.id] === undefined) metaCache[g.id] = m;
+          got = m.game;
+        }
         const i = games.findIndex((x) => x.id === g.id);
-        if (i >= 0) {
-          games[i] = m.game;
-          coverPaint(m.game);
+        if (got && i >= 0) {
+          games[i] = got;
+          coverPaint(got);
         }
       } catch { /* offline: tried again on the next start */ }
     }
@@ -3347,6 +3354,16 @@ listen('session', async (e) => {
 });
 
 listen('open-game', (e) => openGame(e.payload));
+// A game put in a watched games folder (Emuladores) showed up by itself.
+listen('emu-games', async (e) => {
+  const { added, unknown } = e.payload;
+  games = await invoke('get_library');
+  render();
+  coversInBackground();
+  if (added) toast(`${added} jogo${added > 1 ? 's' : ''} de console novo${added > 1 ? 's' : ''} na biblioteca.`);
+  else if (unknown && openId !== '__emu') toast(`Um jogo novo precisa que você escolha o console: veja em Emuladores.`);
+  if (openId === '__emu') loadEmu();
+});
 // The search at start found games installed or uninstalled in the stores.
 listen('stores', async (e) => {
   await refresh();
@@ -3972,13 +3989,27 @@ document.addEventListener('keydown', (e) => {
 
 let tvOn = false;
 let tvPad = { held: {}, nextAt: 0 };
-const TV_SECTIONS = [
+// Ports and Emulados get sections of their own when the library has both.
+const TV_ALL_SECTIONS = [
   ['jogos', 'Jogos'],
+  ['ports', 'Ports'],
+  ['emulados', 'Emulados'],
   ['conquistas', 'Conquistas'],
   ['sistema', 'Sistema'],
 ];
+let TV_SECTIONS = TV_ALL_SECTIONS.filter(([k]) => k !== 'ports' && k !== 'emulados');
+const TV_PLAYABLE = ['jogos', 'ports', 'emulados'];
 let tvSection = 0;
-const tvSel = { jogos: 0, conquistas: 0, sistema: 0 };
+const tvSel = { jogos: 0, ports: 0, emulados: 0, conquistas: 0, sistema: 0 };
+const tvIsPort = (g) => g.kind === 'port' || g.kind === 'community';
+
+function tvSectionsNow() {
+  const all = tvGames();
+  const both = all.some(tvIsPort) && all.some((g) => g.kind === 'emulated');
+  const key = TV_SECTIONS[tvSection] && TV_SECTIONS[tvSection][0];
+  TV_SECTIONS = TV_ALL_SECTIONS.filter(([k]) => both || (k !== 'ports' && k !== 'emulados'));
+  tvSection = Math.max(0, TV_SECTIONS.findIndex(([k]) => k === key));
+}
 let tvGuide = null;      // index of the Guide item in focus, null when closed
 let tvClock = null;
 let tvSlide = '';        // 'l' / 'r' right after changing section, for the slide-in
@@ -4042,6 +4073,8 @@ function tvSystemItems() {
 function tvItems() {
   const s = TV_SECTIONS[tvSection][0];
   if (s === 'jogos') return tvGames().map((g) => ({ key: g.id, game: g }));
+  if (s === 'ports') return tvGames().filter(tvIsPort).map((g) => ({ key: g.id, game: g }));
+  if (s === 'emulados') return tvGames().filter((g) => g.kind === 'emulated').map((g) => ({ key: g.id, game: g }));
   if (s === 'conquistas') {
     if (!achSummary) return [];
     return achSummary.games.filter(([, , , total]) => total > 0).map(([id, , done, total]) => ({ key: id, game: games.find((g) => g.id === id), done, total }))
@@ -4111,7 +4144,7 @@ function tvTray(x) {
   const s = TV_SECTIONS[tvSection][0];
   let main = '';
   if (x && x.item) main = x.item.title.startsWith('Som') ? (tvSoundOn() ? 'Desligar o som' : 'Ligar o som') : x.item.title;
-  else if (x && s === 'jogos') main = x.game.status === 'running' ? `Mostrar ${x.game.title}` : `Jogar ${x.game.title}`;
+  else if (x && TV_PLAYABLE.includes(s)) main = x.game.status === 'running' ? `Mostrar ${x.game.title}` : `Jogar ${x.game.title}`;
   else if (x && s === 'conquistas') main = 'Ver conquistas';
   const parts = [];
   if (main) parts.push(`<span class="tv-main" data-tv="ok">${key('ok', 'Enter')} ${esc(main)}</span>`);
@@ -4136,6 +4169,7 @@ function tvClockText() {
 }
 
 function renderTv() {
+  tvSectionsNow();
   const list = tvItems();
   const s = TV_SECTIONS[tvSection][0];
   tvSel[s] = Math.max(0, Math.min(tvSel[s], list.length - 1));
@@ -4502,7 +4536,8 @@ function renderEmulators() {
       <div class="box">
         <h3>Seus jogos</h3>
         <p>Coloque cada jogo na pasta do console dele (por exemplo <code>Jogos\\ps2</code> para PlayStation 2) ou
-          aponte uma pasta que você já tem. O Black Flag reconhece o console pelo arquivo e nunca move nada.</p>
+          aponte uma pasta que você já tem. O Black Flag reconhece o console pelo arquivo e nunca move nada. As pastas ficam
+          vigiadas: um jogo colocado nelas aparece sozinho na biblioteca, em alguns segundos.</p>
         <div class="folder-line"><span class="k">Pasta do Black Flag</span><code class="path" title="${esc(d.root)}">${esc(d.root)}</code>
           <button class="small" data-emu="open" data-what="root">Abrir</button>
           <button class="ghost small" data-emu="root">Mudar</button></div>
@@ -4547,6 +4582,7 @@ async function emuScan(kind, system) {
     const r = kind === 'folder' ? await invoke('emu_add_folder', { system: system || null }) : await invoke('emu_scan');
     if (r) emuScanResult = r;
     games = await invoke('get_library');
+    coversInBackground();
   } catch (e) {
     toast(String(e), true);
   }

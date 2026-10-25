@@ -18,6 +18,8 @@ pub struct Found {
     /// The file Black Flag hands to the emulator, relative to `dir`.
     pub file: String,
     pub title: String,
+    /// PS1/PS2 disc serial ("SLUS-20946"), for covers.
+    pub serial: Option<String>,
 }
 
 /// A file that looks like a game of more than one console (or of none Black Flag can tell).
@@ -120,7 +122,8 @@ pub fn scan(folder: &Path, system: Option<&str>) -> Scan {
                     if disc_number(&stem).is_some() && !discs_seen.insert(format!("{c}/{}", title.to_lowercase())) {
                         continue;
                     }
-                    out.found.push(Found { id: game_id(c, f), system: c, dir: dir.clone(), file: name, title });
+                    let serial = if c == "ps1" || c == "ps2" { disc_serial(f) } else { None };
+                    out.found.push(Found { id: game_id(c, f), system: c, dir: dir.clone(), file: name, title, serial });
                 }
                 None if system.is_none() => out.unknown.push(Unknown {
                     path: f.display().to_string(),
@@ -155,7 +158,7 @@ fn folder_game(dir: &Path, system: Option<&str>) -> Option<Found> {
     let allowed = |s: &str| system.map(|x| x == s).unwrap_or(true);
     let make = |sys: &'static str, file: &str, title: Option<String>| {
         let title = title.filter(|t| !t.trim().is_empty()).unwrap_or_else(|| clean_title(&dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()));
-        Some(Found { id: game_id(sys, &dir.join(file)), system: sys, dir: dir.to_path_buf(), file: file.to_string(), title })
+        Some(Found { id: game_id(sys, &dir.join(file)), system: sys, dir: dir.to_path_buf(), file: file.to_string(), title, serial: None })
     };
     if allowed("ps3") {
         if dir.join("PS3_GAME").join("USRDIR").join("EBOOT.BIN").is_file() {
@@ -351,9 +354,14 @@ fn xbox_kind(f: &mut std::fs::File, base: u64) -> Option<&'static str> {
     }
 }
 
-/// PSP (PSP_GAME), PS3 (PS3_GAME) or, by SYSTEM.CNF, PS2 (BOOT2) and PS1 (BOOT), on a disc
-/// with 2048-byte sectors (.iso) or raw 2352-byte ones (.bin from a .cue).
 fn iso9660_kind(f: &mut std::fs::File) -> Option<&'static str> {
+    iso9660_read(f).and_then(|(kind, _)| kind)
+}
+
+/// PSP (PSP_GAME), PS3 (PS3_GAME) or, by SYSTEM.CNF, PS2 (BOOT2) and PS1 (BOOT), on a disc
+/// with 2048-byte sectors (.iso) or raw 2352-byte ones (.bin from a .cue); with SYSTEM.CNF's
+/// text when the disc has one.
+fn iso9660_read(f: &mut std::fs::File) -> Option<(Option<&'static str>, Option<String>)> {
     for (sector, skip) in [(2048u64, 0u64), (2352, 24), (2352, 16)] {
         let at = |lba: u64| lba * sector + skip;
         let Some(pvd) = read_at(f, at(16), 2048) else { continue };
@@ -378,22 +386,81 @@ fn iso9660_kind(f: &mut std::fs::File) -> Option<&'static str> {
             let name_len = dir[pos + 32] as usize;
             let name = String::from_utf8_lossy(dir.get(pos + 33..pos + 33 + name_len)?).to_uppercase();
             if name == "PSP_GAME" || name == "UMD_DATA.BIN" {
-                return Some("psp");
+                return Some((Some("psp"), None));
             }
             if name == "PS3_GAME" {
-                return Some("ps3");
+                return Some((Some("ps3"), None));
             }
             if name.starts_with("SYSTEM.CNF") {
                 let flba = u32::from_le_bytes([dir[pos + 2], dir[pos + 3], dir[pos + 4], dir[pos + 5]]) as u64;
                 let cnf = read_at(f, at(flba), 2048)?;
-                let text = String::from_utf8_lossy(&cnf).to_uppercase();
-                return if text.contains("BOOT2") { Some("ps2") } else if text.contains("BOOT") { Some("ps1") } else { None };
+                let text = String::from_utf8_lossy(&cnf).trim_end_matches('\0').to_string();
+                let up = text.to_uppercase();
+                let kind = if up.contains("BOOT2") { Some("ps2") } else if up.contains("BOOT") { Some("ps1") } else { None };
+                return Some((kind, Some(text)));
             }
             pos += rec_len;
         }
         return None;
     }
     None
+}
+
+/// "SLUS-20946" from SYSTEM.CNF's "BOOT2 = cdrom0:\SLUS_209.46;1": the serial PS1 and PS2 cover
+/// collections (and PCSX2, DuckStation) name games by.
+pub fn serial_from_cnf(cnf: &str) -> Option<String> {
+    let line = cnf.lines().find(|l| l.trim_start().to_uppercase().starts_with("BOOT"))?;
+    let file = line.rsplit(['\\', ':', '/']).next()?.split(';').next()?.trim();
+    let (prefix, rest) = file.split_once('_')?;
+    let digits: String = rest.chars().filter(char::is_ascii_digit).collect();
+    (prefix.len() == 4 && prefix.chars().all(|c| c.is_ascii_alphabetic()) && digits.len() == 5)
+        .then(|| format!("{}-{digits}", prefix.to_uppercase()))
+}
+
+/// A PS1 or PS2 disc's serial (.iso, or the first track of a .cue).
+pub fn disc_serial(path: &Path) -> Option<String> {
+    let target = match ext_of(path).as_str() {
+        ".iso" | ".bin" | ".img" => path.to_path_buf(),
+        ".cue" => path.parent()?.join(cue_files(path).into_iter().next()?),
+        _ => return None,
+    };
+    let mut f = std::fs::File::open(target).ok()?;
+    let (_, cnf) = iso9660_read(&mut f)?;
+    serial_from_cnf(&cnf?)
+}
+
+/// A quick look at the games folders: the folders in them (three levels down) and when each
+/// last changed. Windows updates a folder's time when something is added to it or taken out,
+/// so a game put in any of them changes this.
+pub fn folders_signature(state: &emu::State) -> u64 {
+    let root = state.root();
+    let mut tops: Vec<PathBuf> = SYSTEMS.iter().map(|s| emu::games_dir(&root, s.id)).collect();
+    tops.extend(state.folders.iter().map(|f| PathBuf::from(&f.path)));
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut mix = |bytes: &[u8]| {
+        for b in bytes {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    };
+    let mut stack: Vec<(PathBuf, usize)> = tops.into_iter().map(|p| (p, 0)).collect();
+    let mut seen = 0;
+    while let Some((dir, depth)) = stack.pop() {
+        seen += 1;
+        if seen > 4000 {
+            break;
+        }
+        let Ok(meta) = std::fs::metadata(&dir) else { continue };
+        let time = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).unwrap_or(0);
+        mix(dir.to_string_lossy().as_bytes());
+        mix(&time.to_le_bytes());
+        if depth < 3 {
+            if let Ok(list) = std::fs::read_dir(&dir) {
+                stack.extend(list.flatten().map(|e| e.path()).filter(|p| p.is_dir()).map(|p| (p, depth + 1)));
+            }
+        }
+    }
+    h
 }
 
 #[derive(Debug, PartialEq)]
@@ -597,6 +664,7 @@ mod tests {
         assert_eq!(sniff(&d.join("a.iso")), Some("gc"));
         assert_eq!(sniff(&d.join("b.iso")), Some("wii"));
         assert_eq!(sniff(&d.join("c.iso")), Some("ps2"));
+        assert_eq!(disc_serial(&d.join("c.iso")), Some("SLUS-21242".into()));
         assert_eq!(sniff(&d.join("d.iso")), Some("ps1"));
         let _ = std::fs::remove_dir_all(&d);
     }
@@ -643,5 +711,12 @@ mod tests {
         assert_eq!(a, game_id("ps2", Path::new(r"d:\jogos\gow.ISO")));
         assert_ne!(a, game_id("ps2", Path::new(r"D:\Jogos\GOW2.iso")));
         assert!(a.starts_with("emu-ps2-"));
+    }
+
+    #[test]
+    fn serials_from_system_cnf() {
+        assert_eq!(serial_from_cnf("BOOT2 = cdrom0:\\SLUS_209.46;1\r\nVER = 1.00"), Some("SLUS-20946".into()));
+        assert_eq!(serial_from_cnf("BOOT = cdrom:\\SCUS_941.63;1"), Some("SCUS-94163".into()));
+        assert_eq!(serial_from_cnf("BOOT2 = cdrom0:\\GAME.ELF;1"), None);
     }
 }

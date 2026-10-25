@@ -467,3 +467,10 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     (`*.steamgriddb.com`, `images.igdb.com`) são baixadas. Com as duas chaves, capa e banner
     vêm primeiro da SteamGridDB; descrição, ano e gêneros, da IGDB (em inglês). As fontes
     aparecem na página do jogo.
+74. **Capas de PS1/PS2 pelo serial, pastas vigiadas, Ports e Emulados no Modo TV.** O serial do
+    disco sai do SYSTEM.CNF (`BOOT2 = cdrom0:\SLUS_209.46;1` vira `SLUS-20946`) e a capa vem das
+    coleções do xlenore no GitHub (`ps2-covers`, `psx-covers`, o mesmo endereço do baixador de
+    capas do PCSX2), sem chave; só o serial sai do PC. As pastas de jogos ficam vigiadas: a cada
+    10 segundos o Black Flag olha as horas de mudança das pastas (até três níveis) e, se algo
+    mudou, procura de novo; o jogo novo aparece sozinho e a capa vem depois. No Modo TV, quando
+    a biblioteca tem ports e jogos emulados, cada grupo ganha uma seção (LB/RB).

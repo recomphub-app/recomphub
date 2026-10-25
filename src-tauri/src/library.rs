@@ -103,6 +103,9 @@ pub struct Entry {
     /// Emulated game: the emulator the player chose for it; None uses the console's.
     #[serde(default)]
     pub emulator: Option<String>,
+    /// Emulated PS1/PS2 disc: its serial ("SLUS-20946"), for covers.
+    #[serde(default)]
+    pub serial: Option<String>,
 }
 
 /// A note left when a session ends ("no chefe do trem"), shown when the player comes back.
@@ -208,7 +211,7 @@ impl Library {
     /// A console game found in a games folder: added (with what it had, if it was here before),
     /// or its file brought up to date. The player's own choices (name, emulator, tags...) stay.
     /// Returns whether it is new.
-    pub fn upsert_emulated(&mut self, id: &str, system: &str, dir: &Path, file: &str, title: &str) -> bool {
+    pub fn upsert_emulated(&mut self, id: &str, system: &str, dir: &Path, file: &str, title: &str, serial: Option<&str>) -> bool {
         if self.excluded.contains(id) {
             return false;
         }
@@ -218,6 +221,9 @@ impl Library {
         entry.install_dir = dir.display().to_string();
         entry.exe = Some(file.to_string());
         entry.system = Some(system.to_string());
+        if let Some(s) = serial {
+            entry.serial = Some(s.to_string());
+        }
         if entry.title.is_none() {
             entry.title = Some(title.to_string());
         }

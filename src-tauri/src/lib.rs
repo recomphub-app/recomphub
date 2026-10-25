@@ -4404,7 +4404,7 @@ fn add_found(state: &AppState, found: &[roms::Found]) -> Result<usize, String> {
     {
         let mut lib = state.library.lock().unwrap();
         for f in found {
-            if lib.upsert_emulated(&f.id, f.system, &f.dir, &f.file, &f.title) {
+            if lib.upsert_emulated(&f.id, f.system, &f.dir, &f.file, &f.title, f.serial.as_deref()) {
                 added += 1;
             }
         }
@@ -4469,9 +4469,74 @@ fn emu_assign(app: AppHandle, path: String, system: String) -> Result<(), String
     let dir = p.parent().ok_or("Caminho inválido.")?.to_path_buf();
     let file = p.file_name().map(|n| n.to_string_lossy().to_string()).ok_or("Caminho inválido.")?;
     let title = roms::clean_title(&p.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
-    add_found(&state, &[roms::Found { id: roms::game_id(s.id, &p), system: s.id, dir, file, title }])?;
+    let serial = if s.id == "ps1" || s.id == "ps2" { roms::disc_serial(&p) } else { None };
+    add_found(&state, &[roms::Found { id: roms::game_id(s.id, &p), system: s.id, dir, file, title, serial }])?;
     state.emu_unknown.lock().unwrap().retain(|u| u.path != path);
     Ok(())
+}
+
+/// PS1 and PS2 covers by the disc's serial, from xlenore's collections on GitHub (the address
+/// PCSX2's own cover downloader is set to). No key needed; only the serial goes out.
+#[tauri::command]
+async fn emu_cover(app: AppHandle, id: String) -> Result<Option<GameView>, String> {
+    let url = {
+        let state = app.state::<AppState>();
+        let Some(e) = state.library.lock().unwrap().games.get(&id).cloned() else { return Ok(None) };
+        let repo = match (e.kind, e.system.as_deref()) {
+            (library::EntryKind::Emulated, Some("ps2")) => "ps2-covers",
+            (library::EntryKind::Emulated, Some("ps1")) => "psx-covers",
+            _ => return Ok(None),
+        };
+        let Some(serial) = e.serial.filter(|s| s.len() == 10 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')) else { return Ok(None) };
+        if covers::find(&state.covers.downloaded, &id).is_some() {
+            return view_any(&state, &id).map(Some);
+        }
+        format!("https://raw.githubusercontent.com/xlenore/{repo}/main/covers/default/{serial}.jpg")
+    };
+    let resp = github::client().get(&url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() > 10 * 1024 * 1024 {
+        return Ok(None);
+    }
+    let state = app.state::<AppState>();
+    covers::store(&state.covers.downloaded, &id, &bytes)?;
+    view_any(&state, &id).map(Some)
+}
+
+#[derive(Serialize, Clone)]
+struct EmuGamesEvent {
+    added: usize,
+    unknown: usize,
+}
+
+/// The games folders, watched: every 10 seconds a quick look at their folders' times, and a
+/// search when something changed (and once at start), so a game put in a folder shows up by
+/// itself.
+fn spawn_games_watcher(app: AppHandle) {
+    std::thread::spawn(move || {
+        let mut last: Option<u64> = None;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(if last.is_none() { 4 } else { 10 }));
+            let st = app.state::<AppState>().emu.lock().unwrap().clone();
+            let sig = roms::folders_signature(&st);
+            if last == Some(sig) {
+                continue;
+            }
+            let first = last.is_none();
+            last = Some(sig);
+            let scan = roms::scan_all(&st);
+            let state = app.state::<AppState>();
+            let added = add_found(&state, &scan.found).unwrap_or(0);
+            let unknown = scan.unknown.len();
+            *state.emu_unknown.lock().unwrap() = scan.unknown;
+            if added > 0 || (!first && unknown > 0) {
+                let _ = app.emit("emu-games", EmuGamesEvent { added, unknown });
+            }
+        }
+    });
 }
 
 /// "Mudar a pasta": where Emuladores, BIOS and Jogos live from now on. Emulators already
@@ -4568,6 +4633,7 @@ pub fn run() {
             github::set_token(&app.state::<AppState>().settings.lock().unwrap().github_token);
             play::spawn_watcher(app.handle().clone());
             pad::spawn(app.handle().clone());
+            spawn_games_watcher(app.handle().clone());
             // Games installed or uninstalled in the stores since last time.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -4659,6 +4725,7 @@ pub fn run() {
             emu_remove_folder,
             emu_assign,
             emu_set_root,
+            emu_cover,
             list_versions,
             get_community,
             community_release,
