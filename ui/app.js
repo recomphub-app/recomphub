@@ -89,13 +89,18 @@ function chips(g) {
   return html;
 }
 
+// A tab for each store; one with no games stays out of the way.
+const STORE_TABS = ['steam', 'epic', 'gog'];
+
 // Library tabs show what the player has; the catalog (Adicionar > Instalar um port) shows the other ports.
 function inTab(g, t = tab) {
   if (t === 'discover') return g.kind === 'port' && !g.in_library;
   if (!g.in_library) return false;
   if (g.hidden && !settings.show_hidden) return false;
   if (t === 'port') return g.kind === 'port' || g.kind === 'community';
-  return t === 'all' || g.kind === t;
+  if (STORE_TABS.includes(t)) return g.store === t;
+  if (t === 'pc_game') return g.kind === 'pc_game' && !g.store;
+  return t === 'all';
 }
 
 // The tabs show how many games each one has.
@@ -103,6 +108,8 @@ function markTabs() {
   document.querySelectorAll('#tabs button').forEach((b) => {
     const t = b.dataset.tab;
     const n = t === 'community' ? (communityData ? communityData.items.length : null) : games.filter((g) => inTab(g, t)).length;
+    const look = (profiles && profiles.active && profiles.active.look) || {};
+    b.hidden = (look.hidden_tabs || []).includes(t) || (STORE_TABS.includes(t) && !n && tab !== t);
     if (!b.dataset.label) b.dataset.label = b.textContent;
     b.innerHTML = `${esc(b.dataset.label)}${n === null ? '' : ` <span class="count">${n}</span>`}`;
     b.classList.toggle('on', t === tab);
@@ -208,7 +215,8 @@ function renderGrid() {
   if (!list.length) {
     const filtered = tagFilter || search;
     empty.textContent = filtered ? 'Nenhum jogo com esse filtro.'
-      : tab === 'pc_game' ? 'Nenhum jogo de PC ainda. Use Adicionar > Jogo de PC e escolha o programa (.exe) de um jogo que você já tem instalado.'
+      : tab === 'pc_game' ? 'Nenhum jogo de PC adicionado por você. Use Adicionar > Jogo de PC e escolha o programa (.exe) de um jogo que você já tem instalado. Os da Steam, Epic e GOG ficam nas abas deles.'
+      : STORE_TABS.includes(tab) ? 'Nenhum jogo desta loja instalado neste PC.'
       : tab === 'discover' ? 'Você já tem todos os ports do catálogo na biblioteca.'
       : 'Sua biblioteca está vazia. Use Adicionar para instalar um port, trazer os jogos da Steam, Epic e GOG ou escolher um jogo de PC.';
   }
@@ -341,7 +349,91 @@ function folderLine(g) {
       <code class="path" title="${esc(g.install_dir)}">${esc(g.install_dir)}</code>
       <button class="small${fresh ? ' primary' : ''}" data-act="folder">Abrir a pasta</button>
       <button class="ghost small" data-act="copy-path">Copiar caminho</button>
+      ${g.kind === 'port' || g.kind === 'community' ? '<button class="ghost small danger" data-act="uninstall">Desinstalar</button>' : ''}
     </div>`;
+}
+
+// A warning before something that cannot be undone: the OK button works only after `wait`
+// seconds, so the text gets read. Resolves to null (Cancelar) or the state of its checkboxes.
+function askDanger({ title, html, ok, wait = 2 }) {
+  return new Promise((resolve) => {
+    const el = $('#ask');
+    el.innerHTML = `
+      <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="ask-title">
+        <h2 id="ask-title">${title}</h2>
+        <div class="ask-body">${html}</div>
+        <div class="row">
+          <span class="grow"></span>
+          <button class="ghost" data-ask="no">Cancelar</button>
+          <button class="primary danger-fill" data-ask="yes" disabled>${esc(ok)} (${wait})</button>
+        </div>
+      </div>`;
+    el.hidden = false;
+    const yes = el.querySelector('[data-ask=yes]');
+    let left = wait;
+    const timer = setInterval(() => {
+      left -= 1;
+      yes.textContent = left > 0 ? `${ok} (${left})` : ok;
+      if (left <= 0) {
+        clearInterval(timer);
+        yes.disabled = false;
+      }
+    }, 1000);
+    const done = (answer) => {
+      clearInterval(timer);
+      document.removeEventListener('keydown', onKey, true);
+      el.hidden = true;
+      el.innerHTML = '';
+      resolve(answer);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        done(null);
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    el.querySelector('[data-ask=no]').addEventListener('click', () => done(null));
+    yes.addEventListener('click', () => {
+      const boxes = {};
+      el.querySelectorAll('input[type=checkbox][id]').forEach((c) => (boxes[c.id] = c.checked));
+      done(boxes);
+    });
+    el.querySelector('[data-ask=no]').focus();
+  });
+}
+
+// "Desinstalar": first what goes (the folder, files, size), then the whole folder is erased.
+async function uninstallGame(g) {
+  let info;
+  try {
+    info = await invoke('uninstall_info', { id: g.id });
+  } catch (e) {
+    toast(String(e), true);
+    return;
+  }
+  const size = info.bytes >= 1073741824 ? `${(info.bytes / 1073741824).toFixed(1).replace('.', ',')} GB` : sizeLabel(info.bytes);
+  const answer = await askDanger({
+    title: `Desinstalar ${esc(g.title)}?`,
+    ok: 'Desinstalar e apagar',
+    html: `
+      <p>Todos os arquivos do port vão ser <b>apagados deste PC</b>:</p>
+      <code class="ask-path">${esc(info.path)}</code>
+      <p class="ask-size">${info.files.toLocaleString('pt-BR')} arquivo${info.files === 1 ? '' : 's'} · ${size}</p>
+      ${info.own_folder ? '<p class="bad-text"><b>Esta pasta foi escolhida por você</b>, não foi instalada pelo Black Flag. Tudo o que estiver dentro dela vai junto.</p>' : ''}
+      ${info.saves.length ? `<label class="check"><input type="checkbox" id="ask-keep" checked>
+        Guardar os saves e configurações (${info.saves.map(esc).join(', ')}) para quando instalar de novo.</label>` : ''}
+      <p class="muted">Isto não pode ser desfeito. Os arquivos do seu jogo (ROM, dump) que estiverem fora desta pasta não são tocados.</p>`,
+  });
+  if (!answer) return;
+  try {
+    const kept = await invoke('uninstall_game', { id: g.id, keepSaves: !!answer['ask-keep'] });
+    openId = null;
+    await refresh();
+    toast(kept.length ? `${g.title} desinstalado. Guardado para depois: ${kept.join(', ')}.` : `${g.title} desinstalado e apagado do PC.`);
+  } catch (e) {
+    toast(String(e), true);
+  }
 }
 
 function playRow(g, what) {
@@ -958,7 +1050,7 @@ function profileFormHtml() {
     </div>`;
 }
 
-const TAB_NAMES = { all: 'Todos', port: 'Ports', pc_game: 'Jogos de PC', community: 'Comunidade' };
+const TAB_NAMES = { all: 'Todos', port: 'Ports', steam: 'Steam', epic: 'Epic', gog: 'GOG', pc_game: 'Jogos de PC', community: 'Comunidade' };
 
 // Pictures and look of one profile, inside its edit form.
 function profileLookHtml(x) {
@@ -2014,7 +2106,7 @@ function manageBox(g, folderLabel, note) {
         <button class="ghost" data-act="reset-time">Zerar tempo de jogo</button>
       </div>
       <div class="row">
-        ${g.installed_by_hub ? '<button class="danger" data-act="uninstall">Desinstalar</button>' : ''}
+        ${g.kind === 'port' || g.kind === 'community' ? '<button class="danger" data-act="uninstall">Desinstalar</button>' : ''}
         <button class="ghost danger" data-act="remove">Remover da biblioteca</button>
       </div>
       <p class="muted">${note}</p>
@@ -3128,13 +3220,9 @@ async function act(action, g, el) {
       setGame(await call('reset_playtime', { id: g.id }));
       toast('Tempo de jogo zerado.');
       break;
-    case 'uninstall': {
-      if (!confirm(`Desinstalar ${g.title}? A pasta do port será apagada. Seus saves e configurações ficam guardados e voltam quando você instalar de novo.`)) break;
-      const kept = await call('uninstall_game', { id: g.id });
-      await refresh();
-      toast(kept.length ? `${g.title} desinstalado. Guardado para depois: ${kept.join(', ')}.` : `${g.title} desinstalado.`);
+    case 'uninstall':
+      await uninstallGame(g);
       break;
-    }
   }
 }
 
@@ -3687,7 +3775,8 @@ function isShown(el) {
 function padTargets() {
   const tour = $('#tour');
   const resume = $('#resume');
-  const root = resume && !resume.hidden ? resume : tour && !tour.hidden ? tour : document;
+  const ask = $('#ask');
+  const root = ask && !ask.hidden ? ask : resume && !resume.hidden ? resume : tour && !tour.hidden ? tour : document;
   return [...root.querySelectorAll(FOCUSABLE)].filter(isShown);
 }
 
@@ -3770,6 +3859,10 @@ function padOk() {
 }
 
 function padBack() {
+  if (!$('#ask').hidden) {
+    $('#ask [data-ask=no]').click();
+    return;
+  }
   if (resumeAsk) {
     resumeClose();
     return;

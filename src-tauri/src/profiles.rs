@@ -52,7 +52,7 @@ pub struct Look {
     /// The library as a list instead of covers.
     #[serde(default)]
     pub list: bool,
-    /// Library tab opened first ("all", "port", "pc_game", "community").
+    /// Library tab opened first ("all", "port", "steam", "epic", "gog", "pc_game", "community").
     #[serde(default = "all_tab")]
     pub home: String,
     /// Library tabs this player does not want to see.
@@ -102,7 +102,7 @@ impl Default for Look {
 }
 
 // "discover" was a tab until 0.31; a profile that opened on it now opens on Todos.
-pub const TABS: &[&str] = &["all", "port", "pc_game", "community"];
+pub const TABS: &[&str] = &["all", "port", "steam", "epic", "gog", "pc_game", "community"];
 
 impl Look {
     /// Only known values are kept; the "Todos" tab can never be hidden.

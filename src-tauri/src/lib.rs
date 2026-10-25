@@ -1732,17 +1732,121 @@ fn reset_playtime(app: AppHandle, id: String) -> Result<GameView, String> {
     view_any(&state, &id)
 }
 
-/// Deletes a port Black Flag installed, keeping the player's files for the next install.
-/// A port added from the player's own folder is never deleted.
-#[tauri::command]
-fn uninstall_game(app: AppHandle, id: String) -> Result<Vec<String>, String> {
-    let game = catalog::get(&id);
-    let state = app.state::<AppState>();
-    let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
-    let dir = PathBuf::from(&entry.install_dir);
-    if entry.version.is_none() || !dir.starts_with(&state.games_root) || dir == state.games_root {
-        return Err("Este port foi adicionado de uma pasta sua: o Black Flag não apaga arquivos que não instalou. Use \"Remover da biblioteca\".".into());
+/// What "Desinstalar" is about to erase, shown in the warning before anything goes.
+#[derive(Serialize)]
+struct UninstallInfo {
+    path: String,
+    files: u64,
+    bytes: u64,
+    /// Saves and settings inside the folder that can be kept for the next install.
+    saves: Vec<String>,
+    /// The folder was chosen by the player (not installed by Black Flag).
+    own_folder: bool,
+}
+
+/// A folder chosen by the player can be erased only when it is clearly a game's own folder:
+/// at least two levels deep, and not Windows, the user's folder or one of its known folders
+/// (Desktop, Documentos, Downloads...), nor a folder that holds any of those.
+fn safe_to_delete(dir: &Path, home: Option<&Path>, windows: Option<&Path>) -> bool {
+    let same = |a: &Path, b: &Path| a.to_string_lossy().trim_end_matches(['\', '/']).eq_ignore_ascii_case(b.to_string_lossy().trim_end_matches(['\', '/']));
+    let inside = |a: &Path, b: &Path| a.to_string_lossy().to_lowercase().starts_with(&b.to_string_lossy().to_lowercase());
+    if !dir.is_absolute() || dir.components().count() < 4 {
+        return false;
     }
+    if let Some(w) = windows {
+        if inside(dir, w) {
+            return false;
+        }
+    }
+    if let Some(h) = home {
+        // The user's folder, anything above it, and its known folders themselves.
+        if inside(h, dir) {
+            return false;
+        }
+        const KNOWN: &[&str] = &[
+            "Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos", "OneDrive", "AppData",
+            "AppData\Roaming", "AppData\Local", "AppData\LocalLow", "Saved Games", "Favorites",
+        ];
+        if KNOWN.iter().any(|k| same(dir, &h.join(k))) {
+            return false;
+        }
+    }
+    true
+}
+
+/// The port's folder, its saves, and whether the player chose it; refused for anything that is
+/// not a port, a missing folder, or a folder not safe to erase.
+fn uninstall_target(state: &AppState, id: &str) -> Result<(PathBuf, Vec<PathBuf>, bool), String> {
+    let game = catalog::get(id);
+    let entry = state.library.lock().unwrap().games.get(id).cloned().ok_or("Jogo fora da biblioteca.")?;
+    if game.is_none() && entry.repo.is_none() {
+        return Err("Só ports se desinstalam por aqui. Jogos da Steam, Epic e GOG saem pela própria loja; os outros, pelo Windows (Configurações > Aplicativos).".into());
+    }
+    let dir = PathBuf::from(&entry.install_dir);
+    if !dir.is_dir() {
+        return Err("A pasta do jogo não existe mais. Use \"Remover da biblioteca\".".into());
+    }
+    let own = !(dir.starts_with(&state.games_root) && dir != state.games_root);
+    let home = std::env::var_os("USERPROFILE").map(PathBuf::from);
+    let windows = std::env::var_os("SystemRoot").map(PathBuf::from);
+    if own && (state.games_root.starts_with(&dir) || !safe_to_delete(&dir, home.as_deref(), windows.as_deref())) {
+        return Err(format!(
+            "Por segurança, o Black Flag não apaga {}: é uma pasta do sistema ou do usuário. Apague à mão o que quiser e use \"Remover da biblioteca\".",
+            dir.display()
+        ));
+    }
+    let owned = match game {
+        Some(game) => saves::owned_paths(&dir, &game.keep_on_update, files::save_dir(game, &dir).as_deref()),
+        None => {
+            let keep: Vec<String> = COMMUNITY_KEEP.iter().map(|s| s.to_string()).collect();
+            saves::owned_paths(&dir, &keep, None)
+        }
+    };
+    let owned = owned.into_iter().filter(|r| dir.join(r).exists()).collect();
+    Ok((dir, owned, own))
+}
+
+/// Files and bytes under a folder, without following links (capped, it is only for the warning).
+fn folder_size(dir: &Path) -> (u64, u64) {
+    let (mut files, mut bytes) = (0u64, 0u64);
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(list) = std::fs::read_dir(&d) else { continue };
+        for e in list.flatten() {
+            let Ok(m) = std::fs::symlink_metadata(e.path()) else { continue };
+            if m.is_dir() {
+                stack.push(e.path());
+            } else {
+                files += 1;
+                bytes += m.len();
+            }
+            if files > 500_000 {
+                return (files, bytes);
+            }
+        }
+    }
+    (files, bytes)
+}
+
+#[tauri::command]
+fn uninstall_info(app: AppHandle, id: String) -> Result<UninstallInfo, String> {
+    let state = app.state::<AppState>();
+    let (dir, owned, own_folder) = uninstall_target(&state, &id)?;
+    let (files, bytes) = folder_size(&dir);
+    Ok(UninstallInfo {
+        path: dir.display().to_string(),
+        files,
+        bytes,
+        saves: owned.iter().map(|p| p.display().to_string()).collect(),
+        own_folder,
+    })
+}
+
+/// Deletes a port's whole folder. `keep_saves` first moves its saves and settings aside, and
+/// they come back on the next install.
+#[tauri::command]
+fn uninstall_game(app: AppHandle, id: String, keep_saves: bool) -> Result<Vec<String>, String> {
+    let state = app.state::<AppState>();
     {
         let s = state.sessions.lock().unwrap();
         if s.is_running(&id) || s.is_launching(&id) {
@@ -1752,15 +1856,9 @@ fn uninstall_game(app: AppHandle, id: String) -> Result<Vec<String>, String> {
     if state.installing.lock().unwrap().contains(&id) {
         return Err("Espere a instalação terminar.".into());
     }
-    let owned = match game {
-        Some(game) => saves::owned_paths(&dir, &game.keep_on_update, files::save_dir(game, &dir).as_deref()),
-        None => {
-            let keep: Vec<String> = COMMUNITY_KEEP.iter().map(|s| s.to_string()).collect();
-            saves::owned_paths(&dir, &keep, None)
-        }
-    };
-    let kept = saves::preserve(&dir, &owned, &state.pending_root.join(&id))?;
-    std::fs::remove_dir_all(&dir).map_err(|e| format!("Não consegui apagar {}: {e}", dir.display()))?;
+    let (dir, owned, _) = uninstall_target(&state, &id)?;
+    let kept = if keep_saves { saves::preserve(&dir, &owned, &state.pending_root.join(&id))? } else { Vec::new() };
+    std::fs::remove_dir_all(&dir).map_err(|e| format!("Não consegui apagar {}: {e}. Feche o que estiver usando a pasta e tente de novo.", dir.display()))?;
     state.library.lock().unwrap().remove(&id);
     save(&state)?;
     Ok(kept)
@@ -4070,6 +4168,7 @@ pub fn run() {
             set_fps_overlay,
             reset_playtime,
             uninstall_game,
+            uninstall_info,
             backup_saves,
             open_backups,
             choose_cover,
@@ -4101,6 +4200,22 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_game_folders_are_erased() {
+        use std::path::Path;
+        let home = Some(Path::new(r"C:\Users\Ana"));
+        let win = Some(Path::new(r"C:\Windows"));
+        let ok = |p: &str| super::safe_to_delete(Path::new(p), home, win);
+        assert!(ok(r"D:\Games\SpartanPort"));
+        assert!(ok(r"C:\Users\Ana\Downloads\SpartanPort"));
+        assert!(!ok(r"D:\Games"), "too shallow");
+        assert!(!ok(r"C:\Users\Ana\Downloads"));
+        assert!(!ok(r"C:\Users\Ana\desktop\"));
+        assert!(!ok(r"C:\Users\Ana"));
+        assert!(!ok(r"C:\Windows\System32\x"));
+        assert!(!ok(r"C:\Users\Ana\AppData\Roaming"));
+    }
+
     #[test]
     fn help_pages_open() {
         assert!(super::help_page("https://github.com/settings/tokens/new?description=Black%20Flag"));

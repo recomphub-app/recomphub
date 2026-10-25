@@ -421,6 +421,15 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     pasta com "Abrir a pasta" e "Copiar caminho" (antes ficava no fim de Ajustes). Logo depois
     de instalar (catálogo, Comunidade ou reinstalação) a linha vira um quadro verde
     "Instalado nesta pasta", até o jogador sair da página.
+71. **Desinstalar apaga a pasta inteira do port, depois de um aviso.** O aviso mostra a pasta, o
+    número de arquivos e o tamanho, e o botão só funciona depois de 2 segundos; os saves e
+    configurações podem ser guardados para a próxima instalação (marcado por padrão). Vale
+    também para ports adicionados de uma pasta do jogador, mas nunca para uma pasta rasa
+    (menos de dois níveis), o Windows, a pasta do usuário ou as pastas conhecidas dele
+    (Área de Trabalho, Documentos, Downloads, AppData...), nem uma pasta acima delas ou da
+    pasta de jogos do Black Flag. Jogos das lojas e de PC não se desinstalam por aqui.
+72. **Uma aba por loja.** Steam, Epic e GOG têm abas próprias (escondidas quando a loja não
+    tem jogo neste PC); "Jogos de PC" fica só com os adicionados à mão.
 
 ## Capas
 

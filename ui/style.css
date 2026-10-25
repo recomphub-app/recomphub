@@ -790,3 +790,14 @@ body { background: transparent; }
 .folder-line .path { flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; padding: 0; user-select: all; }
 .folder-line.fresh { padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--ok); border-left: 5px solid var(--ok); }
 .folder-line.fresh .k { color: var(--ok); }
+
+/* A warning before erasing: what goes, and an OK that waits */
+.ask { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgba(10, 9, 8, .82); }
+.ask[hidden] { display: none; }
+.ask-card { width: min(600px, 100%); background: var(--panel); border: 1px solid var(--line); border-top: 6px solid var(--bad); padding: 22px 26px 16px; }
+.ask-card h2 { margin: 0 0 12px; font-size: 24px; }
+.ask-card .row .grow { flex: 1; }
+.ask-path { display: block; margin: 8px 0; padding: 10px 12px; background: var(--bg); border-left: 4px solid var(--bad); font-size: 12.5px; word-break: break-all; }
+.ask-size { margin: 4px 0 10px; font: 600 13px var(--mono); color: var(--text); }
+button.primary.danger-fill { background: var(--bad); border-color: var(--bad); color: var(--bg); box-shadow: 3px 3px 0 var(--rule); }
+button.primary.danger-fill:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--rule); }
