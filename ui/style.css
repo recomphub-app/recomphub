@@ -783,3 +783,10 @@ body { background: transparent; }
   flex: none; display: grid; place-items: center; width: 34px; height: 34px;
   background: var(--warn); color: var(--bg); font: 900 22px var(--wide);
 }
+
+/* Pasta do jogo, under Jogar */
+.folder-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 14px; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.folder-line .k { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.folder-line .path { flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; padding: 0; user-select: all; }
+.folder-line.fresh { padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--ok); border-left: 5px solid var(--ok); }
+.folder-line.fresh .k { color: var(--ok); }

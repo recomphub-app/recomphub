@@ -328,6 +328,22 @@ function tagsBox(g) {
     </div>`;
 }
 
+// Where the game is on this PC, under Jogar on every game page: the path, "Abrir a pasta" and
+// "Copiar caminho". Right after an install it stands out, so the new folder is one click away.
+let justInstalled = null;   // id of the game installed in this visit to its page
+
+function folderLine(g) {
+  if (!g.in_library || !g.install_dir || g.status === 'installing') return '';
+  const fresh = justInstalled === g.id;
+  return `
+    <div class="folder-line${fresh ? ' fresh' : ''}">
+      <span class="k">${fresh ? 'Instalado nesta pasta' : 'Pasta do jogo'}</span>
+      <code class="path" title="${esc(g.install_dir)}">${esc(g.install_dir)}</code>
+      <button class="small${fresh ? ' primary' : ''}" data-act="folder">Abrir a pasta</button>
+      <button class="ghost small" data-act="copy-path">Copiar caminho</button>
+    </div>`;
+}
+
 function playRow(g, what) {
   if (IN_GAME.includes(g.status)) {
     return `
@@ -385,6 +401,7 @@ function renderPcDetail(g) {
           <div><div class="k">Última sessão</div><div class="v">${lastPlayed(g.last_played)}</div></div>
         </div>
         ${playRow(g, 'o jogo')}
+        ${folderLine(g)}
         ${missing}
         ${crashBox(g)}
         ${pcCheckBox(g, 'bad')}
@@ -2241,6 +2258,7 @@ function renderPortDetail(g) {
     const picked = filesResult[g.id];
     const filesOk = g.files && g.files.ok && !(picked && !picked.ok);
     main += playRow(g, 'o port');
+    main += folderLine(g);
     if (g.update_available) {
       main += `
         <div class="box warn">
@@ -2386,6 +2404,7 @@ function coverStatus(g) {
 }
 
 function openGame(id) {
+  if (id !== justInstalled) justInstalled = null;
   openId = id;
   render();
 }
@@ -2454,6 +2473,7 @@ async function act(action, g, el) {
       g.status = 'installing';
       render();
       try {
+        justInstalled = g.id;
         setGame(await invoke('install_community', { repo: g.repo, asset: null, title: g.title }));
         toast(`${g.title} atualizado.`);
       } catch (e) {
@@ -2463,6 +2483,14 @@ async function act(action, g, el) {
       break;
     case 'folder':
       await call('open_folder', { id: g.id });
+      break;
+    case 'copy-path':
+      try {
+        await navigator.clipboard.writeText(g.install_dir);
+        toast('Caminho copiado.');
+      } catch {
+        toast(g.install_dir);
+      }
       break;
     case 'add':
       await addExisting();
@@ -2474,6 +2502,7 @@ async function act(action, g, el) {
       delete versions[g.id];
       render();
       try {
+        justInstalled = g.id;
         setGame(await invoke('install_game', { id: g.id, tag }));
         toast(tag ? `${g.title}: versão ${versionLabel(tag)} instalada.` : `${g.title} instalado.`);
       } catch (e) {
@@ -3511,6 +3540,7 @@ function renderCommunityItem(repo) {
     render();
     try {
       const g = await invoke('install_community', { repo, asset: el.dataset.asset, title: i.game || i.name });
+      justInstalled = g.id;
       setGame(g);
       delete progress[id];
       communityData = await invoke('get_community', { force: false });
@@ -3560,6 +3590,7 @@ function renderCommunityDetail(g) {
         </div>
         ${g.status === 'installing' ? progressBox(g) : ''}
         ${playRow(g, 'o port')}
+        ${folderLine(g)}
         ${update}
         ${lostFilesBox(g)}
         ${crashBox(g)}

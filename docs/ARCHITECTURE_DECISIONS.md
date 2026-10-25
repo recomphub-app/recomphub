@@ -417,6 +417,10 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     e aceita forks com 20 estrelas ou mais (o SpartanPort é um fork do shadPS4); se o GitHub
     limitar as buscas, as seguintes não são tentadas e mantêm o que já havia. Uma lista salva
     por um conjunto antigo de buscas é refeita na hora.
+70. **A pasta do jogo à vista.** Toda página de jogo mostra, logo abaixo do Jogar, o caminho da
+    pasta com "Abrir a pasta" e "Copiar caminho" (antes ficava no fim de Ajustes). Logo depois
+    de instalar (catálogo, Comunidade ou reinstalação) a linha vira um quadro verde
+    "Instalado nesta pasta", até o jogador sair da página.
 
 ## Capas
 
