@@ -3,7 +3,7 @@ const { listen } = window.__TAURI__.event;
 
 let games = [];
 let openId = null;
-let tab = 'all';          // 'all', 'port', 'pc_game' or 'discover'
+let tab = 'all';          // 'all', 'port', 'pc_game', 'community', or 'discover' (the catalog, from Adicionar)
 let tagFilter = null;     // a tag (the player's, or the catalog's in Descobrir), or null
 let search = '';
 const progress = {};      // id -> { stage, done, total }
@@ -89,7 +89,7 @@ function chips(g) {
   return html;
 }
 
-// Library tabs show what the player has; Descobrir shows the catalog's other ports.
+// Library tabs show what the player has; the catalog (Adicionar > Instalar um port) shows the other ports.
 function inTab(g, t = tab) {
   if (t === 'discover') return g.kind === 'port' && !g.in_library;
   if (!g.in_library) return false;
@@ -193,7 +193,12 @@ function renderLibHero() {
 }
 
 function renderGrid() {
-  renderLibHero();
+  // The catalog is a page of its own, opened from Adicionar, with the way back on top.
+  const catalog = tab === 'discover';
+  $('#lib-title').textContent = catalog ? 'Instalar um port' : 'Biblioteca';
+  $('#lib-back').hidden = !catalog;
+  $('#tabs').hidden = catalog;
+  if (catalog) { $('#lib-hero').innerHTML = ''; $('#lib-hero').className = ''; } else renderLibHero();
   if (tab === 'community') return renderCommunityGrid();
   $('#community-head').hidden = true;
   renderTabs();
@@ -205,7 +210,7 @@ function renderGrid() {
     empty.textContent = filtered ? 'Nenhum jogo com esse filtro.'
       : tab === 'pc_game' ? 'Nenhum jogo de PC ainda. Use Adicionar > Jogo de PC e escolha o programa (.exe) de um jogo que você já tem instalado.'
       : tab === 'discover' ? 'Você já tem todos os ports do catálogo na biblioteca.'
-      : 'Sua biblioteca está vazia. Veja os ports disponíveis na aba Descobrir, ou use Adicionar > Port que já está no PC.';
+      : 'Sua biblioteca está vazia. Use Adicionar para instalar um port, trazer os jogos da Steam, Epic e GOG ou escolher um jogo de PC.';
   }
   $('#grid').innerHTML = list.map((g) => `
     <div class="card" data-id="${g.id}" tabindex="0">
@@ -936,7 +941,7 @@ function profileFormHtml() {
     </div>`;
 }
 
-const TAB_NAMES = { all: 'Todos', port: 'Ports', pc_game: 'Jogos de PC', discover: 'Descobrir', community: 'Comunidade' };
+const TAB_NAMES = { all: 'Todos', port: 'Ports', pc_game: 'Jogos de PC', community: 'Comunidade' };
 
 // Pictures and look of one profile, inside its edit form.
 function profileLookHtml(x) {
@@ -3670,6 +3675,10 @@ function padBack() {
     }, 60);
     return;
   }
+  if (isShown($('#lib-back'))) {
+    $('#lib-back').click();
+    return;
+  }
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
 }
 
@@ -3735,12 +3744,11 @@ let tvOn = false;
 let tvPad = { held: {}, nextAt: 0 };
 const TV_SECTIONS = [
   ['jogos', 'Jogos'],
-  ['descobrir', 'Descobrir'],
   ['conquistas', 'Conquistas'],
   ['sistema', 'Sistema'],
 ];
 let tvSection = 0;
-const tvSel = { jogos: 0, descobrir: 0, conquistas: 0, sistema: 0 };
+const tvSel = { jogos: 0, conquistas: 0, sistema: 0 };
 let tvGuide = null;      // index of the Guide item in focus, null when closed
 let tvClock = null;
 let tvSlide = '';        // 'l' / 'r' right after changing section, for the slide-in
@@ -3804,9 +3812,6 @@ function tvSystemItems() {
 function tvItems() {
   const s = TV_SECTIONS[tvSection][0];
   if (s === 'jogos') return tvGames().map((g) => ({ key: g.id, game: g }));
-  if (s === 'descobrir') {
-    return games.filter((g) => !g.in_library && g.kind === 'port').sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')).map((g) => ({ key: g.id, game: g }));
-  }
   if (s === 'conquistas') {
     if (!achSummary) return [];
     return achSummary.games.filter(([, , , total]) => total > 0).map(([id, , done, total]) => ({ key: id, game: games.find((g) => g.id === id), done, total }))
@@ -3832,8 +3837,7 @@ function tvMeta(pairs) {
 function tvInfo(x) {
   if (!x) {
     const empty = {
-      jogos: ['Nenhum jogo instalado', 'Vá em Descobrir (botão R1/RB) para instalar um port.'],
-      descobrir: ['Tudo instalado', 'Você já tem todos os ports do catálogo.'],
+      jogos: ['Nenhum jogo instalado', 'Saia do Modo TV e use Adicionar para trazer os seus jogos.'],
       conquistas: [achSummary ? 'Nenhuma conquista ainda' : 'Carregando conquistas…', achSummary ? 'Os jogos com conquistas aparecem aqui.' : ''],
     }[TV_SECTIONS[tvSection][0]] || ['', ''];
     return `<h1>${esc(empty[0])}</h1><p class="tv-sub">${esc(empty[1])}</p>`;
@@ -3842,9 +3846,6 @@ function tvInfo(x) {
   const g = x.game;
   const fam = `<div class="tv-fam">${esc(g.family || '')}${g.port_name ? ` · ${esc(g.port_name)}` : ''}</div>`;
   const s = TV_SECTIONS[tvSection][0];
-  if (s === 'descobrir') {
-    return `${fam}<h1>${esc(g.title)}</h1><p class="tv-sub">Port feito por ${esc(g.port_authors || '?')}. ${esc(g.requirements || '')}</p>`;
-  }
   if (s === 'conquistas') {
     return `${fam}<h1>${esc(g.title)}</h1>${tvMeta([['Conquistas', `${x.done} de ${x.total}`], ['Completo', `${x.total ? Math.round((x.done / x.total) * 100) : 0}%`]])}`;
   }
@@ -3881,7 +3882,6 @@ function tvTray(x) {
   let main = '';
   if (x && x.item) main = x.item.title.startsWith('Som') ? (tvSoundOn() ? 'Desligar o som' : 'Ligar o som') : x.item.title;
   else if (x && s === 'jogos') main = x.game.status === 'running' ? `Mostrar ${x.game.title}` : `Jogar ${x.game.title}`;
-  else if (x && s === 'descobrir') main = 'Ver e instalar';
   else if (x && s === 'conquistas') main = 'Ver conquistas';
   const parts = [];
   if (main) parts.push(`<span class="tv-main" data-tv="ok">${key('ok', 'Enter')} ${esc(main)}</span>`);
@@ -3993,7 +3993,6 @@ async function tvOk() {
   }
   const s = TV_SECTIONS[tvSection][0];
   const g = x.game;
-  if (s === 'descobrir') return tvLeaveTo(() => openGame(g.id));
   if (s === 'conquistas') {
     return tvLeaveTo(() => {
       pageTab[g.id] = 'conquistas';
@@ -4155,71 +4154,112 @@ $('#btn-discover').addEventListener('click', () => {
   tab = 'discover';
   render();
 });
+$('#lib-back').addEventListener('click', () => {
+  tab = (profiles && profiles.active.look && profiles.active.look.home) || 'all';
+  render();
+});
 
 // ---- Tutorial: shown once, the first time; again from Mais > Tutorial ----
 
 const TOUR_SEEN = 'recomphub-tutorial-1';
+const TOUR_WAIT = 6;     // seconds before Próximo and Pular work on a step, so it gets read
 let tourStep = 0;
 let tourResult = null;   // "Salvar e testar" of the SteamGridDB key inside the tutorial
+let tourWait = 0;        // seconds left on the step shown now
+let tourTimer = null;
+const tourRead = new Set();   // steps already waited on, which open at once when shown again
+
+// The covers step shows one of the player's games as it looks now, and with a real cover if it has one.
+function tourCoverSample() {
+  const g = games.find((x) => x.in_library && x.cover && !x.cover.startsWith('data:image/svg'))
+    || games.find((x) => x.in_library);
+  if (!g) return '';
+  const before = `<div class="cover"><div class="placeholder">${esc(g.title)}</div></div>`;
+  const after = g.cover && !g.cover.startsWith('data:image/svg') ? `<div class="cover"><img src="${g.cover}" alt=""></div>` : '';
+  if (!after) return '';
+  return `<div class="tour-compare">
+      <figure>${before}<figcaption>Sem capa</figcaption></figure>
+      <span class="tour-arrow" aria-hidden="true">→</span>
+      <figure>${after}<figcaption>Com capa</figcaption></figure>
+    </div>`;
+}
 
 function tourSteps() {
   const sgdb = settings.has_steamgriddb;
   return [
     {
       title: 'Bem-vindo ao Black Flag',
-      html: `<p>Aqui ficam os seus <b>ports</b>: jogos de console refeitos para rodar direto no PC, sem emulador.</p>
-        <p>O Black Flag instala o port pela página oficial do projeto, confere os arquivos do seu jogo, abre o jogo, conta o
-          tempo jogado e guarda backup dos saves.</p>
-        <p class="muted">Ele nunca baixa jogos: os arquivos vêm da sua própria cópia.</p>`,
+      html: `<p class="tour-lead">Os seus jogos num lugar só: os da Steam, da Epic e da GOG, os ports e qualquer outro jogo de PC.</p>
+        <p>Antes de abrir um jogo, o Black Flag confere se falta alguma coisa no PC, como o Visual C++, e resolve com um
+          clique. Ele também conta o tempo jogado e guarda backup dos saves.</p>
+        <p class="muted">Ele nunca baixa jogos. Os arquivos vêm da sua própria cópia.</p>`,
     },
     {
-      title: 'Instalar um jogo',
-      html: `<ol>
-          <li>Abra a aba <b>Descobrir</b> e escolha um jogo.</li>
-          <li>Clique em <b>Instalar</b>. O port vem do GitHub do projeto.</li>
-          <li>Arraste o arquivo da sua cópia (a ROM ou a pasta do dump) para a página do jogo. O Black Flag confere se é o certo.</li>
-          <li>Clique em <b>Jogar</b>.</li>
-        </ol>
-        <p class="muted">Se o port já está no seu PC, use Adicionar > Port que já está no PC.</p>`,
+      title: 'Trazer os seus jogos',
+      html: `<p>Tudo começa no botão <b>Adicionar</b>, no alto à direita:</p>
+        <ul>
+          <li><b>Jogos da Steam, Epic e GOG</b>: o Black Flag acha os que já estão instalados, e procura de novo sempre que abre.</li>
+          <li><b>Instalar um port</b>: a lista de ports conferidos. Escolha um, clique em Instalar e arraste o arquivo da sua
+            cópia (a ROM ou a pasta do dump) para a página do jogo.</li>
+          <li><b>Port que já está no PC</b> e <b>Jogo de PC</b>: para o que você já tem numa pasta.</li>
+        </ul>
+        <p class="muted">A aba Comunidade mostra outros ports achados no GitHub. Eles não foram conferidos: instale só de
+          projetos em que você confia.</p>`,
     },
     {
       title: 'A página do jogo',
       html: `<p><b>Jogar</b> fica sempre no alto. Logo abaixo aparecem só os avisos que importam agora, como versão nova ou
-          um erro ao abrir. O resto fica em abas:</p>
+          algo faltando no PC. O resto fica em abas:</p>
         <ul>
           <li><b>Visão geral</b>: descrição, tempo de jogo e anotações.</li>
           <li><b>Saves</b>: backups automáticos, restaurar e travar.</li>
           <li><b>Conquistas</b>: as do Black Flag e as do RetroAchievements.</li>
-          <li><b>Ajustes</b>: vídeo, versão do port, atalhos e desinstalar.</li>
+          <li><b>Ajustes</b>: vídeo, versão, atalhos, as suas capas e desinstalar.</li>
         </ul>
         <p class="muted">Se o jogo fechar com erro, o Black Flag mostra o motivo provável e o que tentar.</p>`,
     },
     {
-      title: 'Comunidade',
-      html: `<p>A aba <b>Comunidade</b> mostra outros ports achados no GitHub, de vários consoles.</p>
-        <p>Eles <b>não</b> foram conferidos pelo Black Flag: instale só de projetos em que você confia, e leia o README de cada
-          um para saber quais arquivos do jogo ele pede.</p>`,
+      title: 'Um perfil para cada um',
+      html: `<p>Cada pessoa da casa pode ter o seu perfil, com tempo de jogo, saves e conquistas separados. Na tela
+          <b>Quem vai jogar?</b> você escolhe quem está jogando. Para trocar depois, clique no seu nome, no alto.</p>
+        <p>Em <b>Gerenciar perfis</b> dá para pôr foto, capa, cor e mudar a aparência da biblioteca.</p>
+        <p>Quando você fecha um jogo, o Black Flag pergunta <b>onde você parou</b>. O recado aparece na próxima vez que
+          você abrir o jogo.</p>`,
     },
     {
-      title: 'Capas e fotos (opcional)',
-      html: `<p>Com uma chave grátis da <b>SteamGridDB</b>, a biblioteca ganha capas e banners de verdade.</p>
-        <ol>
-          <li><button class="link" data-tour-link="${esc(settings.sgdb_key_page || 'https://www.steamgriddb.com/profile/preferences/api')}">Abrir a página de API da SteamGridDB</button>.</li>
-          <li>Entre com a sua conta Steam (botão Login no alto).</li>
-          <li>Clique em "Generate API Key" e copie a chave.</li>
-          <li>Cole aqui:</li>
+      title: 'Controle e Modo TV',
+      html: `<p>O programa inteiro funciona com controle de Xbox ou PlayStation: o direcional anda, A ou ✕ escolhe, B ou ○
+          volta, LB e RB trocam de aba. A barra no rodapé mostra os botões do seu controle.</p>
+        <p>O <b>Modo TV</b> mostra a biblioteca em tela cheia, para jogar do sofá.</p>
+        <p class="muted">No meio de um jogo, segure o botão Guide (ou Back + Start) para trazer o Black Flag de volta.</p>`,
+    },
+    {
+      title: 'Capas para todos os seus jogos',
+      feature: true,
+      html: `<p class="tour-lead">Sem capa, cada jogo aparece só com o nome. Com uma chave grátis da <b>SteamGridDB</b>, o
+          Black Flag busca capas e banners de verdade para a biblioteca inteira.</p>
+        ${tourCoverSample()}
+        ${sgdb ? '<p class="ok-text tour-done">✓ A sua chave já está guardada. Se quiser trocar, cole outra abaixo.</p>' : ''}
+        <ol class="tour-big">
+          <li><button class="link" data-tour-link="${esc(settings.sgdb_key_page || 'https://www.steamgriddb.com/profile/preferences/api')}">Abra a página de API da SteamGridDB</button>.</li>
+          <li>Entre com a sua conta Steam (botão Login no alto da página).</li>
+          <li>Clique em <b>Generate API Key</b> e copie a chave.</li>
+          <li>Cole aqui e clique em Salvar e testar:</li>
         </ol>
-        <div class="tags-edit">
+        <div class="tour-key">
           <input type="password" id="tour-sgdb" autocomplete="off" placeholder="${sgdb ? 'Chave já guardada' : 'Chave de API da SteamGridDB'}">
-          <button data-tour="sgdb">Salvar e testar</button>
+          <button class="primary" data-tour="sgdb">Salvar e testar</button>
         </div>
         ${tourResult ? `<ul>${tourResult.map((r) => `<li class="${r.ok ? 'ok-text' : 'bad-text'}">${esc(r.message)}</li>`).join('')}</ul>` : ''}
-        <p class="muted">A chave fica só neste PC. Descrição e ano dos jogos vêm da IGDB, que pede uma chave da Twitch: o passo a
-          passo está em Configurações > Capas e GitHub.</p>`,
+        <p class="muted">Prefere as suas imagens? Na página de cada jogo, em Ajustes > Minhas capas, você escolhe arquivos do
+          PC. A capa do perfil fica em Gerenciar perfis.</p>
+        <p class="muted">A chave fica só neste PC. Descrição e ano dos jogos vêm da IGDB, que pede uma chave da Twitch: o
+          passo a passo está em Configurações > Capas e GitHub.</p>`,
     },
     {
       title: 'Pronto',
-      html: `<p>Isso é o básico. Para rever este tutorial, use <b>Mais > Tutorial</b>.</p>
+      html: `<p class="tour-lead">Isso é o básico.</p>
+        <p>Para rever este tutorial, use <b>Mais > Tutorial</b>.</p>
         <p class="muted">Se o GitHub disser que você passou do limite de consultas (comum com muitos jogos), crie um token
           grátis em Configurações > Capas e GitHub.</p>`,
     },
@@ -4231,29 +4271,75 @@ function renderTour() {
   const s = steps[tourStep];
   const last = tourStep === steps.length - 1;
   $('#tour').innerHTML = `
-    <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
-      <p class="tour-count">${tourStep + 1} de ${steps.length}</p>
+    <div class="tour-card${s.feature ? ' tour-feature' : ''}" role="dialog" aria-modal="true" aria-labelledby="tour-title" tabindex="-1">
+      <div class="tour-dots" aria-hidden="true">${steps.map((x, i) =>
+        `<span class="${i === tourStep ? 'on' : i < tourStep ? 'done' : ''}${x.feature ? ' star' : ''}"></span>`).join('')}</div>
+      <p class="tour-count">${s.feature ? 'Passo especial · ' : ''}${tourStep + 1} de ${steps.length}</p>
       <h2 id="tour-title">${s.title}</h2>
       <div class="tour-body">${s.html}</div>
-      <div class="row tour-nav">
-        ${tourStep ? '<button class="ghost" data-tour="back">Voltar</button>' : ''}
-        <span class="grow"></span>
-        ${last ? '' : '<button class="ghost" data-tour="close">Pular tutorial</button>'}
-        <button class="primary" data-tour="${last ? 'close' : 'next'}">${last ? 'Começar' : 'Próximo'}</button>
+      <div class="tour-nav">
+        <div class="tour-wait" ${tourWait > 0 ? '' : 'hidden'}><span style="animation-duration:${TOUR_WAIT}s;animation-delay:-${TOUR_WAIT - tourWait}s"></span></div>
+        <div class="row">
+          ${tourStep ? '<button class="ghost" data-tour="back">Voltar</button>' : ''}
+          <span class="grow"></span>
+          ${last ? '' : '<button class="ghost" data-tour="close" data-wait>Pular tutorial</button>'}
+          <button class="primary" data-tour="${last ? 'close' : 'next'}" data-wait>${last ? 'Começar' : 'Próximo'}</button>
+        </div>
       </div>
     </div>`;
   $('#tour').querySelectorAll('[data-tour]').forEach((el) => el.addEventListener('click', () => tourAct(el.dataset.tour, el)));
   $('#tour').querySelectorAll('[data-tour-link]').forEach((el) =>
     el.addEventListener('click', () => call('open_link', { url: el.dataset.tourLink })));
-  const focus = $('#tour').querySelector('[data-tour=next], [data-tour=close].primary');
-  if (focus) focus.focus();
+  tourButtons();
+}
+
+// Próximo and Pular stay off, with the seconds left, until the step had time to be read.
+function tourButtons() {
+  const card = $('#tour .tour-card');
+  if (!card) return;
+  const locked = tourWait > 0;
+  card.querySelectorAll('[data-wait]').forEach((b) => {
+    b.disabled = locked;
+    if (!b.dataset.label) b.dataset.label = b.textContent;
+    b.textContent = locked && b.classList.contains('primary') ? `${b.dataset.label} (${tourWait})` : b.dataset.label;
+  });
+  const bar = card.querySelector('.tour-wait');
+  if (bar) bar.hidden = !locked;
+  const typing = document.activeElement && document.activeElement.id === 'tour-sgdb';
+  if (typing) return;
+  const main = card.querySelector('[data-tour=next], [data-tour=close].primary');
+  if (!locked && main) main.focus();
+  else if (locked) card.focus();
+}
+
+// Called when a step comes on screen (not when the covers step redraws after "Salvar e testar").
+function tourLock() {
+  clearInterval(tourTimer);
+  tourWait = tourRead.has(tourStep) ? 0 : TOUR_WAIT;
+  if (!tourWait) return;
+  const step = tourStep;
+  tourTimer = setInterval(() => {
+    if (step !== tourStep) return clearInterval(tourTimer);
+    tourWait -= 1;
+    if (tourWait <= 0) {
+      clearInterval(tourTimer);
+      tourRead.add(step);
+    }
+    tourButtons();
+  }, 1000);
 }
 
 async function tourAct(what, el) {
-  if (what === 'next') tourStep += 1;
-  else if (what === 'back') tourStep = Math.max(0, tourStep - 1);
-  else if (what === 'close') return closeTour();
-  else if (what === 'sgdb') {
+  if ((what === 'next' || what === 'close') && tourWait > 0) return;
+  if (what === 'next') {
+    tourStep += 1;
+    tourLock();
+  } else if (what === 'back') {
+    tourStep = Math.max(0, tourStep - 1);
+    tourLock();
+  } else if (what === 'close') {
+    return closeTour();
+  } else if (what === 'sgdb') {
     const key = $('#tour-sgdb').value.trim();
     if (!key) {
       tourResult = [{ ok: false, message: 'Cole a chave no campo primeiro.' }];
@@ -4274,11 +4360,20 @@ async function tourAct(what, el) {
 function openTour() {
   tourStep = 0;
   tourResult = null;
+  tourRead.clear();
   $('#tour').hidden = false;
+  tourLock();
   renderTour();
 }
 
+// Esc and B close it too, but only once Pular could.
+function tourCanClose() {
+  return tourWait <= 0;
+}
+
 function closeTour() {
+  if (!tourCanClose()) return;
+  clearInterval(tourTimer);
   $('#tour').hidden = true;
   try { localStorage.setItem(TOUR_SEEN, '1'); } catch { /* shown again next time */ }
 }

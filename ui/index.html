@@ -25,7 +25,7 @@
       <div class="menu">
         <button class="primary" data-menu aria-haspopup="true">Adicionar ▾</button>
         <div class="menu-list" hidden>
-          <button id="btn-discover">Instalar um port (Descobrir)</button>
+          <button id="btn-discover">Instalar um port</button>
           <button id="btn-add">Port que já está no PC</button>
           <button id="btn-stores">Jogos da Steam, Epic e GOG</button>
           <button id="btn-add-pc">Jogo de PC</button>
@@ -41,13 +41,13 @@
   <main>
     <section id="library">
       <div id="lib-hero"></div>
-      <h1>Biblioteca</h1>
+      <button id="lib-back" class="ghost back" hidden>← Biblioteca</button>
+      <h1 id="lib-title">Biblioteca</h1>
       <div class="tabs" id="tabs">
         <button data-tab="all">Todos</button>
         <button data-tab="port">Ports</button>
         <button data-tab="pc_game">Jogos de PC</button>
         <span class="tab-sep" aria-hidden="true"></span>
-        <button data-tab="discover">Descobrir</button>
         <button data-tab="community">Comunidade</button>
       </div>
       <div id="community-head" class="community-head" hidden></div>

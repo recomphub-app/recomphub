@@ -32,6 +32,7 @@
 - [x] **v0.28** Jogos da Steam, Epic e GOG na biblioteca (fase 1 do launcher geral) e o nome novo: Black Flag
 - [x] **v0.29** Perfil do seu jeito: foto, capa, qualquer cor (também no lugar do vermelho), aparência (tamanho das capas, letras, lista, abas, aba inicial, animações, sons, abrir no Modo TV), capas e fundo de cada jogo só do perfil com várias versões e legenda, exportar e importar o perfil; "Onde eu parei": recado ao fechar o jogo, mostrado quando você volta
 - [x] **v0.30** Perfis como na Netflix ("Quem vai jogar?" com fotos grandes, Adicionar e Gerenciar perfis), capa do perfil com a parte que aparece e a arte de um jogo, capa no alto da biblioteca com "Continuar jogando", fundo do jogo também na página do jogo
+- [x] **v0.31** Layout centralizado, aba Descobrir trocada por Adicionar > Instalar um port, tutorial novo com as capas num passo especial e espera de 6 segundos em Próximo e Pular
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 

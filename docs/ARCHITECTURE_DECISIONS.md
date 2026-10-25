@@ -392,6 +392,15 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     um jogo (o banner baixado, senão a capa) e, se o jogador quiser, fica no alto da biblioteca
     com um "Continuar jogando" do último jogo e o recado dele. O fundo próprio de um jogo
     também aparece no alto da página do jogo, não só no Modo TV.
+67. **Tudo centralizado, sem a aba Descobrir, tutorial que espera.** As páginas ficam no meio
+    da janela (biblioteca até 1360 px, página do jogo até 1180 px, Configurações e perfis até
+    820 px) e a grade de jogos centraliza as colunas que tem, em vez de deixar a direita vazia.
+    A aba Descobrir saiu da biblioteca e do Modo TV: com o launcher geral, a lista de ports
+    virou uma página aberta por Adicionar > Instalar um port, com "← Biblioteca" no alto; um
+    perfil que abria nela passa a abrir em Todos. O tutorial foi refeito para o launcher geral
+    (lojas, perfis, controle), as capas viraram um passo especial (mais largo, com um jogo do
+    próprio jogador sem e com capa) e Próximo e Pular só funcionam depois de 6 segundos em cada
+    passo novo (Esc e B também), para o passo ser lido; um passo já visto abre sem espera.
 
 ## Capas
 

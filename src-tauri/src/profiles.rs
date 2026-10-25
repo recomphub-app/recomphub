@@ -93,7 +93,8 @@ impl Default for Look {
     }
 }
 
-pub const TABS: &[&str] = &["all", "port", "pc_game", "discover", "community"];
+// "discover" was a tab until 0.31; a profile that opened on it now opens on Todos.
+pub const TABS: &[&str] = &["all", "port", "pc_game", "community"];
 
 impl Look {
     /// Only known values are kept; the "Todos" tab can never be hidden.
@@ -390,7 +391,7 @@ mod tests {
 
     #[test]
     fn looks_keep_only_known_values() {
-        let l = Look { cards: "gigante".into(), home: "port".into(), banner_pos: "lado".into(), hidden_tabs: vec!["port".into(), "all".into(), "x".into()], ..Default::default() }.cleaned();
+        let l = Look { cards: "gigante".into(), home: "port".into(), banner_pos: "lado".into(), hidden_tabs: vec!["port".into(), "all".into(), "x".into(), "discover".into()], ..Default::default() }.cleaned();
         assert_eq!(l.cards, "medio");
         assert_eq!(l.banner_pos, "center");
         assert_eq!(l.hidden_tabs, vec!["port".to_string()]);
@@ -398,6 +399,8 @@ mod tests {
         let old: Profile = serde_json::from_str(r##"{"id":"a","name":"A","color":"#e0a32e","created":1}"##).unwrap();
         assert_eq!(old.look, Look::default(), "profiles from older versions get the default look");
         assert!(old.look.sounds && old.art.is_empty());
+        let gone = Look { home: "discover".into(), ..Default::default() }.cleaned();
+        assert_eq!(gone.home, "all", "Descobrir is no longer a tab");
     }
 
     #[test]
