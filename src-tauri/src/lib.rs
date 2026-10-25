@@ -4370,6 +4370,7 @@ fn emu_run(app: AppHandle, id: String) -> Result<(), String> {
     }
     std::process::Command::new(&f.exe)
         .current_dir(f.exe.parent().unwrap_or(Path::new(".")))
+        .args(emu::open_args(e.id))
         .spawn()
         .map(|_| ())
         .map_err(|err| play::antivirus_error(&err).unwrap_or_else(|| format!("O Windows não abriu o {}: {err}", e.name)))
@@ -4514,11 +4515,15 @@ pub fn run() {
             tray::show_window(app);
             handle_args(app, &args);
         }))
-        // Closing the window quits for good: the tray icon and the controller thread go with it
-        // (until 0.32 it hid in the tray, and the controller kept moving the hidden page).
+        // Closing the main window quits for good: the tray icon and the controller thread go with
+        // it (until 0.32 it hid in the tray, and the controller kept moving the hidden page). Only
+        // the main one: the achievement notice and the FPS counter close by themselves over a
+        // game, and until 0.40.1 that took Black Flag down with them.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                window.app_handle().exit(0);
+                if window.label() == "main" {
+                    window.app_handle().exit(0);
+                }
             }
         })
         .plugin(tauri_plugin_dialog::init())

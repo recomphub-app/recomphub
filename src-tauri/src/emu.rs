@@ -993,6 +993,15 @@ pub fn launch_args(emu: &str, system: &str, game: &Path) -> Vec<String> {
     args
 }
 
+/// Arguments to open the emulator by itself ("Abrir o emulador"): shadPS4 is a command-line
+/// program and only shows a window in its Big Picture mode.
+pub fn open_args(emu: &str) -> &'static [&'static str] {
+    match emu {
+        "shadps4" => &["-b"],
+        _ => &[],
+    }
+}
+
 // ---- Small helpers for the disc readers (roms.rs) ----
 
 pub fn read_at(f: &mut std::fs::File, offset: u64, len: usize) -> Option<Vec<u8>> {
