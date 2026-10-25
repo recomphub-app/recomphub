@@ -946,7 +946,6 @@ fn set_launch_options(app: AppHandle, id: String, args: String, env: Vec<library
 
 #[derive(Serialize)]
 struct AppSettings {
-    close_to_tray: bool,
     show_hidden: bool,
     version: &'static str,
     /// Only whether keys are saved; the keys themselves never go back to the page.
@@ -963,7 +962,6 @@ fn get_settings(app: AppHandle) -> AppSettings {
     let s = app.state::<AppState>().settings.lock().unwrap().clone();
     let keys = s.keys();
     AppSettings {
-        close_to_tray: s.close_to_tray,
         show_hidden: s.show_hidden,
         version: env!("CARGO_PKG_VERSION"),
         has_steamgriddb: !keys.sgdb.is_empty(),
@@ -1150,11 +1148,10 @@ fn known_igdb_page(state: &AppState, url: &str) -> bool {
 }
 
 #[tauri::command]
-fn set_settings(app: AppHandle, close_to_tray: bool, show_hidden: bool, store_import: bool) -> Result<AppSettings, String> {
+fn set_settings(app: AppHandle, show_hidden: bool, store_import: bool) -> Result<AppSettings, String> {
     {
         let state = app.state::<AppState>();
         let mut s = state.settings.lock().unwrap();
-        s.close_to_tray = close_to_tray;
         s.show_hidden = show_hidden;
         s.store_import = store_import;
         s.save(&state.settings_path)?;
@@ -3909,14 +3906,11 @@ pub fn run() {
             tray::show_window(app);
             handle_args(app, &args);
         }))
-        // Closing the window keeps Black Flag in the tray (setting "Fechar para a bandeja").
+        // Closing the window quits for good: the tray icon and the controller thread go with it
+        // (until 0.32 it hid in the tray, and the controller kept moving the hidden page).
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let to_tray = window.app_handle().state::<AppState>().settings.lock().unwrap().close_to_tray;
-                if to_tray {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                window.app_handle().exit(0);
             }
         })
         .plugin(tauri_plugin_dialog::init())

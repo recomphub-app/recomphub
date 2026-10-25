@@ -78,7 +78,7 @@ function coverHtml(g) {
   return `<div class="cover${contain}"><img src="${g.cover}" alt=""></div>`;
 }
 
-let settings = { close_to_tray: true, show_hidden: false, store_import: true, version: '' };
+let settings = { show_hidden: false, store_import: true, version: '' };
 
 function chips(g) {
   let html = g.favorite ? '<span class="chip fav" title="Favorito">★</span>' : '';
@@ -2137,9 +2137,6 @@ function renderSettings() {
       ${pageTabs('__settings', [
         ['geral', 'Geral', `
           <div class="box">
-            <label class="check"><input type="checkbox" id="set-tray" ${settings.close_to_tray ? 'checked' : ''}>
-              Fechar para a bandeja: ao fechar a janela, o Black Flag continua perto do relógio e segue contando o tempo de jogo.
-              Para sair de vez, use "Sair" no ícone da bandeja.</label>
             <label class="check"><input type="checkbox" id="set-hidden" ${settings.show_hidden ? 'checked' : ''}>
               Mostrar jogos ocultos na biblioteca.</label>
             <label class="check"><input type="checkbox" id="set-stores" ${settings.store_import ? 'checked' : ''}>
@@ -2920,7 +2917,6 @@ async function act(action, g, el) {
     }
     case 'settings-save':
       settings = await call('set_settings', {
-        closeToTray: $('#set-tray').checked,
         showHidden: $('#set-hidden').checked,
         storeImport: $('#set-stores').checked,
       });
@@ -3371,8 +3367,10 @@ function renderCommunityGrid() {
       <details class="sources">
         <summary>De onde vem esta lista?</summary>
         <p class="muted">Da lista <button class="link" data-clink="${esc(data.list_page || '')}">awesome-unofficial-pc-ports</button>
-          e dos projetos do GitHub com os tópicos <code>pc-port</code>, <code>native-port</code>, <code>n64recomp</code>,
-          <code>xenonrecomp</code> e <code>ps3recomp</code>.</p>
+          e dos projetos do GitHub com os tópicos <code>pc-port</code>, <code>native-port</code>, <code>game-port</code>,
+          <code>pc-ports</code>, <code>unofficial-port</code>, <code>n64recomp</code>, <code>xenonrecomp</code>, <code>rexglue</code>,
+          <code>ps3recomp</code> e <code>ps2recomp</code>. Forks entram quando têm 20 estrelas ou mais. Sem token do GitHub, a
+          última busca pode passar do limite por minuto; com token, todas entram.</p>
       </details>
     </div>
     ${data.errors.length ? `<p class="muted">Não consegui ler: ${data.errors.map(esc).join('; ')}.</p>` : ''}`;
@@ -3610,6 +3608,8 @@ function padName(which) {
 
 // The first connected controller, its family remembered; `changed` when the family is new.
 function readPad() {
+  // Only while Black Flag is the window in front: with a game on top, the controller is the game's.
+  if (!document.hasFocus()) return null;
   const pad = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean);
   if (!pad) return null;
   const fam = padFamily(pad);

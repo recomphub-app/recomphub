@@ -2,7 +2,7 @@
 //!
 //! Two sources, merged by repository:
 //! - the curated list Sebastrion/awesome-unofficial-pc-ports (MIT), read from its README;
-//! - GitHub topic searches (`pc-port`, `n64recomp`).
+//! - GitHub topic searches (`pc-port`, `native-port`, `game-port`, the recompilers' topics...).
 //!
 //! The result is kept for 12 hours (GitHub allows 10 searches a minute and 60 API calls an
 //! hour without login). Nothing here is checked by Black Flag: installing one of these ports
@@ -15,9 +15,24 @@ use crate::github;
 
 const LIST_URL: &str = "https://raw.githubusercontent.com/Sebastrion/awesome-unofficial-pc-ports/main/README.md";
 pub const LIST_PAGE: &str = "https://github.com/Sebastrion/awesome-unofficial-pc-ports";
-/// GitHub topics searched: general PC ports, N64: Recompiled, native ports and the Xbox 360 and
-/// PS3 static recompilers' games.
-const TOPICS: &[&str] = &["pc-port", "n64recomp", "native-port", "xenonrecomp", "ps3recomp"];
+/// GitHub topics searched and how many pages of 100 each: general PC ports, native ports, game
+/// ports, and the games of the N64, Xbox 360, PS3 and PS2 recompilers. Eleven searches: without a
+/// token GitHub allows ten a minute, so the last one can fail and keep its old entries.
+const SEARCHES: &[(&str, u32)] = &[
+    ("pc-port", 2),
+    ("native-port", 1),
+    ("game-port", 1),
+    ("n64recomp", 1),
+    ("xenonrecomp", 1),
+    ("rexglue", 1),
+    ("ps3recomp", 1),
+    ("ps2recomp", 1),
+    ("pc-ports", 1),
+    ("unofficial-port", 1),
+];
+/// A fork is listed only when people use it as a project of its own (SpartanPort is a fork of
+/// shadPS4), not a personal copy.
+const MIN_FORK_STARS: u64 = 20;
 const MAX_AGE_SECS: u64 = 12 * 3600;
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -53,7 +68,13 @@ pub struct Cache {
     /// Sources that could not be read on the last refresh.
     #[serde(default)]
     pub errors: Vec<String>,
+    /// Which set of searches made it: a list from an older set is searched again at once.
+    #[serde(default)]
+    pub searches: u32,
 }
+
+/// Bumped when SEARCHES changes (2: forks and more topics, in 0.33).
+const SEARCHES_VERSION: u32 = 2;
 
 pub fn valid_repo(repo: &str) -> bool {
     let mut parts = repo.split('/');
@@ -251,23 +272,32 @@ pub fn guess_game(description: &str) -> String {
 /// A port for another machine (3DS, Vita, Switch...) that never mentions PC, Windows or Linux.
 pub fn not_for_pc(description: &str) -> bool {
     let d = format!(" {} ", description.to_lowercase());
-    const OTHER: &[&str] = &["3ds", "ps vita", "psvita", "nintendo switch", "wii u", "android port", "for android", "dreamcast port", "gba port"];
+    const OTHER: &[&str] = &["3ds", "ps vita", "psvita", "nintendo switch", "wii u", "android port", "for android", "dreamcast port", "gba port", "iphone", "ipad", " ios", "macos"];
     const PC: &[&str] = &[" pc", "pc ", "windows", "linux", "desktop", "steam deck"];
     OTHER.iter().any(|o| d.contains(o)) && !PC.iter().any(|p| d.contains(p))
 }
 
-async fn search_topic(topic: &str) -> Result<Vec<Item>, String> {
+/// Why a search failed, and whether it was GitHub's limit (then the next ones are not tried).
+struct SearchError {
+    text: String,
+    limit: bool,
+}
+
+/// The ports found and whether GitHub had a full page (so there may be another).
+async fn search_topic(topic: &str, page: u32) -> Result<(Vec<Item>, bool), SearchError> {
     let url = format!(
-        "https://api.github.com/search/repositories?q=topic:{topic}+fork:false+archived:false&sort=stars&order=desc&per_page=60"
+        "https://api.github.com/search/repositories?q=topic:{topic}+fork:true+archived:false&sort=stars&order=desc&per_page=100&page={page}"
     );
-    let resp = github::api(&url).send().await.map_err(|e| e.to_string())?;
+    let resp = github::api(&url).send().await.map_err(|e| SearchError { text: e.to_string(), limit: false })?;
     if !resp.status().is_success() {
-        return Err(github::status_error(resp.status()));
+        let limit = matches!(resp.status().as_u16(), 403 | 429);
+        return Err(SearchError { text: github::status_error(resp.status()), limit });
     }
-    let r: SearchResult = resp.json().await.map_err(|e| e.to_string())?;
-    Ok(r.items
+    let r: SearchResult = resp.json().await.map_err(|e| SearchError { text: e.to_string(), limit: false })?;
+    let full = r.items.len() >= 100;
+    let items = r.items
         .into_iter()
-        .filter(|i| !i.archived && !i.fork && valid_repo(&i.full_name))
+        .filter(|i| !i.archived && (!i.fork || i.stargazers_count >= MIN_FORK_STARS) && valid_repo(&i.full_name))
         // Lists and toolkits are not games.
         .filter(|i| !i.topics.iter().any(|t| t.starts_with("awesome")) && !i.name.to_lowercase().contains("awesome"))
         .filter(|i| !not_for_pc(i.description.as_deref().unwrap_or("")))
@@ -282,7 +312,8 @@ async fn search_topic(topic: &str) -> Result<Vec<Item>, String> {
             sources: vec!["tópico".into()],
             ..Default::default()
         })
-        .collect())
+        .collect();
+    Ok((items, full))
 }
 
 /// Joins the list and the searches: one item per repository, the list's game names kept.
@@ -330,7 +361,7 @@ pub fn load(path: &Path) -> Cache {
 pub async fn refresh(path: &Path, force: bool) -> Cache {
     let old = load(path);
     let now = crate::library::now();
-    if !force && !old.items.is_empty() && now.saturating_sub(old.fetched_at) < MAX_AGE_SECS {
+    if !force && !old.items.is_empty() && old.searches == SEARCHES_VERSION && now.saturating_sub(old.fetched_at) < MAX_AGE_SECS {
         return old;
     }
     let mut errors = Vec::new();
@@ -346,10 +377,23 @@ pub async fn refresh(path: &Path, force: bool) -> Cache {
         }
     };
     let mut found = Vec::new();
-    for t in TOPICS {
-        match search_topic(t).await {
-            Ok(items) => found.extend(items),
-            Err(e) => errors.push(format!("tópico {t}: {e}")),
+    'searches: for (t, pages) in SEARCHES {
+        for page in 1..=*pages {
+            match search_topic(t, page).await {
+                Ok((items, full)) => {
+                    found.extend(items);
+                    if !full {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    errors.push(format!("tópico {t}: {}", e.text));
+                    if e.limit {
+                        break 'searches;
+                    }
+                    break;
+                }
+            }
         }
     }
     let mut items = merge(list, found);
@@ -363,7 +407,7 @@ pub async fn refresh(path: &Path, force: bool) -> Cache {
             items.push(o);
         }
     }
-    let cache = Cache { fetched_at: now, items, errors };
+    let cache = Cache { fetched_at: now, items, errors, searches: SEARCHES_VERSION };
     if let Ok(text) = serde_json::to_string(&cache) {
         let _ = std::fs::write(path, text);
     }
@@ -570,6 +614,7 @@ mod tests {
         assert_eq!(super::guess_game("A tool for modders"), "");
         assert!(super::not_for_pc("Native Nintendo 3DS port of The Legend of Zelda: The Minish Cap"));
         assert!(!super::not_for_pc("Native port of Metroid Prime (GameCube) for Linux, Windows and Android"));
+        assert!(super::not_for_pc("Diablo II: Resurrected on iPhone, iPad, Apple silicon Mac, Android"));
     }
     use super::*;
 

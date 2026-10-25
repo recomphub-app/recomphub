@@ -23,7 +23,7 @@ pub struct Settings {
     /// The player's own cover addresses, one template per line, with ${serial} and ${title}.
     #[serde(default)]
     pub cover_templates: Vec<String>,
-    /// Closing the window keeps Black Flag in the tray, timing games (as Ports Launcher).
+    /// Unused since 0.33 (closing the window always quits); kept so older settings files read the same.
     #[serde(default = "yes")]
     pub close_to_tray: bool,
     /// Library shows hidden games too.

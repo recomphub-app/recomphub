@@ -34,6 +34,7 @@
 - [x] **v0.30** Perfis como na Netflix ("Quem vai jogar?" com fotos grandes, Adicionar e Gerenciar perfis), capa do perfil com a parte que aparece e a arte de um jogo, capa no alto da biblioteca com "Continuar jogando", fundo do jogo também na página do jogo
 - [x] **v0.31** Layout centralizado, aba Descobrir trocada por Adicionar > Instalar um port, tutorial novo com as capas num passo especial e espera de 6 segundos em Próximo e Pular
 - [x] **v0.32** Capas buscadas sozinhas em segundo plano, arte desfocada atrás das páginas (escolhida no perfil), aviso da Comunidade em destaque, link do token do GitHub (e de outras páginas de ajuda) funcionando
+- [x] **v0.33** Fechar a janela encerra o programa, controle só age com o Black Flag na frente, Comunidade com mais tópicos e forks conhecidos (SpartanPort)
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 
