@@ -654,6 +654,18 @@ fn set_cover_templates(app: AppHandle, lines: Vec<String>) -> Result<Vec<String>
     Ok(clean)
 }
 
+/// Help pages the screens point to with fixed addresses: where to make a GitHub token or a
+/// Twitch app, Microsoft's Visual C++ page and the video drivers.
+const HELP_PAGES: &[&str] = &[
+    "https://github.com/settings/tokens/new?description=Black%20Flag",
+    "https://dev.twitch.tv/console/apps",
+    pcinfo::VC_PAGE,
+];
+
+fn help_page(url: &str) -> bool {
+    HELP_PAGES.contains(&url) || ["NVIDIA", "AMD", "Intel"].iter().any(|v| pcinfo::driver_page(v) == Some(url))
+}
+
 #[tauri::command]
 fn open_link(app: AppHandle, url: String) -> Result<(), String> {
     // Only pages the catalog lists, the community list and the GitHub pages of the
@@ -665,6 +677,7 @@ fn open_link(app: AppHandle, url: String) -> Result<(), String> {
         || url == meta::IGDB_KEY_PAGE
         || url == ludusavi::PROJECT_PAGE
         || url == ra::KEY_PAGE
+        || help_page(&url)
         || known_ra_page(&state, &url)
         || known_mod_page(&state, &url)
         || known_igdb_page(&state, &url)
@@ -4094,6 +4107,14 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn help_pages_open() {
+        assert!(super::help_page("https://github.com/settings/tokens/new?description=Black%20Flag"));
+        assert!(super::help_page("https://www.nvidia.com/pt-br/drivers/"));
+        assert!(super::help_page(super::pcinfo::VC_PAGE));
+        assert!(!super::help_page("https://github.com/settings/tokens"));
+    }
+
     #[test]
     fn versions_compare_by_number() {
         assert_eq!(super::version_tuple("v0.10.2"), Some((0, 10, 2)));

@@ -401,6 +401,15 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     (lojas, perfis, controle), as capas viraram um passo especial (mais largo, com um jogo do
     próprio jogador sem e com capa) e Próximo e Pular só funcionam depois de 6 segundos em cada
     passo novo (Esc e B também), para o passo ser lido; um passo já visto abre sem espera.
+68. **Capas em segundo plano, fundo do programa e páginas de ajuda.** Com uma chave, a
+    biblioteca busca sozinha, um jogo por vez, as capas que faltam (o mesmo `game_meta` da
+    página do jogo, que usa o que já está guardado), troca só o cartão que chegou e mostra
+    "Buscando capas… faltam N"; cada jogo é pedido uma vez por execução. Atrás de todas as
+    páginas fica uma arte desfocada e escura: a do jogo na página dele, e no resto o que o
+    perfil escolheu (capa do perfil, último jogo jogado ou nada). O aviso da Comunidade virou
+    um quadro amarelo. `open_link` passou a aceitar uma lista fixa de páginas de ajuda (criar
+    token do GitHub, console da Twitch, Visual C++, drivers), que antes davam "Link fora do
+    catálogo".
 
 ## Capas
 

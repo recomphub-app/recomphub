@@ -52,7 +52,7 @@ pub struct Look {
     /// The library as a list instead of covers.
     #[serde(default)]
     pub list: bool,
-    /// Library tab opened first ("all", "port", "pc_game", "discover", "community").
+    /// Library tab opened first ("all", "port", "pc_game", "community").
     #[serde(default = "all_tab")]
     pub home: String,
     /// Library tabs this player does not want to see.
@@ -73,6 +73,14 @@ pub struct Look {
     /// The wide profile picture on top of the library, with "Continuar jogando".
     #[serde(default = "yes")]
     pub banner_home: bool,
+    /// Behind every page, blurred: "perfil" (the profile's wide picture), "jogo" (the game played
+    /// last) or "nenhum". A game's own page always uses that game's art.
+    #[serde(default = "profile_bg")]
+    pub page_bg: String,
+}
+
+fn profile_bg() -> String {
+    "perfil".into()
 }
 
 fn center() -> String {
@@ -89,7 +97,7 @@ fn all_tab() -> String {
 
 impl Default for Look {
     fn default() -> Self {
-        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false, banner_pos: center(), banner_home: true }
+        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false, banner_pos: center(), banner_home: true, page_bg: profile_bg() }
     }
 }
 
@@ -109,6 +117,9 @@ impl Look {
         self.hidden_tabs.dedup();
         if !["top", "center", "bottom"].contains(&self.banner_pos.as_str()) {
             self.banner_pos = center();
+        }
+        if !["perfil", "jogo", "nenhum"].contains(&self.page_bg.as_str()) {
+            self.page_bg = profile_bg();
         }
         if self.hidden_tabs.contains(&self.home) {
             self.home = all_tab();
@@ -401,6 +412,7 @@ mod tests {
         assert!(old.look.sounds && old.art.is_empty());
         let gone = Look { home: "discover".into(), ..Default::default() }.cleaned();
         assert_eq!(gone.home, "all", "Descobrir is no longer a tab");
+        assert_eq!(Look { page_bg: "neon".into(), ..Default::default() }.cleaned().page_bg, "perfil");
     }
 
     #[test]

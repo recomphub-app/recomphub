@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
   <header class="topbar">
     <div class="brand">Black <span>Flag</span></div>
     <button id="btn-profile" class="ghost profile-chip" title="Trocar de perfil"></button>
@@ -55,6 +56,7 @@
         <input type="search" id="search" placeholder="Buscar">
         <div class="filters" id="tagbar"></div>
       </div>
+      <p id="cover-status" class="cover-status" hidden></p>
       <div id="grid" class="grid"></div>
       <p id="empty" class="muted" hidden></p>
     </section>

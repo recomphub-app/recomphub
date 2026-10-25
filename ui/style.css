@@ -753,3 +753,33 @@ body.list-view .grid { grid-template-columns: minmax(0, 900px); }
 .community-head { margin-inline: auto; text-align: center; }
 .community-head .row { justify-content: center; }
 @media (max-width: 760px) { .detail { grid-template-columns: 1fr; } }
+
+/* The art behind every page (Perfil > Aparência > Fundo do programa): blurred and dark, so a wide
+   window is not plain black at the sides */
+.backdrop {
+  position: fixed; inset: -60px; z-index: -1; pointer-events: none;
+  background: center / cover no-repeat; filter: blur(42px) saturate(1.25);
+  opacity: 0; transition: opacity .4s;
+}
+.backdrop.on { opacity: .3; }
+html { background: var(--bg); }
+body { background: transparent; }
+.topbar { background: rgba(19, 17, 15, .92); }
+
+/* Covers looked up in the background */
+.cover-status { display: flex; align-items: center; justify-content: center; gap: 10px; margin: -10px 0 18px; font: 12px var(--mono); color: var(--muted); }
+.cover-status[hidden] { display: none; }
+.spin { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--red); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Comunidade: the warning that nothing here was checked, impossible to miss */
+.trust-warn {
+  display: flex; gap: 16px; align-items: flex-start; text-align: left; margin: 0 auto 14px; max-width: 760px;
+  padding: 16px 20px; background: rgba(216, 166, 70, .1); border: 1px solid var(--warn); border-left: 6px solid var(--warn);
+}
+.trust-warn b { display: block; font: 800 17px var(--wide); font-stretch: 112%; color: var(--warn); margin-bottom: 4px; }
+.trust-warn p { margin: 4px 0; }
+.trust-icon {
+  flex: none; display: grid; place-items: center; width: 34px; height: 34px;
+  background: var(--warn); color: var(--bg); font: 900 22px var(--wide);
+}

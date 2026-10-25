@@ -982,6 +982,7 @@ function profileLookHtml(x) {
       Usar a cor deste perfil no programa, no lugar do vermelho.</label>
     <div class="look-grid">
       <label>Capas na biblioteca <select id="look-cards">${opt('pequeno', 'Pequenas', l.cards)}${opt('medio', 'Médias', l.cards)}${opt('grande', 'Grandes', l.cards)}</select></label>
+      <label>Fundo do programa <select id="look-page-bg">${opt('perfil', 'A capa do perfil', l.page_bg || 'perfil')}${opt('jogo', 'O último jogo jogado', l.page_bg)}${opt('nenhum', 'Preto, sem imagem', l.page_bg)}</select></label>
       <label>Abrir na aba <select id="look-home">${Object.entries(TAB_NAMES).map(([k, v]) => opt(k, v, l.home)).join('')}</select></label>
     </div>
     <label class="check"><input type="checkbox" id="look-list" ${l.list ? 'checked' : ''}> Biblioteca em lista, em vez de capas.</label>
@@ -1007,6 +1008,7 @@ function lookFromForm() {
     hidden_tabs: [...document.querySelectorAll('.look-tab')].filter((c) => !c.checked).map((c) => c.value),
     banner_pos: $('#look-banner-pos') ? $('#look-banner-pos').value : 'center',
     banner_home: $('#look-banner-home').checked,
+    page_bg: $('#look-page-bg').value,
   };
 }
 
@@ -2085,7 +2087,7 @@ function githubTokenBox() {
       <p>Sem login, o GitHub responde 60 consultas por hora para cada PC. Quem tem muitos jogos ou usa bastante a aba
         Comunidade pode chegar nesse limite. Com um token seu, ele sobe para 5.000 por hora.</p>
       <p>${settings.has_github_token ? '<span class="chip ready">token guardado</span>' : '<span class="chip">sem token</span>'}
-        <button class="link" data-act="link" data-url="https://github.com/settings/tokens/new?description=Black Flag">criar um token no GitHub</button></p>
+        <button class="link" data-act="link" data-url="https://github.com/settings/tokens/new?description=Black%20Flag">criar um token no GitHub</button></p>
       <p class="muted">Na página do GitHub, escolha a validade e clique em Generate token sem marcar nenhuma permissão:
         o Black Flag só lê páginas públicas.</p>
       <input type="password" id="gh-token" class="wide" autocomplete="off" placeholder="${settings.has_github_token ? 'Deixe vazio para manter o token guardado' : 'ghp_… ou github_pat_…'}">
@@ -2293,7 +2295,33 @@ function render() {
   $('#detail').hidden = !inDetail;
   if (inDetail) renderDetail();
   else renderGrid();
+  renderBackdrop();
   if (tvOn) renderTv();
+}
+
+// Behind every page, blurred and dark, so the sides of a wide window are not plain black: the
+// game's own art on its page, elsewhere what the profile chose (Perfil > Aparência > Fundo).
+function backdropArt() {
+  const art = (g) => g && (g.background || g.cover);
+  const open = openId && games.find((g) => g.id === openId);
+  if (open && art(open)) return art(open);
+  const p = profiles && profiles.active;
+  const want = (p && p.look && p.look.page_bg) || 'perfil';
+  if (want === 'nenhum') return null;
+  const last = games.filter((g) => g.in_library && !g.hidden && g.last_played && art(g))
+    .sort((a, b) => b.last_played - a.last_played)[0];
+  if (want === 'perfil' && p && p.banner) return p.banner;
+  return art(last) || null;
+}
+
+function renderBackdrop() {
+  const el = $('#backdrop');
+  if (!el) return;
+  const url = backdropArt();
+  if (el.dataset.url === (url || '')) return;
+  el.dataset.url = url || '';
+  el.style.backgroundImage = url ? `url('${url}')` : '';
+  el.classList.toggle('on', !!url);
 }
 
 function setGame(g) {
@@ -2306,6 +2334,58 @@ function setGame(g) {
 async function refresh() {
   games = await call('get_library');
   render();
+  coversInBackground();
+}
+
+// ---- Capas em segundo plano: os jogos sem capa são buscados um por vez, sem abrir a página de cada um ----
+
+const coverTried = new Set();   // asked once per run; a game not found waits for the next start
+let coverBusy = false;
+
+function coverKeys() {
+  return settings.has_steamgriddb || settings.has_igdb;
+}
+
+function coverTodo() {
+  return games.filter((g) => g.in_library && !g.cover && !coverTried.has(g.id));
+}
+
+async function coversInBackground() {
+  if (coverBusy || !coverKeys()) return;
+  coverBusy = true;
+  try {
+    for (let g = coverTodo()[0]; g; g = coverTodo()[0]) {
+      coverTried.add(g.id);
+      coverStatus(g);
+      try {
+        const m = await invoke('game_meta', { id: g.id, term: null, again: false });
+        if (metaCache[g.id] === undefined) metaCache[g.id] = m;
+        const i = games.findIndex((x) => x.id === g.id);
+        if (i >= 0) {
+          games[i] = m.game;
+          coverPaint(m.game);
+        }
+      } catch { /* offline: tried again on the next start */ }
+    }
+  } finally {
+    coverBusy = false;
+    coverStatus(null);
+  }
+}
+
+// Only the card changes, so the page does not jump while the covers arrive.
+function coverPaint(g) {
+  if (!g.cover) return;
+  const c = document.querySelector(`#grid .card[data-id="${CSS.escape(g.id)}"] .cover`);
+  if (c) c.outerHTML = coverHtml(g);
+  if (tvOn) renderTv();
+}
+
+function coverStatus(g) {
+  const el = $('#cover-status');
+  if (!el) return;
+  el.hidden = !g;
+  if (g) el.innerHTML = `<span class="spin" aria-hidden="true"></span> Buscando capas: ${esc(g.title)} · faltam ${coverTodo().length + 1}`;
 }
 
 function openGame(id) {
@@ -2550,8 +2630,10 @@ async function act(action, g, el) {
         });
         if (clear) keyResults = [{ ok: true, message: 'Chaves apagadas.' }];
         settings = await call('get_settings');
-        // Games looked up before keys existed are asked again on their page.
+        // Games looked up before keys existed are asked again, on their page and in the background.
         for (const id of Object.keys(metaCache)) if (!metaCache[id].cached) delete metaCache[id];
+        coverTried.clear();
+        coversInBackground();
       } catch (e) {
         keyResults = [{ ok: false, message: String(e) }];
       }
@@ -3274,8 +3356,15 @@ function renderCommunityGrid() {
   if (!communityArt) loadCommunityArt();
   const data = communityData || { items: [], errors: [], fetched_at: 0 };
   head.innerHTML = `
-    <p>Ports feitos pela comunidade e achados no GitHub. <b>Não foram verificados pelo Black Flag</b>: instale só de projetos em
-      que você confia. Os marcados "No catálogo" têm a versão verificada em Descobrir.</p>
+    <div class="trust-warn" role="note">
+      <span class="trust-icon" aria-hidden="true">!</span>
+      <div>
+        <b>Estes ports não foram verificados pelo Black Flag</b>
+        <p>São projetos da comunidade achados no GitHub. Qualquer pessoa pode publicar um, e o Black Flag não confere o que
+          vem dentro. Instale só de projetos em que você confia e leia o README de cada um antes.</p>
+        <p class="muted">Os marcados <span class="chip ready">No catálogo</span> têm uma versão conferida em Adicionar > Instalar um port.</p>
+      </div>
+    </div>
     <div class="row community-meta">
       ${data.fetched_at ? `<span class="muted">Lista de ${lastPlayed(data.fetched_at)}</span>` : ''}
       <button class="ghost" data-cact="refresh" ${communityLoading ? 'disabled' : ''}>${communityLoading ? 'Buscando no GitHub…' : 'Atualizar'}</button>
@@ -4349,6 +4438,8 @@ async function tourAct(what, el) {
         tourResult = await invoke('set_api_keys', { steamgriddb: key, igdbClientId: '', igdbClientSecret: '', clear: false });
         settings = await invoke('get_settings');
         for (const id of Object.keys(metaCache)) if (!metaCache[id].cached) delete metaCache[id];
+        coverTried.clear();
+        coversInBackground();
       } catch (e) {
         tourResult = [{ ok: false, message: String(e) }];
       }
@@ -4422,7 +4513,7 @@ setInterval(() => {
 }, 20000);
 
 // Show the library at once, then ask GitHub for new versions in the background.
-invoke('get_settings').then((s) => { settings = s; render(); }).catch(() => {});
+invoke('get_settings').then((s) => { settings = s; render(); coversInBackground(); }).catch(() => {});
 checkAppUpdate();
 
 refresh()
