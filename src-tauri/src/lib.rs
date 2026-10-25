@@ -4381,6 +4381,7 @@ async fn emu_overview(app: AppHandle) -> Result<EmuOverview, String> {
             let latest = st.latest.get(e.id).cloned();
             let update = found.as_ref().map(|f| f.managed && latest.is_some() && f.version != latest).unwrap_or(false);
             found_by_id.insert(e.id, found.clone());
+            let ra = found.as_ref().filter(|_| e.id == "pcsx2").map(|f| emu::pcsx2_ra(&f.exe));
             emulators.push(EmuRow {
                 id: e.id,
                 name: e.name,
@@ -4392,7 +4393,7 @@ async fn emu_overview(app: AppHandle) -> Result<EmuOverview, String> {
                 update,
                 installing: installing.contains(&format!("emu-{}", e.id)),
                 consoles: emu::SYSTEMS.iter().filter(|s| s.emulators.contains(&e.id)).map(|s| s.name).collect(),
-                ra: found.as_ref().filter(|_| e.id == "pcsx2").map(|f| emu::pcsx2_ra(&f.exe)),
+                ra,
             });
         }
         let counts: HashMap<String, usize> = {
