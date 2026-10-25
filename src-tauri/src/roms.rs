@@ -460,7 +460,7 @@ fn iso_read(f: &mut std::fs::File, (sector, skip): (u64, u64), lba: u64, size: u
 /// ";1" version is ignored on both sides.
 fn iso_find(f: &mut std::fs::File, layout: (u64, u64, u64, u64), path: &str) -> Option<(u64, u64)> {
     let (sector, skip, mut lba, mut len) = layout;
-    let parts: Vec<String> = path.split(['\', '/']).filter(|p| !p.is_empty()).map(|p| p.split(';').next().unwrap_or("").to_uppercase()).collect();
+    let parts: Vec<String> = path.split(['\\', '/']).filter(|p| !p.is_empty()).map(|p| p.split(';').next().unwrap_or("").to_uppercase()).collect();
     for (i, part) in parts.iter().enumerate() {
         let dir = iso_read(f, (sector, skip), lba, len, 256 * 1024)?;
         let mut pos = 0usize;
@@ -512,7 +512,7 @@ pub fn ps2_ra_hash(path: &Path) -> Option<String> {
         k.trim().eq_ignore_ascii_case("BOOT2").then(|| v.trim().to_string())
     })?;
     // PCSX2's GetELFNameForHash: after the last backslash, before the ';'.
-    let start = boot.rfind('\').map(|i| i + 1).unwrap_or(0);
+    let start = boot.rfind('\\').map(|i| i + 1).unwrap_or(0);
     let end = boot.rfind(';').filter(|&e| e >= start).unwrap_or(boot.len());
     let name = &boot[start..end];
     if name.is_empty() {
@@ -777,7 +777,7 @@ mod tests {
         iso[pvd + 156 + 2..pvd + 156 + 6].copy_from_slice(&20u32.to_le_bytes());
         iso[pvd + 156 + 10..pvd + 156 + 14].copy_from_slice(&2048u32.to_le_bytes());
         let mut rec = 20 * 2048;
-        let cnf = b"BOOT2 = cdrom0:\SLUS_212.42;1\r\nVER = 1.00\r\n";
+        let cnf = b"BOOT2 = cdrom0:\\SLUS_212.42;1\r\nVER = 1.00\r\n";
         let elf = b"\x7fELF the game";
         for (name, lba, size) in [(&b"SYSTEM.CNF;1"[..], 21u32, cnf.len()), (&b"SLUS_212.42;1"[..], 22, elf.len())] {
             iso[rec] = (33 + name.len() + 1) as u8;
