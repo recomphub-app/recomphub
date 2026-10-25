@@ -693,7 +693,8 @@ fn tree(sys: &System, pid: u32) -> Vec<u32> {
     let root = Pid::from_u32(pid);
     let mut out: Vec<u32> = if sys.process(root).is_some() { vec![pid] } else { Vec::new() };
     let mut parents = vec![root];
-    for _ in 0..3 {
+    // Down to the game itself, however many programs the emulator starts on the way.
+    for _ in 0..8 {
         let kids: Vec<Pid> = sys.processes().iter().filter(|(_, p)| p.parent().map(|pp| parents.contains(&pp)).unwrap_or(false)).map(|(k, _)| *k).collect();
         if kids.is_empty() {
             break;

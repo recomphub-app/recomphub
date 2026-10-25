@@ -430,6 +430,24 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     pasta de jogos do Black Flag. Jogos das lojas e de PC não se desinstalam por aqui.
 72. **Uma aba por loja.** Steam, Epic e GOG têm abas próprias (escondidas quando a loja não
     tem jogo neste PC); "Jogos de PC" fica só com os adicionados à mão.
+73. **Emuladores (fase 2), desenhados com o Codex.** Cada um desenhou sozinho e depois
+    debatemos (`Desktop\calude\emuladores-consenso.md`). Dois níveis: completo (DuckStation,
+    PCSX2, Dolphin, PPSSPP, mGBA, RMG, RPCS3, xemu: instalados, preparados e conferidos) e
+    básico (melonDS, Cemu, Xenia Canary, Azahar, Flycast, shadPS4, ares: instalados ou achados,
+    abertos e explicados); Ryujinx só se o jogador já tiver. Download só das páginas oficiais
+    (GitHub de cada projeto; o Dolphin pelo serviço de atualização dele), na pasta
+    `Black Flag\Emuladores\<id>`, com o modo portable de cada um ligado; a atualização mantém os
+    dados do jogador que ficam dentro da pasta. A configuração inicial (pasta da BIOS, controle
+    no jogador 1 com os nomes que cada emulador usa no código, assistente marcado como concluído
+    com a chave que ele mesmo grava) só vale para o que o Black Flag instalou e só com o
+    portable ligado; emulador do jogador nunca é escrito. Jogo emulado é um tipo do Entry
+    (`emulated`, com console e emulador escolhido); remover nunca apaga o arquivo do jogo. A
+    sessão segue o processo do emulador que o Black Flag abriu (e os filhos dele), porque
+    vários jogos usam a mesma pasta. Os jogos são achados pela pasta do console, pela extensão
+    e, nos casos ambíguos, pelo cabeçalho (GameCube, Wii, Xbox/360, ISO9660 com
+    PSP_GAME/PS3_GAME/SYSTEM.CNF, CHD por tipo de mídia, PBP de PS1); o que fica em dúvida vai
+    para uma lista em que o jogador escolhe. BIOS e firmware: só presença, tamanho e formato,
+    sem hash; nada é baixado.
 
 ## Capas
 

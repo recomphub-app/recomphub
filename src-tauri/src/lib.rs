@@ -4210,13 +4210,8 @@ async fn emu_overview(app: AppHandle) -> Result<EmuOverview, String> {
             })
             .collect();
         let _ = emu_save(&state, &st);
-        Ok(EmuOverview {
-            root: root.display().to_string(),
-            emulators,
-            systems,
-            folders: st.folders.clone(),
-            unknown: state.emu_unknown.lock().unwrap().clone(),
-        })
+        let unknown = state.emu_unknown.lock().unwrap().clone();
+        Ok(EmuOverview { root: root.display().to_string(), emulators, systems, folders: st.folders.clone(), unknown })
     })
     .await
     .map_err(|e| e.to_string())?

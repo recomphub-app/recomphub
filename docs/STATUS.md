@@ -49,7 +49,7 @@ reconhece jogos de vários lugares e configura tudo pelo próprio programa, e pa
   lendo os arquivos e o registro de cada loja (sem login). Abrir pela loja, contar o tempo
   pela pasta do jogo e importar sozinho ao abrir o programa. Um jogo removido não volta.
   Depois: Xbox/Microsoft Store, EA, Ubisoft, Amazon e itch.
-- [x] **Fase 2: emuladores** (v0.40, desenhada com o Codex: `Desktop\calude\emuladores-consenso.md`). Reconhecer os emuladores instalados (PCSX2, DuckStation, RPCS3,
+- [x] **Fase 2: emuladores** (v0.40, desenhada com o Codex: `Desktop\calude\emuladores-consenso.md`). 16 emuladores para 24 consoles, instalados das páginas oficiais em modo portable e preparados no primeiro uso; BIOS e firmware conferidos; jogos achados pelo cabeçalho; aba Emulados. Reconhecer os emuladores instalados (PCSX2, DuckStation, RPCS3,
   Dolphin, Cemu, Ryujinx/Ryubing, Xenia Canary, xemu, PPSSPP, RetroArch) e instalar os que
   faltam pela página oficial no GitHub, como os ports. Pastas de jogos por console, abrir o
   jogo pela linha de comando de cada emulador (`clay/emuladores/emuladores-cli.json`), conferir

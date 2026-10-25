@@ -98,7 +98,9 @@ pub struct Emulator {
     pub source: Source,
     /// Its program; a name ending in '*' is a prefix (DuckStation's name carries the build).
     pub exes: &'static [&'static str],
-    /// Files or folders (ending in '/') that turn on the emulator's own portable mode.
+    /// Files or folders (ending in '/') that turn on the emulator's own portable mode, as its
+    /// code looks for them: portable.txt (PCSX2 QtHost, DuckStation qthost, Dolphin), portable.ini
+    /// (mGBA mCoreConfigIsPortable), portable/ (Cemu), user/ (Azahar, shadPS4).
     pub portable: &'static [&'static str],
     /// The player's data inside the emulator's folder, kept by an update.
     pub keep: &'static [&'static str],
@@ -141,7 +143,7 @@ pub const EMULATORS: &[Emulator] = &[
         page: "https://mgba.io", detect: &["mGBA"],
     },
     Emulator {
-        id: "melonds", name: "melonDS", full: true,
+        id: "melonds", name: "melonDS", full: false,
         source: Source::GitHub { repo: "melonDS-emu/melonDS", must: &["windows-x86_64.zip"], not: &[] },
         exes: &["melonDS.exe"], portable: &[], keep: &["melonDS.toml", "melonDS.ini", "bios7.bin", "bios9.bin", "firmware.bin"],
         page: "https://melonds.kuribo64.net", detect: &["melonDS"],
@@ -715,6 +717,9 @@ pub fn prepare(emu: &Emulator, exe: &Path, root: &Path) -> Result<(), String> {
             Ok(())
         }
         "xemu" => xemu_files(&base.join("xemu.toml"), &bios_dir(root, "xbox")),
+        // PPSSPP, mGBA, RMG and RPCS3 already use the first controller out of the box, ask for no
+        // BIOS, and have no first-run assistant; PPSSPP and RPCS3 keep their data next to the
+        // program by default. Nothing to write.
         _ => Ok(()),
     }
 }
@@ -808,6 +813,16 @@ pub fn xbox_files(dir: &Path) -> XboxFiles {
     f
 }
 
+/// A file that looks like a PS1 BIOS: 512 KB with Sony's name near the start.
+fn looks_ps1_bios(path: &Path, size: u64) -> bool {
+    if size != 524_288 {
+        return false;
+    }
+    let mut buf = Vec::new();
+    std::fs::File::open(path).and_then(|f| f.take(4096).read_to_end(&mut buf)).is_ok()
+        && buf.windows(27).any(|w| w == b"Sony Computer Entertainment")
+}
+
 /// A file that looks like a PS2 BIOS: 4 to 8 MB with "ROMVER" in it (as PCSX2 tells them).
 fn looks_ps2_bios(path: &Path, size: u64) -> bool {
     if !(4 * 1024 * 1024..=8 * 1024 * 1024).contains(&size) {
@@ -855,7 +870,7 @@ pub fn needs_status(system: &System, root: &Path, found: Option<&Found>) -> Need
     match system.needs {
         Needs::Nothing => NeedStatus { asks: false, ok: true, blocks: false, text: String::new(), folder: None, action: None },
         Needs::Ps1Bios => {
-            let file = files_in(&dir).into_iter().find(|(_, s)| *s == 524_288).map(|(p, _)| p);
+            let file = files_in(&dir).into_iter().find(|(p, s)| looks_ps1_bios(p, *s)).map(|(p, _)| p);
             match (file, managed) {
                 (Some(p), _) => st(true, false, format!("BIOS do PlayStation encontrada: {}.", file_name(&p))),
                 (None, true) => st(false, true, "Falta a BIOS do PlayStation (um arquivo de 512 KB tirado do seu console). Coloque-a na pasta BIOS\\ps1.".into()),
