@@ -474,3 +474,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     10 segundos o Black Flag olha as horas de mudança das pastas (até três níveis) e, se algo
     mudou, procura de novo; o jogo novo aparece sozinho e a capa vem depois. No Modo TV, quando
     a biblioteca tem ports e jogos emulados, cada grupo ganha uma seção (LB/RB).
+
+75. **Visual de console, preto e dourado.** Pedido do Gustavo em 25/10/2026, com o PS4-UI e o
+    xbox_dashboard como referência (de novo só ideias, nada copiado; decisão 60). O que muda é a
+    organização: as seções principais ficam no alto, no meio e grandes, como os pivôs do painel
+    do Xbox (Biblioteca, Emuladores, Instalar ports, Comunidade, Estatísticas), e LB/RB trocam de
+    seção onde a página não tem abas. Emuladores e Comunidade saem de menus e abas e viram seção;
+    a barra fina de cima guarda o + Adicionar (dourado), o Modo TV, o Mais, o relógio e o perfil à
+    direita, como num console. O dourado é o destaque (`--red` continua sendo o nome da cor de
+    destaque, para a cor própria do perfil continuar valendo); avisos ficam em laranja para não
+    se confundirem com ele. Os jogos viram blocos arredondados que crescem e brilham ao serem
+    escolhidos (mouse, teclado ou controle). O tutorial espera 2 s por passo, não 6.

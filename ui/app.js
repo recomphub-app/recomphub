@@ -171,18 +171,19 @@ function renderLibHero() {
   if (!el) return;
   const p = profiles && profiles.active;
   const l = (p && p.look) || {};
-  if (!p || !p.banner || l.banner_home === false) {
+  const last = p && games.filter((g) => g.in_library && !g.hidden && g.last_played && !['not_installed', 'missing'].includes(g.status))
+    .sort((a, b) => b.last_played - a.last_played)[0];
+  const art = p && (p.banner || (last && (last.background || last.cover)));
+  if (!p || l.banner_home === false || (!art && !last)) {
     el.innerHTML = '';
     el.className = '';
     return;
   }
-  const last = games.filter((g) => g.in_library && !g.hidden && g.last_played && !['not_installed', 'missing'].includes(g.status))
-    .sort((a, b) => b.last_played - a.last_played)[0];
   const h = new Date().getHours();
   const hello = h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   el.className = 'lib-hero';
   el.innerHTML = `
-    <div class="lib-hero-art" style="background-image:url('${p.banner}');background-position:${bannerPos(p)}"></div>
+    ${art ? `<div class="lib-hero-art" style="background-image:url('${art}');background-position:${p.banner ? bannerPos(p) : 'center'}"></div>` : ''}
     <div class="lib-hero-who">${avatar(p, true)}<div><span class="k">${hello},</span><b>${esc(p.name)}</b></div></div>
     ${last ? `
       <div class="lib-hero-go">
@@ -208,10 +209,12 @@ function renderLibHero() {
 function renderGrid() {
   // The catalog is a page of its own, opened from Adicionar, with the way back on top.
   const catalog = tab === 'discover';
-  $('#lib-title').textContent = catalog ? 'Instalar um port' : 'Biblioteca';
-  $('#lib-back').hidden = !catalog;
-  $('#tabs').hidden = catalog;
-  if (catalog) { $('#lib-hero').innerHTML = ''; $('#lib-hero').className = ''; } else renderLibHero();
+  const community = tab === 'community';
+  $('#lib-title').textContent = catalog ? 'Instalar um port' : community ? 'Comunidade' : 'Biblioteca';
+  $('#lib-title').hidden = !catalog && !community;
+  $('#lib-back').hidden = true;
+  $('#tabs').hidden = catalog || community;
+  if (catalog || community) { $('#lib-hero').innerHTML = ''; $('#lib-hero').className = ''; } else renderLibHero();
   if (tab === 'community') return renderCommunityGrid();
   $('#community-head').hidden = true;
   renderTabs();
@@ -2412,6 +2415,7 @@ function render() {
   $('#detail').hidden = !inDetail;
   if (inDetail) renderDetail();
   else renderGrid();
+  markNav();
   renderBackdrop();
   if (tvOn) renderTv();
 }
@@ -3419,13 +3423,14 @@ listen('notify', (e) => toast(String(e.payload), true));
 // ---- Aba Comunidade: ports from the awesome list and GitHub topics, not verified ----
 
 let communityData = null;      // { items, fetched_at, errors, list_page }
+let communityAsked = false;    // asked once by itself; after a failure, only Atualizar asks again
 let communityArt = null;       // id -> [data URL, source], filled as pictures are found
 let artRender = null;
 
 async function loadCommunityArt() {
   communityArt = {};
   try {
-    communityArt = await invoke('get_community_art');
+    communityArt = (await invoke('get_community_art')) || {};
   } catch { /* the cards show the name */ }
   render();
 }
@@ -3499,7 +3504,10 @@ function renderCommunityGrid() {
   markTabs();
   const head = $('#community-head');
   head.hidden = false;
-  if (!communityData && !communityLoading) loadCommunity(false);
+  if (!communityData && !communityLoading && !communityAsked) {
+    communityAsked = true;
+    loadCommunity(false).catch(() => {});
+  }
   if (!communityArt) loadCommunityArt();
   const data = communityData || { items: [], errors: [], fetched_at: 0 };
   head.innerHTML = `
@@ -3509,7 +3517,7 @@ function renderCommunityGrid() {
         <b>Estes ports não foram verificados pelo Black Flag</b>
         <p>São projetos da comunidade achados no GitHub. Qualquer pessoa pode publicar um, e o Black Flag não confere o que
           vem dentro. Instale só de projetos em que você confia e leia o README de cada um antes.</p>
-        <p class="muted">Os marcados <span class="chip ready">No catálogo</span> têm uma versão conferida em Adicionar > Instalar um port.</p>
+        <p class="muted">Os marcados <span class="chip ready">No catálogo</span> têm uma versão conferida na seção Instalar ports.</p>
       </div>
     </div>
     <div class="row community-meta">
@@ -3541,7 +3549,7 @@ function renderCommunityGrid() {
   const list = data.items.filter(communityMatches).sort(COMMUNITY_ORDER[communitySort] || COMMUNITY_ORDER.recommended);
   const empty = $('#empty');
   empty.hidden = list.length > 0 || communityLoading;
-  empty.textContent = data.items.length ? 'Nenhum port com esse filtro.' : 'Nenhum port carregado. Verifique a internet e clique em "Atualizar lista".';
+  empty.textContent = data.items.length ? 'Nenhum port com esse filtro.' : 'Nenhum port carregado. Verifique a internet e clique em "Atualizar".';
   $('#grid').innerHTML = list.map((i) => `
     <div class="card" data-repo="${esc(i.repo)}" tabindex="0">
       ${communityCover(i)}
@@ -3926,12 +3934,17 @@ function padBack() {
     $('#lib-back').click();
     return;
   }
+  if (!openId && (tab === 'discover' || tab === 'community')) {
+    goNav('library');
+    return;
+  }
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
 }
 
-// LB/RB: the tabs of the page (Visão geral, Ajustes…) or of the library.
+// LB/RB: the tabs of the page (Visão geral, Ajustes…) or of the library; where there are none,
+// the sections on top (Biblioteca, Emuladores…), as on a console.
 function padTab(step) {
-  const bar = [...document.querySelectorAll('.page-tabs, #tabs')].find(isShown);
+  const bar = [...document.querySelectorAll('.page-tabs, #tabs')].find(isShown) || $('#nav');
   if (!bar) return;
   const tabs = [...bar.querySelectorAll('button')].filter(isShown);
   const on = tabs.findIndex((b) => b.classList.contains('on'));
@@ -3945,6 +3958,7 @@ function padTab(step) {
 function renderPadHints() {
   const el = $('#pad-hints');
   if (!el) return;
+  document.querySelectorAll('#nav .nav-key').forEach((k) => (k.textContent = padName(k.dataset.pad)));
   el.innerHTML = `<span><b>${padName('ok')}</b> Escolher</span><span><b>${padName('back')}</b> Voltar</span>
     <span><b>${padName('lb')}</b> <b>${padName('rb')}</b> Abas</span><span><b>${padName('menu')}</b> Modo TV</span>`;
 }
@@ -4414,12 +4428,51 @@ document.querySelectorAll('.menu > [data-menu]').forEach((b) => b.addEventListen
 document.addEventListener('click', () => document.querySelectorAll('.menu-list').forEach((l) => (l.hidden = true)));
 $('#btn-tour').addEventListener('click', () => openTour());
 $('#btn-emu').addEventListener('click', openEmulators);
-$('#btn-emu-more').addEventListener('click', openEmulators);
 $('#btn-discover').addEventListener('click', () => {
   openId = null;
   tab = 'discover';
   render();
 });
+// The sections on top, as on a console: Biblioteca, Emuladores, Instalar ports, Comunidade and
+// Estatísticas. The one you are in stays lit; a game page belongs to Biblioteca.
+function navNow() {
+  if (openId === '__emu') return 'emu';
+  if (openId === '__stats') return 'stats';
+  if (openId && openId.startsWith('c:')) return 'community';
+  if (openId && openId.startsWith('__')) return null;
+  if (!openId && (tab === 'discover' || tab === 'community')) return tab;
+  return 'library';
+}
+
+function markNav() {
+  const now = navNow();
+  document.querySelectorAll('#nav [data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === now));
+}
+
+function goNav(where) {
+  if (where === 'emu') return openEmulators();
+  if (where === 'stats') return openStats();
+  openId = null;
+  tagFilter = null;
+  if (where === 'library') {
+    const home = profiles && profiles.active.look && profiles.active.look.home;
+    tab = home && home !== 'community' ? home : 'all';
+  } else {
+    tab = where;
+  }
+  render();
+  window.scrollTo(0, 0);
+}
+
+document.querySelectorAll('#nav [data-nav]').forEach((b) => b.addEventListener('click', () => goNav(b.dataset.nav)));
+
+function tickClock() {
+  const el = $('#clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+tickClock();
+setInterval(tickClock, 15000);
+
 $('#lib-back').addEventListener('click', () => {
   tab = (profiles && profiles.active.look && profiles.active.look.home) || 'all';
   render();
@@ -4714,7 +4767,7 @@ function bindEmuGameBox(g) {
 // ---- Tutorial: shown once, the first time; again from Mais > Tutorial ----
 
 const TOUR_SEEN = 'recomphub-tutorial-1';
-const TOUR_WAIT = 6;     // seconds before Próximo and Pular work on a step, so it gets read
+const TOUR_WAIT = 2;     // seconds before Próximo and Pular work on a step, so it gets read
 let tourStep = 0;
 let tourResult = null;   // "Salvar e testar" of the SteamGridDB key inside the tutorial
 let tourWait = 0;        // seconds left on the step shown now
@@ -4747,16 +4800,45 @@ function tourSteps() {
         <p class="muted">Ele nunca baixa jogos. Os arquivos vêm da sua própria cópia.</p>`,
     },
     {
+      title: 'Tudo fica no alto da tela',
+      html: `<p class="tour-lead">O programa é dividido em seções, como num console. Clique numa delas para ir até lá.</p>
+        <div class="tour-sections" aria-hidden="true">
+          <span class="on">Biblioteca</span><span>Emuladores</span><span>Instalar ports</span><span>Comunidade</span><span>Estatísticas</span>
+        </div>
+        <ul>
+          <li><b>Biblioteca</b>: os seus jogos. As abas logo abaixo separam Ports, Emulados, Steam, Epic, GOG e Jogos de PC.</li>
+          <li><b>Emuladores</b>: os jogos de console (PlayStation, Nintendo, Xbox) e os emuladores para rodá-los.</li>
+          <li><b>Instalar ports</b>: a lista de ports conferidos pelo Black Flag.</li>
+          <li><b>Comunidade</b>: outros ports achados no GitHub, que ninguém conferiu.</li>
+          <li><b>Estatísticas</b>: quanto você jogou, por jogo e por dia.</li>
+        </ul>
+        <p class="muted">Com controle, LB e RB trocam de seção (ou de aba, onde houver abas).</p>`,
+    },
+    {
       title: 'Trazer os seus jogos',
-      html: `<p>Tudo começa no botão <b>Adicionar</b>, no alto à direita:</p>
+      html: `<p>Tudo começa no botão dourado <b>+ Adicionar</b>, no alto à direita:</p>
         <ul>
           <li><b>Jogos da Steam, Epic e GOG</b>: o Black Flag acha os que já estão instalados, e procura de novo sempre que abre.</li>
           <li><b>Instalar um port</b>: a lista de ports conferidos. Escolha um, clique em Instalar e arraste o arquivo da sua
             cópia (a ROM ou a pasta do dump) para a página do jogo.</li>
           <li><b>Port que já está no PC</b> e <b>Jogo de PC</b>: para o que você já tem numa pasta.</li>
         </ul>
-        <p class="muted">A aba Comunidade mostra outros ports achados no GitHub. Eles não foram conferidos: instale só de
+        <p class="muted">A seção Comunidade mostra outros ports achados no GitHub. Eles não foram conferidos: instale só de
           projetos em que você confia.</p>`,
+    },
+    {
+      title: 'Jogos de console',
+      html: `<p>Na seção <b>Emuladores</b> cada console tem um cartão com o emulador dele:</p>
+        <ol>
+          <li>Clique em <b>Instalar</b> no cartão do console: o Black Flag baixa o emulador da página oficial e já deixa ele configurado para o
+            controle. Se você já tem um emulador, clique em <b>Já tenho</b>.</li>
+          <li>Coloque os seus jogos na pasta <b>Jogos</b> do console (o botão <b>Pasta de jogos</b> leva até ela), ou aponte
+            uma pasta que você já tem.</li>
+          <li>Pronto: em alguns segundos o jogo aparece sozinho na Biblioteca, com capa, e abre com <b>Jogar</b> como
+            qualquer outro.</li>
+        </ol>
+        <p class="muted">Alguns consoles pedem a BIOS ou o firmware do seu aparelho. O cartão diz o que falta e onde colocar.
+          O Black Flag nunca baixa jogos, BIOS ou firmware.</p>`,
     },
     {
       title: 'A página do jogo',
@@ -4773,7 +4855,7 @@ function tourSteps() {
     {
       title: 'Um perfil para cada um',
       html: `<p>Cada pessoa da casa pode ter o seu perfil, com tempo de jogo, saves e conquistas separados. Na tela
-          <b>Quem vai jogar?</b> você escolhe quem está jogando. Para trocar depois, clique no seu nome, no alto.</p>
+          <b>Quem vai jogar?</b> você escolhe quem está jogando. Para trocar depois, clique no seu nome, no canto direito do alto.</p>
         <p>Em <b>Gerenciar perfis</b> dá para pôr foto, capa, cor e mudar a aparência da biblioteca.</p>
         <p>Quando você fecha um jogo, o Black Flag pergunta <b>onde você parou</b>. O recado aparece na próxima vez que
           você abrir o jogo.</p>`,
@@ -4781,8 +4863,8 @@ function tourSteps() {
     {
       title: 'Controle e Modo TV',
       html: `<p>O programa inteiro funciona com controle de Xbox ou PlayStation: o direcional anda, A ou ✕ escolhe, B ou ○
-          volta, LB e RB trocam de aba. A barra no rodapé mostra os botões do seu controle.</p>
-        <p>O <b>Modo TV</b> mostra a biblioteca em tela cheia, para jogar do sofá.</p>
+          volta, LB e RB trocam de aba ou de seção. A barra no rodapé mostra os botões do seu controle.</p>
+        <p>O botão <b>Modo TV</b>, no alto, mostra a biblioteca em tela cheia, para jogar do sofá.</p>
         <p class="muted">No meio de um jogo, segure o botão Guide (ou Back + Start) para trazer o Black Flag de volta.</p>`,
     },
     {
@@ -4811,7 +4893,7 @@ function tourSteps() {
     {
       title: 'Pronto',
       html: `<p class="tour-lead">Isso é o básico.</p>
-        <p>Para rever este tutorial, use <b>Mais > Tutorial</b>.</p>
+        <p>Para rever este tutorial, use <b>Mais > Tutorial</b>, no alto.</p>
         <p class="muted">Se o GitHub disser que você passou do limite de consultas (comum com muitos jogos), crie um token
           grátis em Configurações > Capas e GitHub.</p>`,
     },
@@ -4941,7 +5023,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 $('#btn-profile').addEventListener('click', () => (profiles ? whoOpen() : openProfiles()));
-$('#btn-stats').addEventListener('click', openStats);
 $('#btn-settings').addEventListener('click', async () => {
   settings = await call('get_settings');
   keyResults = null;

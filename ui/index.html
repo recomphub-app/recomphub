@@ -9,33 +9,43 @@
 <body>
   <div id="backdrop" class="backdrop" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand">Black <span>Flag</span></div>
-    <button id="btn-profile" class="ghost profile-chip" title="Trocar de perfil"></button>
-    <div class="actions">
-      <button id="btn-tv" class="ghost" title="Biblioteca em tela cheia, com controle ou teclado">Modo TV</button>
-      <div class="menu">
-        <button class="ghost" data-menu aria-haspopup="true">Mais ▾</button>
-        <div class="menu-list" hidden>
-          <button id="btn-stats">Estatísticas</button>
-          <button id="btn-emu-more">Emuladores</button>
-          <button id="btn-covers">Capas</button>
-          <button id="btn-backup">Backup dos saves</button>
-          <button id="btn-updates">Verificar atualizações</button>
-          <button id="btn-tour">Tutorial</button>
+    <div class="sysbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Black <span>Flag</span></div>
+      <div class="actions">
+        <div class="menu">
+          <button class="primary" data-menu aria-haspopup="true">+ Adicionar</button>
+          <div class="menu-list" hidden>
+            <button id="btn-emu">Jogos de console (emuladores)</button>
+            <button id="btn-discover">Instalar um port</button>
+            <button id="btn-add">Port que já está no PC</button>
+            <button id="btn-stores">Jogos da Steam, Epic e GOG</button>
+            <button id="btn-add-pc">Jogo de PC</button>
+          </div>
         </div>
-      </div>
-      <div class="menu">
-        <button class="primary" data-menu aria-haspopup="true">Adicionar ▾</button>
-        <div class="menu-list" hidden>
-          <button id="btn-emu">Jogos de console (emuladores)</button>
-          <button id="btn-discover">Instalar um port</button>
-          <button id="btn-add">Port que já está no PC</button>
-          <button id="btn-stores">Jogos da Steam, Epic e GOG</button>
-          <button id="btn-add-pc">Jogo de PC</button>
+        <button id="btn-tv" class="ghost pill" title="Biblioteca em tela cheia, com controle ou teclado">▶ Modo TV</button>
+        <div class="menu">
+          <button class="ghost pill" data-menu aria-haspopup="true">Mais ▾</button>
+          <div class="menu-list" hidden>
+            <button id="btn-covers">Capas</button>
+            <button id="btn-backup">Backup dos saves</button>
+            <button id="btn-updates">Verificar atualizações</button>
+            <button id="btn-tour">Tutorial</button>
+          </div>
         </div>
+        <button id="btn-settings" class="ghost pill icon" title="Configurações">⚙</button>
+        <span id="clock" class="clock" aria-hidden="true"></span>
+        <button id="btn-profile" class="profile-chip" title="Trocar de perfil"></button>
       </div>
-      <button id="btn-settings" class="ghost" title="Configurações">⚙</button>
     </div>
+    <nav class="nav" id="nav" aria-label="Seções">
+      <span class="nav-key" data-pad="lb" aria-hidden="true"></span>
+      <button data-nav="library"><span class="nav-ico" aria-hidden="true">▦</span>Biblioteca</button>
+      <button data-nav="emu"><span class="nav-ico" aria-hidden="true">◉</span>Emuladores</button>
+      <button data-nav="discover"><span class="nav-ico" aria-hidden="true">⬇</span>Instalar ports</button>
+      <button data-nav="community"><span class="nav-ico" aria-hidden="true">✦</span>Comunidade</button>
+      <button data-nav="stats"><span class="nav-ico" aria-hidden="true">▤</span>Estatísticas</button>
+      <span class="nav-key" data-pad="rb" aria-hidden="true"></span>
+    </nav>
   </header>
   <div id="app-update" class="app-update" hidden></div>
   <div id="tv" class="tv" hidden></div>
@@ -54,8 +64,6 @@
         <button data-tab="epic">Epic</button>
         <button data-tab="gog">GOG</button>
         <button data-tab="pc_game">Jogos de PC</button>
-        <span class="tab-sep" aria-hidden="true"></span>
-        <button data-tab="community">Comunidade</button>
       </div>
       <div id="community-head" class="community-head" hidden></div>
       <div class="toolbar">

@@ -37,6 +37,7 @@
 - [x] **v0.33** Fechar a janela encerra o programa, controle só age com o Black Flag na frente, Comunidade com mais tópicos e forks conhecidos (SpartanPort)
 - [x] **v0.34** Pasta do jogo abaixo do Jogar (Abrir a pasta, Copiar caminho), em destaque logo depois de instalar
 - [x] **v0.35** Desinstalar apaga a pasta inteira do port com aviso (pasta, arquivos, tamanho; OK depois de 2 s), abas Steam, Epic e GOG na biblioteca
+- [x] **v0.42** Visual novo de console: preto e dourado, seções no alto (Biblioteca, Emuladores, Instalar ports, Comunidade, Estatísticas) trocadas com LB/RB, abas da biblioteca em pílulas, capas arredondadas que crescem e brilham ao escolher, relógio e perfil no canto, "Continuar jogando" mesmo sem capa de perfil; tutorial com os passos das seções e dos emuladores, Próximo/Pular depois de 2 s
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 
