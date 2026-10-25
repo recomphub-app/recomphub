@@ -91,6 +91,9 @@ function chips(g) {
 
 // A tab for each store; one with no games stays out of the way.
 const STORE_TABS = ['steam', 'epic', 'gog'];
+// The game's store as a tab: GameView.store carries the store's name ("Steam", "Epic Games", "GOG").
+const STORE_KEYS = { Steam: 'steam', 'Epic Games': 'epic', GOG: 'gog' };
+const storeTab = (g) => (g.store ? STORE_KEYS[g.store] || g.store.toLowerCase() : null);
 
 // Library tabs show what the player has; the catalog (Adicionar > Instalar um port) shows the other ports.
 function inTab(g, t = tab) {
@@ -98,7 +101,7 @@ function inTab(g, t = tab) {
   if (!g.in_library) return false;
   if (g.hidden && !settings.show_hidden) return false;
   if (t === 'port') return g.kind === 'port' || g.kind === 'community';
-  if (STORE_TABS.includes(t)) return g.store === t;
+  if (STORE_TABS.includes(t)) return storeTab(g) === t;
   if (t === 'pc_game') return g.kind === 'pc_game' && !g.store;
   return t === 'all';
 }
