@@ -17,6 +17,9 @@ pub enum EntryKind {
     /// A community port installed from its GitHub release without Black Flag's checks
     /// (aba Comunidade, instalação experimental).
     Community,
+    /// A console game opened by an emulator (emu.rs): `install_dir` is the folder of the game's
+    /// file and `exe` the file (or the game's folder program, as EBOOT.BIN) inside it.
+    Emulated,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -94,6 +97,12 @@ pub struct Entry {
     /// "Onde eu parei": the player's note to themselves when the game last closed.
     #[serde(default)]
     pub resume: Option<ResumeNote>,
+    /// Emulated game: its console (emu::SYSTEMS id, as "ps2").
+    #[serde(default)]
+    pub system: Option<String>,
+    /// Emulated game: the emulator the player chose for it; None uses the console's.
+    #[serde(default)]
+    pub emulator: Option<String>,
 }
 
 /// A note left when a session ends ("no chefe do trem"), shown when the player comes back.
@@ -196,9 +205,29 @@ impl Library {
         self.games.insert(id.to_string(), entry);
     }
 
+    /// A console game found in a games folder: added (with what it had, if it was here before),
+    /// or its file brought up to date. The player's own choices (name, emulator, tags...) stay.
+    /// Returns whether it is new.
+    pub fn upsert_emulated(&mut self, id: &str, system: &str, dir: &Path, file: &str, title: &str) -> bool {
+        if self.excluded.contains(id) {
+            return false;
+        }
+        let new = !self.games.contains_key(id);
+        let mut entry = self.games.remove(id).or_else(|| self.removed.remove(id)).unwrap_or_default();
+        entry.kind = EntryKind::Emulated;
+        entry.install_dir = dir.display().to_string();
+        entry.exe = Some(file.to_string());
+        entry.system = Some(system.to_string());
+        if entry.title.is_none() {
+            entry.title = Some(title.to_string());
+        }
+        self.games.insert(id.to_string(), entry);
+        new
+    }
+
     pub fn remove(&mut self, id: &str) {
         if let Some(e) = self.games.remove(id) {
-            if e.store.is_some() {
+            if e.store.is_some() || e.kind == EntryKind::Emulated {
                 self.excluded.insert(id.to_string());
             }
             self.removed.insert(id.to_string(), e);

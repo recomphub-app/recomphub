@@ -18,6 +18,7 @@ const STATUS_TEXT = {
   installing: 'Instalando',
   missing: 'Programa não encontrado',
   needs_exe: 'Escolher programa',
+  needs_emulator: 'Falta o emulador',
 };
 
 const IN_GAME = ['starting', 'running'];
@@ -101,6 +102,7 @@ function inTab(g, t = tab) {
   if (!g.in_library) return false;
   if (g.hidden && !settings.show_hidden) return false;
   if (t === 'port') return g.kind === 'port' || g.kind === 'community';
+  if (t === 'emu') return g.kind === 'emulated';
   if (STORE_TABS.includes(t)) return storeTab(g) === t;
   if (t === 'pc_game') return g.kind === 'pc_game' && !g.store;
   return t === 'all';
@@ -112,7 +114,7 @@ function markTabs() {
     const t = b.dataset.tab;
     const n = t === 'community' ? (communityData ? communityData.items.length : null) : games.filter((g) => inTab(g, t)).length;
     const look = (profiles && profiles.active && profiles.active.look) || {};
-    b.hidden = (look.hidden_tabs || []).includes(t) || (STORE_TABS.includes(t) && !n && tab !== t);
+    b.hidden = (look.hidden_tabs || []).includes(t) || ((STORE_TABS.includes(t) || t === 'emu') && !n && tab !== t);
     if (!b.dataset.label) b.dataset.label = b.textContent;
     b.innerHTML = `${esc(b.dataset.label)}${n === null ? '' : ` <span class="count">${n}</span>`}`;
     b.classList.toggle('on', t === tab);
@@ -134,7 +136,7 @@ function libraryOrder(a, b) {
     || a.title.localeCompare(b.title, 'pt-BR');
 }
 
-const tagsOf = (g) => (tab === 'discover' ? g.catalog_tags : g.tags);
+const tagsOf = (g) => (tab === 'discover' ? g.catalog_tags : tab === 'emu' ? [g.family] : g.tags);
 
 function matchesSearch(g) {
   if (!search) return true;
@@ -155,8 +157,9 @@ function renderTabs() {
   if (tagFilter && !tags.includes(tagFilter)) tagFilter = null;
   const discover = tab === 'discover';
   const count = (t) => shown.filter((g) => tagsOf(g).includes(t)).length;
-  $('#tagbar').innerHTML = tags.length ? selectHtml('tag-select', discover ? 'Console' : 'Etiqueta', tagFilter || '',
-    [['', discover ? 'Todos' : 'Todas'], ...tags.map((t) => [t, `${t} (${count(t)})`])]) : '';
+  const byConsole = discover || tab === 'emu';
+  $('#tagbar').innerHTML = tags.length ? selectHtml('tag-select', byConsole ? 'Console' : 'Etiqueta', tagFilter || '',
+    [['', byConsole ? 'Todos' : 'Todas'], ...tags.map((t) => [t, `${t} (${count(t)})`])]) : '';
   const sel = $('#tag-select');
   if (sel) sel.addEventListener('change', () => { tagFilter = sel.value || null; render(); });
 }
@@ -220,6 +223,7 @@ function renderGrid() {
     empty.textContent = filtered ? 'Nenhum jogo com esse filtro.'
       : tab === 'pc_game' ? 'Nenhum jogo de PC adicionado por você. Use Adicionar > Jogo de PC e escolha o programa (.exe) de um jogo que você já tem instalado. Os da Steam, Epic e GOG ficam nas abas deles.'
       : STORE_TABS.includes(tab) ? 'Nenhum jogo desta loja instalado neste PC.'
+      : tab === 'emu' ? 'Nenhum jogo de console ainda. Abra Adicionar > Jogos de console (emuladores).'
       : tab === 'discover' ? 'Você já tem todos os ports do catálogo na biblioteca.'
       : 'Sua biblioteca está vazia. Use Adicionar para instalar um port, trazer os jogos da Steam, Epic e GOG ou escolher um jogo de PC.';
   }
@@ -480,8 +484,8 @@ function shortcutsRow(g) {
 function renderPcDetail(g) {
   const missing = g.status === 'missing' ? `
     <div class="box bad">
-      <h3>Programa não encontrado</h3>
-      <p>O Black Flag não achou mais ${esc(g.install_dir)}. Se você moveu o jogo, remova-o da biblioteca e adicione de novo.</p>
+      <h3>${g.kind === 'emulated' ? 'Arquivo do jogo não encontrado' : 'Programa não encontrado'}</h3>
+      <p>O Black Flag não achou mais ${esc(g.install_dir)}. Se você moveu o jogo, ${g.kind === 'emulated' ? 'use Procurar jogos em Emuladores' : 'remova-o da biblioteca e adicione de novo'}.</p>
     </div>` : '';
   $('#detail').innerHTML = `
     <button class="ghost back" data-act="back">← Biblioteca</button>
@@ -489,7 +493,7 @@ function renderPcDetail(g) {
       <div>${coverColumn(g)}</div>
       <div>
         <h2>${esc(g.title)}</h2>
-        <div class="credit">${g.store ? storeCredit(g) : 'Jogo de PC adicionado por você.'}</div>
+        <div class="credit">${g.kind === 'emulated' ? `Jogo de ${esc(g.family)}, aberto pelo ${esc(g.emulator || 'emulador')}.` : g.store ? storeCredit(g) : 'Jogo de PC adicionado por você.'}</div>
         <div>${chips(g)}</div>
         <div class="stats">
           <div><div class="k">Tempo de jogo</div><div class="v">${playTime(g.total_seconds)}</div></div>
@@ -498,6 +502,7 @@ function renderPcDetail(g) {
         ${playRow(g, 'o jogo')}
         ${folderLine(g)}
         ${missing}
+        ${emuGameBox(g)}
         ${crashBox(g)}
         ${pcCheckBox(g, 'bad')}
         ${pcCheckBox(g, 'warn')}
@@ -518,7 +523,7 @@ function renderPcDetail(g) {
             ${shortcutsRow(g)}
             ${launchBox(g)}
             ${tagsBox(g)}
-            ${crashScan(g)}
+            ${g.kind === "emulated" ? "" : crashScan(g)}
             ${manageRow(g)}`],
         ])}
       </div>
@@ -1053,7 +1058,7 @@ function profileFormHtml() {
     </div>`;
 }
 
-const TAB_NAMES = { all: 'Todos', port: 'Ports', steam: 'Steam', epic: 'Epic', gog: 'GOG', pc_game: 'Jogos de PC', community: 'Comunidade' };
+const TAB_NAMES = { all: 'Todos', port: 'Ports', emu: 'Emulados', steam: 'Steam', epic: 'Epic', gog: 'GOG', pc_game: 'Jogos de PC', community: 'Comunidade' };
 
 // Pictures and look of one profile, inside its edit form.
 function profileLookHtml(x) {
@@ -2277,6 +2282,7 @@ function renderDetail() {
   if (openId === '__settings') return renderSettings();
   if (openId === '__stats') return renderStats();
   if (openId === '__profiles') return renderProfiles();
+  if (openId === '__emu') return renderEmulators();
   if (openId && openId.startsWith('c:')) return renderCommunityItem(openId.slice(2));
   if (openId && openId.startsWith('m:')) return renderModsPage(openId.slice(2));
   const g = games.find((x) => x.id === openId);
@@ -2285,7 +2291,7 @@ function renderDetail() {
     render();
     return;
   }
-  if (g.kind === 'pc_game') renderPcDetail(g);
+  if (g.kind === 'pc_game' || g.kind === 'emulated') renderPcDetail(g);
   else if (g.kind === 'community') renderCommunityDetail(g);
   else renderPortDetail(g);
   decorateMeta(g);
@@ -2295,6 +2301,7 @@ function renderDetail() {
   decorateRa(g);
   document.querySelectorAll('#detail [data-act]').forEach((el) =>
     el.addEventListener('click', () => act(el.dataset.act, g, el)));
+  bindEmuGameBox(g);
 }
 
 const versions = {};   // id -> 'loading' | [{tag, published, size}] while "Escolher versão" is open
@@ -2548,6 +2555,9 @@ async function act(action, g, el) {
     case 'back':
       openId = null;
       render();
+      break;
+    case 'emulators':
+      await openEmulators();
       break;
     case 'project':
       if (g.kind === 'community') await call('open_link', { url: g.project_url });
@@ -3311,6 +3321,10 @@ $('#btn-updates').addEventListener('click', async () => {
 
 listen('install-progress', (e) => {
   progress[e.payload.id] = e.payload;
+  if (e.payload.id.startsWith('emu-')) {
+    if (openId === '__emu' || games.some((g) => g.id === openId && g.kind === 'emulated')) render();
+    return;
+  }
   const onItem = openId && openId.startsWith('c:') && communityId(openId.slice(2)) === e.payload.id;
   if (openId === e.payload.id || onItem) renderDetail();
 });
@@ -4365,6 +4379,8 @@ document.querySelectorAll('.menu > [data-menu]').forEach((b) => b.addEventListen
 }));
 document.addEventListener('click', () => document.querySelectorAll('.menu-list').forEach((l) => (l.hidden = true)));
 $('#btn-tour').addEventListener('click', () => openTour());
+$('#btn-emu').addEventListener('click', openEmulators);
+$('#btn-emu-more').addEventListener('click', openEmulators);
 $('#btn-discover').addEventListener('click', () => {
   openId = null;
   tab = 'discover';
@@ -4374,6 +4390,290 @@ $('#lib-back').addEventListener('click', () => {
   tab = (profiles && profiles.active.look && profiles.active.look.home) || 'all';
   render();
 });
+
+// ---- Emuladores: every console, its emulator (installed from the official page, or the
+// player's own), what it needs (BIOS, firmware) and its games. Decided with Codex: install only
+// official builds, prepare only what Black Flag installed, never download games or BIOS. ----
+
+let emuData = null;        // emu_overview, or null while loading
+let emuBusy = false;       // a search or an install answer pending
+let emuScanResult = null;  // { added, total, unknown } of the last "Procurar jogos"
+let emuLoading = false;
+
+async function loadEmu() {
+  if (emuLoading) return;
+  emuLoading = true;
+  try {
+    emuData = await invoke('emu_overview');
+  } catch (e) {
+    toast(String(e), true);
+    emuData = emuData || { root: '', emulators: [], systems: [], folders: [], unknown: [] };
+  }
+  emuLoading = false;
+  if (openId === '__emu') render();
+  else if (openId && games.some((g) => g.id === openId && g.kind === 'emulated')) render();
+}
+
+async function openEmulators() {
+  openId = '__emu';
+  render();
+  await loadEmu();
+}
+
+const emuById = (id) => emuData && emuData.emulators.find((e) => e.id === id);
+const consoleName = (id) => (emuData && (emuData.systems.find((s) => s.id === id) || {}).name) || id;
+
+function emuStatusLine(e) {
+  if (!e) return '';
+  if (e.installing) {
+    const p = progress[`emu-${e.id}`] || { stage: 'download', done: 0, total: 0 };
+    const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+    const label = { download: 'Baixando da página oficial', verify: 'Conferindo o download', extract: 'Descompactando' }[p.stage] || 'Instalando';
+    return `<p class="emu-line">${label}${p.total ? ` · ${pct}%` : '…'}</p><div class="progress"><div style="width:${pct}%"></div></div>`;
+  }
+  if (!e.found) return `<p class="emu-line off">${esc(e.name)} não está neste PC.</p>`;
+  const how = e.found.managed ? `instalado pelo Black Flag${e.found.version ? ` · versão ${esc(e.found.version)}` : ''}`
+    : e.found.how === 'pointed' ? 'o seu, escolhido por você' : 'o seu, encontrado neste PC';
+  return `<p class="emu-line on">${esc(e.name)}: ${how}</p>`;
+}
+
+function emuButtons(e, s) {
+  if (!e || e.installing) return '';
+  const b = [];
+  if (!e.found) {
+    if (e.can_install) b.push(`<button class="primary small" data-emu="install" data-id="${e.id}">Instalar o ${esc(e.name)}</button>`);
+    else b.push(`<button class="small" data-emu="page" data-url="${esc(e.id === 'ryujinx' ? 'https://ryujinx.app/download' : e.page)}">Página oficial</button>`);
+    b.push(`<button class="ghost small" data-emu="locate" data-id="${e.id}">Já tenho</button>`);
+  } else {
+    if (e.update) b.push(`<button class="small" data-emu="install" data-id="${e.id}">Atualizar para ${esc(e.latest)}</button>`);
+    b.push(`<button class="ghost small" data-emu="run" data-id="${e.id}" title="Abre o emulador sem jogo, para mudar as configurações dele">Abrir o emulador</button>`);
+    if (!e.found.managed && e.found.how === 'pointed') b.push(`<button class="ghost small" data-emu="forget" data-id="${e.id}">Esquecer</button>`);
+  }
+  if (s && s.needs.action === 'install-firmware') b.push('<button class="primary small" data-emu="firmware">Instalar o firmware</button>');
+  if (s && s.needs.folder) b.push(`<button class="ghost small" data-emu="open" data-what="bios" data-id="${s.id}">Pasta da BIOS</button>`);
+  if (s) b.push(`<button class="ghost small" data-emu="open" data-what="games" data-id="${s.id}">Pasta de jogos</button>`);
+  return `<div class="row">${b.join('')}</div>`;
+}
+
+function needsLine(n) {
+  if (!n || !n.asks) return '';
+  const cls = n.ok ? 'ok-text' : n.blocks ? 'bad-text' : 'muted';
+  return `<p class="emu-need ${cls}">${n.ok ? '✓ ' : n.blocks ? '✗ ' : ''}${esc(n.text)}</p>`;
+}
+
+function consoleCard(s) {
+  const e = emuById(s.emulator);
+  const state = !e || !e.found ? 'off' : s.needs.blocks ? 'warn' : 'on';
+  const choose = s.choices.length > 1 ? `
+    <label class="inline-field">Emulador
+      <select data-emu-choose="${s.id}">${s.choices.map(([id, name]) => `<option value="${id}" ${id === s.emulator ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select></label>` : '';
+  return `
+    <div class="emu-card ${state}">
+      <div class="emu-head"><b>${esc(s.name)}</b><span class="chip family">${s.games} jogo${s.games === 1 ? '' : 's'}</span></div>
+      ${choose}
+      ${emuStatusLine(e)}
+      ${needsLine(s.needs)}
+      ${e && !e.full && e.found ? '<p class="muted small-text">As configurações ficam no próprio emulador (Abrir o emulador).</p>' : ''}
+      ${emuButtons(e, s)}
+    </div>`;
+}
+
+function unknownBox(d) {
+  if (!d.unknown.length) return '';
+  const opts = (u) => u.options.map((o) => `<option value="${o}" ${o === u.guess ? 'selected' : ''}>${esc(consoleName(o))}</option>`).join('');
+  return `
+    <div class="box warn">
+      <h3>${d.unknown.length} arquivo${d.unknown.length === 1 ? '' : 's'} sem console certo</h3>
+      <p>O Black Flag não teve certeza de qual console ${d.unknown.length === 1 ? 'é este jogo' : 'são estes jogos'}. Escolha e confirme; nada é movido.</p>
+      <ul class="emu-unknown">${d.unknown.slice(0, 60).map((u, i) => `
+        <li><span class="path" title="${esc(u.path)}">${esc(u.path.split(/[\\/]/).pop())}</span>
+          <select data-unknown="${i}">${opts(u)}</select>
+          <button class="small" data-emu="assign" data-i="${i}">Confirmar</button></li>`).join('')}</ul>
+      <div class="row"><button data-emu="assign-all">Confirmar todos como estão</button></div>
+    </div>`;
+}
+
+function renderEmulators() {
+  const d = emuData;
+  let body = '<p class="muted">Procurando os emuladores neste PC…</p>';
+  if (d) {
+    const scan = emuScanResult ? `<p class="${emuScanResult.added ? 'ok-text' : 'muted'}">${emuScanResult.total} jogo${emuScanResult.total === 1 ? '' : 's'} nas pastas · ${emuScanResult.added} novo${emuScanResult.added === 1 ? '' : 's'} na biblioteca${emuScanResult.unknown ? ` · ${emuScanResult.unknown} para você escolher o console` : ''}.</p>` : '';
+    body = `
+      <div class="box">
+        <h3>Seus jogos</h3>
+        <p>Coloque cada jogo na pasta do console dele (por exemplo <code>Jogos\\ps2</code> para PlayStation 2) ou
+          aponte uma pasta que você já tem. O Black Flag reconhece o console pelo arquivo e nunca move nada.</p>
+        <div class="folder-line"><span class="k">Pasta do Black Flag</span><code class="path" title="${esc(d.root)}">${esc(d.root)}</code>
+          <button class="small" data-emu="open" data-what="root">Abrir</button>
+          <button class="ghost small" data-emu="root">Mudar</button></div>
+        <div class="row">
+          <button class="primary" data-emu="scan" ${emuBusy ? 'disabled' : ''}>${emuBusy ? 'Procurando…' : 'Procurar jogos'}</button>
+          <label class="inline-field">Adicionar uma pasta de
+            <select id="emu-folder-system"><option value="">vários consoles</option>${d.systems.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>
+          <button data-emu="add-folder" ${emuBusy ? 'disabled' : ''}>Escolher a pasta</button>
+        </div>
+        ${d.folders.length ? `<ul class="emu-folders">${d.folders.map((f) => `
+          <li><code class="path">${esc(f.path)}</code><span class="muted">${f.system ? esc(consoleName(f.system)) : 'vários consoles'}</span>
+            <button class="ghost small" data-emu="remove-folder" data-path="${esc(f.path)}">Tirar</button></li>`).join('')}</ul>` : ''}
+        ${scan}
+      </div>
+      ${unknownBox(d)}
+      <h3 class="emu-title">Consoles</h3>
+      <div class="emu-grid">${d.systems.map(consoleCard).join('')}</div>
+      <div class="row"><button class="ghost" data-emu="updates">Procurar atualizações dos emuladores</button></div>
+      <p class="muted small-text">Os emuladores vêm só das páginas oficiais de cada projeto. O Black Flag nunca baixa jogos, BIOS, firmware
+        ou chaves: esses arquivos precisam vir dos seus consoles e discos. Nos emuladores que ele instala, ele já deixa o controle
+        no jogador 1 e a pasta da BIOS apontada; nos que você já tinha, ele não muda nada.</p>`;
+  }
+  $('#detail').innerHTML = `
+    <button class="ghost back" data-act="back">← Biblioteca</button>
+    <div class="emu-page">
+      <h2>Emuladores</h2>
+      <p class="muted">Jogos de console no PC: o Black Flag instala o emulador certo, prepara o controle e abre o jogo em tela cheia.</p>
+      ${body}
+    </div>`;
+  document.querySelectorAll('#detail [data-act]').forEach((el) => el.addEventListener('click', () => act(el.dataset.act, null, el)));
+  document.querySelectorAll('#detail [data-emu]').forEach((el) => el.addEventListener('click', () => emuAct(el.dataset.emu, el)));
+  document.querySelectorAll('#detail [data-emu-choose]').forEach((el) => el.addEventListener('change', async () => {
+    await call('emu_choose', { system: el.dataset.emuChoose, emulator: el.value });
+    await loadEmu();
+  }));
+}
+
+async function emuScan(kind, system) {
+  emuBusy = true;
+  render();
+  try {
+    const r = kind === 'folder' ? await invoke('emu_add_folder', { system: system || null }) : await invoke('emu_scan');
+    if (r) emuScanResult = r;
+    games = await invoke('get_library');
+  } catch (e) {
+    toast(String(e), true);
+  }
+  emuBusy = false;
+  await loadEmu();
+}
+
+async function emuAct(what, el) {
+  const id = el.dataset.id;
+  try {
+    switch (what) {
+      case 'install': {
+        progress[`emu-${id}`] = { stage: 'download', done: 0, total: 0 };
+        const e = emuById(id);
+        if (e) e.installing = true;
+        render();
+        await invoke('emu_install', { id });
+        toast(`${e ? e.name : id} instalado. Ele já está pronto para os jogos.`);
+        delete progress[`emu-${id}`];
+        await loadEmu();
+        games = await invoke('get_library');
+        break;
+      }
+      case 'locate':
+        if (await invoke('emu_locate', { id })) await loadEmu();
+        break;
+      case 'forget':
+        await invoke('emu_forget', { id });
+        await loadEmu();
+        break;
+      case 'run':
+        await invoke('emu_run', { id });
+        break;
+      case 'page':
+        await call('open_link', { url: el.dataset.url });
+        break;
+      case 'firmware':
+        await invoke('emu_install_firmware');
+        toast('O RPCS3 abriu para instalar o firmware. Quando terminar, feche-o e volte aqui.');
+        break;
+      case 'open':
+        await invoke('emu_open', { what: el.dataset.what, id: id || null });
+        break;
+      case 'root':
+        if (await invoke('emu_set_root')) await loadEmu();
+        break;
+      case 'scan':
+        await emuScan('all');
+        break;
+      case 'add-folder':
+        await emuScan('folder', $('#emu-folder-system').value);
+        break;
+      case 'remove-folder':
+        await invoke('emu_remove_folder', { path: el.dataset.path });
+        await loadEmu();
+        break;
+      case 'assign': {
+        const u = emuData.unknown[Number(el.dataset.i)];
+        const sel = document.querySelector(`[data-unknown="${el.dataset.i}"]`);
+        await invoke('emu_assign', { path: u.path, system: sel.value });
+        games = await invoke('get_library');
+        await loadEmu();
+        break;
+      }
+      case 'assign-all': {
+        const picks = emuData.unknown.slice(0, 60).map((u, i) => [u.path, document.querySelector(`[data-unknown="${i}"]`).value]);
+        for (const [path, system] of picks) await invoke('emu_assign', { path, system });
+        games = await invoke('get_library');
+        await loadEmu();
+        break;
+      }
+      case 'updates': {
+        el.disabled = true;
+        const n = await invoke('emu_check_updates');
+        toast(n ? `${n} emulador${n > 1 ? 'es têm' : ' tem'} versão nova.` : 'Os emuladores instalados estão na versão mais nova.');
+        await loadEmu();
+        break;
+      }
+      default:
+    }
+  } catch (e) {
+    if (what === 'install') {
+      delete progress[`emu-${id}`];
+      await loadEmu();
+    }
+    toast(String(e), true);
+  }
+}
+
+// The console and emulator box on an emulated game's page.
+function emuGameBox(g) {
+  if (g.kind !== 'emulated') return '';
+  if (!emuData) {
+    loadEmu();
+    return '<div class="box"><h3>Console e emulador</h3><p class="muted">Conferindo o emulador…</p></div>';
+  }
+  const s = emuData.systems.find((x) => x.id === g.system);
+  if (!s) return '';
+  const chosenId = (s.choices.find(([, name]) => name === g.emulator) || [s.emulator])[0];
+  const e = emuById(chosenId);
+  const choose = s.choices.length > 1 ? `
+    <label class="inline-field">Emulador deste jogo
+      <select id="emu-game-choice"><option value="">o do console (${esc((emuById(s.emulator) || {}).name || '')})</option>
+        ${s.choices.map(([id, name]) => `<option value="${id}" ${name === g.emulator && id !== s.emulator ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select></label>` : '';
+  return `
+    <div class="box ${!e || !e.found || s.needs.blocks ? 'warn' : ''}">
+      <h3>${esc(s.name)}</h3>
+      ${choose}
+      ${emuStatusLine(e)}
+      ${needsLine(s.needs)}
+      ${emuButtons(e, s)}
+      <p class="muted small-text"><button class="link" data-act="emulators">Ver todos os emuladores</button></p>
+    </div>`;
+}
+
+function bindEmuGameBox(g) {
+  if (g.kind !== 'emulated') return;
+  document.querySelectorAll('#detail [data-emu]').forEach((el) => el.addEventListener('click', async () => {
+    await emuAct(el.dataset.emu, el);
+    games = await invoke('get_library');
+    render();
+  }));
+  const sel = $('#emu-game-choice');
+  if (sel) sel.addEventListener('change', async () => {
+    setGame(await call('emu_set_game_emulator', { id: g.id, emulator: sel.value || null }));
+  });
+}
 
 // ---- Tutorial: shown once, the first time; again from Mais > Tutorial ----
 

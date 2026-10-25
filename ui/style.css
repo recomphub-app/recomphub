@@ -801,3 +801,24 @@ body { background: transparent; }
 .ask-size { margin: 4px 0 10px; font: 600 13px var(--mono); color: var(--text); }
 button.primary.danger-fill { background: var(--bad); border-color: var(--bad); color: var(--bg); box-shadow: 3px 3px 0 var(--rule); }
 button.primary.danger-fill:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--rule); }
+
+/* Emuladores: a card per console, with its emulator, what it needs and its buttons */
+.emu-page { max-width: 1100px; margin-inline: auto; }
+#detail:has(> .emu-page) { max-width: 1100px; }
+.emu-title { margin: 26px 0 10px; font-size: 18px; }
+.emu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.emu-card { padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--line); }
+.emu-card.on { border-top-color: var(--ok); }
+.emu-card.warn { border-top-color: var(--warn); }
+.emu-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.emu-head b { font: 800 17px var(--wide); font-stretch: 112%; }
+.emu-line { margin: 6px 0 2px; font-size: 13px; }
+.emu-line.on { color: var(--text); }
+.emu-line.off { color: var(--muted); }
+.emu-need { margin: 4px 0; font-size: 13px; }
+.emu-card .row { margin: 10px 0 0; gap: 6px; }
+.emu-card .inline-field { margin: 4px 0; }
+.emu-folders, .emu-unknown { list-style: none; padding: 0; margin: 10px 0; border-top: 1px solid var(--line); }
+.emu-folders li, .emu-unknown li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.emu-folders .path, .emu-unknown .path { flex: 1 1 240px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.needs_emulator { color: var(--warn); }

@@ -102,7 +102,7 @@ impl Default for Look {
 }
 
 // "discover" was a tab until 0.31; a profile that opened on it now opens on Todos.
-pub const TABS: &[&str] = &["all", "port", "steam", "epic", "gog", "pc_game", "community"];
+pub const TABS: &[&str] = &["all", "port", "emu", "steam", "epic", "gog", "pc_game", "community"];
 
 impl Look {
     /// Only known values are kept; the "Todos" tab can never be hidden.

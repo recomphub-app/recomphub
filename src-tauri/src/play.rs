@@ -47,6 +47,9 @@ pub struct Sessions {
     exit_codes: HashMap<String, u32>,
     /// Closed by "Fechar jogo": not an error.
     stopped: HashSet<String>,
+    /// Emulated games: the emulator Black Flag started for each. Many games share an emulator's
+    /// folder, so these sessions follow the process (and its children), not a folder.
+    pub pids: HashMap<String, u32>,
 }
 
 impl Sessions {
@@ -158,6 +161,17 @@ fn tick(app: &AppHandle, sys: &System) {
         .map(|(id, e)| (id.clone(), folder_prefix(Path::new(&e.install_dir)), crate::program_of(id, e).and_then(|x| exe_name(&x))))
         .collect();
 
+    let emulated: HashSet<String> = state
+        .library
+        .lock()
+        .unwrap()
+        .games
+        .iter()
+        .filter(|(_, e)| e.kind == crate::library::EntryKind::Emulated)
+        .map(|(id, _)| id.clone())
+        .collect();
+    let folders: Vec<(String, String, Option<String>)> = folders.into_iter().filter(|(id, _, _)| !emulated.contains(id)).collect();
+
     let at = Instant::now();
     let mut started = Vec::new();
     let mut ended = Vec::new();
@@ -191,8 +205,11 @@ fn tick(app: &AppHandle, sys: &System) {
                 }
             }
         }
-        for (id, prefix, name) in &folders {
-            let running = !processes_in(sys, prefix, name.as_deref()).is_empty();
+        let mut looks: Vec<(String, bool)> =
+            folders.iter().map(|(id, prefix, name)| (id.clone(), !processes_in(sys, prefix, name.as_deref()).is_empty())).collect();
+        looks.extend(s.pids.iter().map(|(id, pid)| (id.clone(), tree_alive(sys, *pid))));
+        for (id, running) in &looks {
+            let running = *running;
             match (s.running.get_mut(id), running) {
                 (None, true) => {
                     s.launching.remove(id);
@@ -218,6 +235,8 @@ fn tick(app: &AppHandle, sys: &System) {
             }
         }
         s.launching.retain(|_, t| t.elapsed() < START_TIMEOUT);
+        let (running, launching) = (&s.running, &s.launching);
+        s.pids.retain(|id, _| running.contains_key(id) || launching.contains_key(id));
         let mut credits = s.take_unsaved(SAVE_EVERY);
         for (id, _) in &ended {
             if let Some(sess) = s.running.remove(id) {
@@ -227,6 +246,7 @@ fn tick(app: &AppHandle, sys: &System) {
                 }
                 records.push(record(id, &sess, &profile));
                 s.children.remove(id);
+                s.pids.remove(id);
                 checks.push((id.clone(), sess.started, now().saturating_sub(sess.started), s.exit_codes.remove(id), s.stopped.remove(id)));
             }
         }
@@ -666,6 +686,72 @@ pub fn focus(install_dir: &Path, exe_name: Option<&str>) -> bool {
         return false;
     }
     find_window(pids, None).map(force_foreground).unwrap_or(false)
+}
+
+/// The emulator Black Flag started and the programs it started in turn.
+fn tree(sys: &System, pid: u32) -> Vec<u32> {
+    let root = Pid::from_u32(pid);
+    let mut out: Vec<u32> = if sys.process(root).is_some() { vec![pid] } else { Vec::new() };
+    let mut parents = vec![root];
+    for _ in 0..3 {
+        let kids: Vec<Pid> = sys.processes().iter().filter(|(_, p)| p.parent().map(|pp| parents.contains(&pp)).unwrap_or(false)).map(|(k, _)| *k).collect();
+        if kids.is_empty() {
+            break;
+        }
+        out.extend(kids.iter().map(|k| k.as_u32()));
+        parents = kids;
+    }
+    out
+}
+
+fn tree_alive(sys: &System, pid: u32) -> bool {
+    !tree(sys, pid).is_empty()
+}
+
+/// Opens a console game: the emulator with its arguments, as a list. The session is the
+/// emulator's process (the watcher looks at it and its children).
+pub fn start_emulated(app: &AppHandle, id: &str, exe: &Path, args: &[String]) -> Result<(), String> {
+    if !exe.is_file() {
+        return Err(format!("Não encontrei o emulador em {}.", exe.display()));
+    }
+    let dir = exe.parent().unwrap_or(Path::new("."));
+    let child = std::process::Command::new(exe)
+        .current_dir(dir)
+        .args(args)
+        .spawn()
+        .map_err(|e| antivirus_error(&e).unwrap_or_else(|| format!("O Windows não abriu o emulador: {e}")))?;
+    {
+        let state = app.state::<AppState>();
+        let mut s = state.sessions.lock().unwrap();
+        s.launching.insert(id.to_string(), Instant::now());
+        s.stopped.remove(id);
+        s.exit_codes.remove(id);
+        s.pids.insert(id.to_string(), child.id());
+        s.children.insert(id.to_string(), child);
+    }
+    let _ = app.emit("session", serde_json::json!({ "id": id, "state": "starting" }));
+    Ok(())
+}
+
+/// "Fechar jogo" for an emulated game: its emulator, and what it started.
+pub fn stop_emulated(pid: u32) -> usize {
+    let mut sys = System::new();
+    refresh(&mut sys);
+    let mut closed = 0;
+    for p in tree(&sys, pid).into_iter().rev() {
+        if sys.process(Pid::from_u32(p)).map(|x| x.kill()).unwrap_or(false) {
+            closed += 1;
+        }
+    }
+    closed
+}
+
+/// Brings the emulator's window to the front.
+pub fn focus_emulated(pid: u32) -> bool {
+    let mut sys = System::new();
+    refresh(&mut sys);
+    let pids = tree(&sys, pid);
+    !pids.is_empty() && find_window(pids, None).map(force_foreground).unwrap_or(false)
 }
 
 /// Black Flag's own main window in front (the controller's "call back", pad.rs).

@@ -5,6 +5,7 @@ mod catalog_sync;
 mod community;
 mod community_art;
 mod diagnose;
+mod emu;
 mod covers;
 mod files;
 mod fps;
@@ -22,6 +23,7 @@ mod precheck;
 mod profiles;
 mod ra;
 mod reg;
+mod roms;
 mod saves;
 mod shortcut;
 mod steam;
@@ -80,6 +82,13 @@ pub struct AppState {
     pub mods_dir: PathBuf,
     /// Notices waiting for the window over the game.
     pub overlay_queue: Mutex<VecDeque<Notice>>,
+    /// Emuladores: emulators installed or found, games folders, choices (emulators.json).
+    pub emu: Mutex<emu::State>,
+    pub emu_path: PathBuf,
+    /// Files the last search could not tell apart, waiting for the player to pick a console.
+    pub emu_unknown: Mutex<Vec<roms::Unknown>>,
+    /// Disc lists (.m3u) made for multi-disc games.
+    pub m3u_dir: PathBuf,
 }
 
 /// Everything the interface shows about one game.
@@ -149,6 +158,10 @@ struct GameView {
     cover_source: Option<&'static str>,
     /// A PC game's program icon, shown when there is no cover.
     icon: Option<String>,
+    /// Emulated game: its console (emu::SYSTEMS id).
+    system: Option<&'static str>,
+    /// Emulated game: the name of the emulator that opens it.
+    emulator: Option<String>,
 }
 
 /// The cover shown for a game, in order: the player's choice, their own files, a download.
@@ -276,6 +289,8 @@ fn view(state: &AppState, game: &'static GameDef) -> GameView {
         store: None,
         resume: entry.as_ref().and_then(|e| e.resume.clone()),
         background: profile_background(state, game.id.as_str()),
+        system: None,
+        emulator: None,
     }
 }
 
@@ -360,6 +375,8 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         store: entry.store.as_deref().map(stores::store_name),
         resume: entry.resume.clone(),
         background: profile_background(state, id),
+        system: None,
+        emulator: None,
     }
 }
 
@@ -374,7 +391,7 @@ fn view_any(state: &AppState, id: &str) -> Result<GameView, String> {
     }
     let entry = state.library.lock().unwrap().games.get(id).cloned();
     match entry {
-        Some(e) if e.kind != library::EntryKind::Port => Ok(view_pc(state, id, &e)),
+        Some(e) if e.kind != library::EntryKind::Port => Ok(view_entry(state, id, &e)),
         _ => Err("Este jogo não está mais na biblioteca.".into()),
     }
 }
@@ -400,7 +417,7 @@ fn get_library(app: AppHandle) -> Vec<GameView> {
         .filter(|(_, e)| e.kind != library::EntryKind::Port)
         .map(|(id, e)| (id.clone(), e.clone()))
         .collect();
-    let mut pc: Vec<GameView> = pc.iter().map(|(id, e)| view_pc(&state, id, e)).collect();
+    let mut pc: Vec<GameView> = pc.iter().map(|(id, e)| view_entry(&state, id, e)).collect();
     pc.sort_by_key(|g| g.title.to_lowercase());
     list.extend(pc);
     list
@@ -678,6 +695,7 @@ fn open_link(app: AppHandle, url: String) -> Result<(), String> {
         || url == ludusavi::PROJECT_PAGE
         || url == ra::KEY_PAGE
         || help_page(&url)
+        || emu::known_page(&url)
         || known_ra_page(&state, &url)
         || known_mod_page(&state, &url)
         || known_igdb_page(&state, &url)
@@ -1424,7 +1442,7 @@ async fn pc_check(app: AppHandle, id: String) -> Result<Vec<pcinfo::Finding>, St
     let keeps_saves_inside = match kind {
         library::EntryKind::Community => true,
         library::EntryKind::Port => port.is_some_and(|g| g.saves.iter().any(|s| s.contains("{install}"))),
-        library::EntryKind::PcGame => false,
+        library::EntryKind::PcGame | library::EntryKind::Emulated => false,
     };
     tauri::async_runtime::spawn_blocking(move || {
         let mut out = if kind == library::EntryKind::PcGame { Vec::new() } else { pcinfo::check(&pcinfo::get(false), &required, library::now()) };
@@ -1779,6 +1797,9 @@ fn safe_to_delete(dir: &Path, home: Option<&Path>, windows: Option<&Path>) -> bo
 fn uninstall_target(state: &AppState, id: &str) -> Result<(PathBuf, Vec<PathBuf>, bool), String> {
     let game = catalog::get(id);
     let entry = state.library.lock().unwrap().games.get(id).cloned().ok_or("Jogo fora da biblioteca.")?;
+    if entry.kind == library::EntryKind::Emulated {
+        return Err("Jogos de console não se desinstalam: use \"Remover da biblioteca\". O arquivo do jogo continua onde está.".into());
+    }
     if game.is_none() && entry.repo.is_none() {
         return Err("Só ports se desinstalam por aqui. Jogos da Steam, Epic e GOG saem pela própria loja; os outros, pelo Windows (Configurações > Aplicativos).".into());
     }
@@ -1914,7 +1935,7 @@ pub(crate) fn save_sources(state: &AppState, id: &str) -> Vec<(String, PathBuf)>
             .map(|n| (n.to_string(), dir.join(n)))
             .filter(|(_, p)| p.is_dir())
             .collect(),
-        library::EntryKind::PcGame => vec![],
+        library::EntryKind::PcGame | library::EntryKind::Emulated => vec![],
     }
 }
 
@@ -3701,17 +3722,25 @@ fn play(app: AppHandle, id: String) -> Result<(), String> {
         "ready" => {}
         "running" => {
             // Clicking Jogar again brings the game's window to the front instead of a second copy.
+            let pid = state.sessions.lock().unwrap().pids.get(&id).copied();
+            if let Some(pid) = pid {
+                return if play::focus_emulated(pid) { Ok(()) } else { Err("O jogo já está aberto.".into()) };
+            }
             let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
             let name = program_of(&id, &entry).and_then(|x| play::exe_name(&x));
             return if play::focus(Path::new(&entry.install_dir), name.as_deref()) { Ok(()) } else { Err("O jogo já está aberto.".into()) };
         }
         "starting" => return Err("O jogo já está aberto.".into()),
         "needs_files" => return Err("Faltam os arquivos do jogo. Veja os detalhes na página do jogo.".into()),
+        "needs_emulator" => return Err(format!("Falta o {}. Instale em Emuladores (menu Adicionar).", v.emulator.as_deref().unwrap_or("emulador"))),
         "installing" => return Err("Espere a instalação terminar.".into()),
         "missing" => return Err("O programa do jogo não está mais no lugar. Ele foi movido ou apagado?".into()),
         _ => return Err("O jogo não está instalado.".into()),
     }
     let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
+    if entry.kind == library::EntryKind::Emulated {
+        return play_emulated(&app, &id, &entry);
+    }
     let dir = PathBuf::from(&entry.install_dir);
     // Steam and Epic open their games themselves (DRM, cloud saves, updates); the session is
     // still timed by the game's folder.
@@ -3734,6 +3763,9 @@ fn play(app: AppHandle, id: String) -> Result<(), String> {
 
 /// The game's program inside its folder: the catalog's for ports, the chosen one otherwise.
 pub(crate) fn program_of(id: &str, entry: &library::Entry) -> Option<String> {
+    if entry.kind == library::EntryKind::Emulated {
+        return None;
+    }
     match catalog::get(id) {
         Some(game) => Some(game.program_in(Path::new(&entry.install_dir))),
         None => entry.exe.clone(),
@@ -3746,6 +3778,11 @@ fn stop_game(app: AppHandle, id: String) -> Result<(), String> {
     let name = program_of(&id, &entry).and_then(|x| play::exe_name(&x));
     // Marked first: the watcher may see the game end before stop returns.
     app.state::<AppState>().sessions.lock().unwrap().mark_stopped(&id);
+    let pid = app.state::<AppState>().sessions.lock().unwrap().pids.get(&id).copied();
+    if let Some(pid) = pid {
+        play::stop_emulated(pid);
+        return Ok(());
+    }
     play::stop(Path::new(&entry.install_dir), name.as_deref()).map(|_| ())
 }
 
@@ -3758,6 +3795,10 @@ fn stop_game(app: AppHandle, id: String) -> Result<(), String> {
 pub(crate) fn check_crash(app: &AppHandle, id: &str, since: u64, seconds: Option<u64>, exit_code: Option<u32>, asked: bool) -> Option<diagnose::Diagnosis> {
     let state = app.state::<AppState>();
     let entry = state.library.lock().unwrap().games.get(id).cloned()?;
+    // The emulator is not in the game's folder: Windows' records say nothing of the game.
+    if entry.kind == library::EntryKind::Emulated {
+        return None;
+    }
     let dir = PathBuf::from(&entry.install_dir);
     let game = catalog::get(id);
     let names = diagnose::exe_names(&dir);
@@ -3982,6 +4023,480 @@ fn open_folder(app: AppHandle, id: String) -> Result<(), String> {
     app.opener().open_path(dir.display().to_string(), None::<&str>).map_err(|e| e.to_string())
 }
 
+// ---- Emuladores: consoles, emulators, BIOS and console games (emu.rs, roms.rs) ----
+
+/// The emulator a game uses: the one the player chose for it, else its console's.
+fn game_emulator(st: &emu::State, entry: &library::Entry, system: &'static emu::System, programs: &[(String, PathBuf)]) -> (&'static emu::Emulator, Option<emu::Found>) {
+    if let Some(e) = entry.emulator.as_deref().filter(|e| system.emulators.contains(e)).and_then(emu::emulator) {
+        return (e, emu::locate(st, e, programs));
+    }
+    emu::pick(st, system, programs)
+}
+
+/// An emulated game as the interface shows it: the PC game view, with its console, its
+/// emulator, and "Falta o emulador" when there is none yet.
+fn view_emulated(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
+    let mut v = view_pc(state, id, entry);
+    v.kind = "emulated";
+    v.install_dir = Some(entry.install_dir.clone());
+    v.icon = None;
+    let Some(system) = entry.system.as_deref().and_then(emu::system) else { return v };
+    v.family = system.name;
+    v.system = Some(system.id);
+    let st = state.emu.lock().unwrap().clone();
+    let (e, found) = game_emulator(&st, entry, system, &[]);
+    v.emulator = Some(e.name.to_string());
+    if v.status == "ready" && found.is_none() {
+        v.status = "needs_emulator";
+    }
+    v
+}
+
+fn view_entry(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
+    if entry.kind == library::EntryKind::Emulated {
+        view_emulated(state, id, entry)
+    } else {
+        view_pc(state, id, entry)
+    }
+}
+
+/// Emulators that need a long first start (shaders, PPU modules): said once, before the
+/// first game, so a slow start is not taken for a crash.
+const SLOW_FIRST_START: &[&str] = &["rpcs3", "cemu", "xenia", "shadps4", "ryujinx", "dolphin"];
+
+fn play_emulated(app: &AppHandle, id: &str, entry: &library::Entry) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let st = state.emu.lock().unwrap().clone();
+    let system = entry.system.as_deref().and_then(emu::system).ok_or("Console desconhecido. Escolha o console na página do jogo.")?;
+    let (e, found) = game_emulator(&st, entry, system, &[]);
+    let found = found.ok_or_else(|| format!("Falta o {}. Instale em Emuladores (menu Adicionar).", e.name))?;
+    let root = st.root();
+    if found.managed {
+        emu::prepare(e, &found.exe, &root)?;
+    }
+    let need = emu::needs_status(system, &root, Some(&found));
+    if need.blocks {
+        return Err(need.text);
+    }
+    let mut game = PathBuf::from(&entry.install_dir).join(entry.exe.as_deref().unwrap_or(""));
+    if !game.exists() {
+        return Err(format!("O arquivo do jogo não está mais em {}. Ele foi movido ou apagado?", game.display()));
+    }
+    // A PS1 game on several discs opens as a list (.m3u), so DuckStation swaps the discs.
+    if system.id == "ps1" {
+        let discs = roms::sibling_discs(&game);
+        if discs.len() > 1 {
+            let list = state.m3u_dir.join(format!("{id}.m3u"));
+            let text: String = discs.iter().map(|d| format!("{}\r\n", d.display())).collect();
+            if std::fs::create_dir_all(&state.m3u_dir).and_then(|_| std::fs::write(&list, text)).is_ok() {
+                game = list;
+            }
+        }
+    }
+    let mut args = play::split_args(&entry.launch_args);
+    args.extend(emu::launch_args(e.id, system.id, &game));
+    play::start_emulated(app, id, &found.exe, &args)?;
+    if entry.play_count == 0 && entry.total_seconds == 0 && SLOW_FIRST_START.contains(&e.id) {
+        let _ = app.emit("notify", format!("Primeira vez no {}: ele pode demorar alguns minutos preparando os gráficos. Não feche, é normal.", e.name));
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct EmuRow {
+    id: &'static str,
+    name: &'static str,
+    /// Prepared by Black Flag (nível completo).
+    full: bool,
+    /// Black Flag can download it.
+    can_install: bool,
+    page: &'static str,
+    found: Option<emu::Found>,
+    latest: Option<String>,
+    update: bool,
+    installing: bool,
+    /// Consoles it plays, by name.
+    consoles: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct SystemRow {
+    id: &'static str,
+    name: &'static str,
+    emulator: &'static str,
+    /// Emulators the player may choose between: (id, name).
+    choices: Vec<(&'static str, &'static str)>,
+    needs: emu::NeedStatus,
+    games_dir: String,
+    games: usize,
+}
+
+#[derive(Serialize)]
+struct EmuOverview {
+    root: String,
+    emulators: Vec<EmuRow>,
+    systems: Vec<SystemRow>,
+    folders: Vec<emu::GameFolder>,
+    unknown: Vec<roms::Unknown>,
+}
+
+fn emu_save(state: &AppState, st: &emu::State) -> Result<(), String> {
+    st.save(&state.emu_path)?;
+    *state.emu.lock().unwrap() = st.clone();
+    Ok(())
+}
+
+/// The Emuladores page: every console with its emulator, what it needs and its games.
+#[tauri::command]
+async fn emu_overview(app: AppHandle) -> Result<EmuOverview, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let mut st = state.emu.lock().unwrap().clone();
+        let root = st.root();
+        let _ = emu::make_folders(&root);
+        let programs = emu::installed_programs();
+        let installing = state.installing.lock().unwrap().clone();
+        let mut emulators = Vec::new();
+        let mut found_by_id = HashMap::new();
+        for e in emu::EMULATORS {
+            let found = emu::locate(&st, e, &programs);
+            match &found {
+                Some(f) if f.how == "detected" => {
+                    st.detected.insert(e.id.to_string(), f.exe.display().to_string());
+                }
+                None => {
+                    st.detected.remove(e.id);
+                }
+                _ => {}
+            }
+            let latest = st.latest.get(e.id).cloned();
+            let update = found.as_ref().map(|f| f.managed && latest.is_some() && f.version != latest).unwrap_or(false);
+            found_by_id.insert(e.id, found.clone());
+            emulators.push(EmuRow {
+                id: e.id,
+                name: e.name,
+                full: e.full,
+                can_install: !matches!(e.source, emu::Source::Manual),
+                page: e.page,
+                found,
+                latest,
+                update,
+                installing: installing.contains(&format!("emu-{}", e.id)),
+                consoles: emu::SYSTEMS.iter().filter(|s| s.emulators.contains(&e.id)).map(|s| s.name).collect(),
+            });
+        }
+        let counts: HashMap<String, usize> = {
+            let lib = state.library.lock().unwrap();
+            let mut c = HashMap::new();
+            for e in lib.games.values().filter(|e| e.kind == library::EntryKind::Emulated) {
+                *c.entry(e.system.clone().unwrap_or_default()).or_insert(0) += 1;
+            }
+            c
+        };
+        let systems = emu::SYSTEMS
+            .iter()
+            .map(|s| {
+                let (e, _) = emu::pick(&st, s, &[]);
+                let found = found_by_id.get(e.id).cloned().flatten();
+                SystemRow {
+                    id: s.id,
+                    name: s.name,
+                    emulator: e.id,
+                    choices: s.emulators.iter().filter_map(|id| emu::emulator(id)).map(|e| (e.id, e.name)).collect(),
+                    needs: emu::needs_status(s, &root, found.as_ref()),
+                    games_dir: emu::games_dir(&root, s.id).display().to_string(),
+                    games: counts.get(s.id).copied().unwrap_or(0),
+                }
+            })
+            .collect();
+        let _ = emu_save(&state, &st);
+        Ok(EmuOverview {
+            root: root.display().to_string(),
+            emulators,
+            systems,
+            folders: st.folders.clone(),
+            unknown: state.emu_unknown.lock().unwrap().clone(),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// "Instalar" / "Atualizar": the newest Windows build from the emulator's official page, into
+/// Black Flag's Emuladores folder, in the emulator's portable mode. An update keeps the
+/// player's data inside the folder (memory cards, saves, settings).
+#[tauri::command]
+async fn emu_install(app: AppHandle, id: String) -> Result<(), String> {
+    let e = emu::emulator(&id).ok_or("Emulador desconhecido.")?;
+    let key = format!("emu-{id}");
+    let (target, previous) = {
+        let state = app.state::<AppState>();
+        if !state.installing.lock().unwrap().insert(key.clone()) {
+            return Err("Esse emulador já está sendo instalado.".into());
+        }
+        let st = state.emu.lock().unwrap().clone();
+        let previous = st.installed.get(&id).map(|i| PathBuf::from(&i.dir));
+        (previous.clone().unwrap_or_else(|| emu::emulator_dir(&st.root(), &id)), previous)
+    };
+    let result = async {
+        // Not over an emulator that is open: its files are in use.
+        if previous.is_some() {
+            let state = app.state::<AppState>();
+            let open: Vec<String> = state.sessions.lock().unwrap().pids.keys().cloned().collect();
+            let st = state.emu.lock().unwrap().clone();
+            let lib = state.library.lock().unwrap();
+            let busy = open.iter().filter_map(|g| lib.games.get(g)).any(|entry| {
+                entry.system.as_deref().and_then(emu::system).map(|s| game_emulator(&st, entry, s, &[]).0.id == e.id).unwrap_or(false)
+            });
+            if busy {
+                return Err(format!("Feche o {} antes de atualizar.", e.name));
+            }
+        }
+        let release = emu::latest(e).await?;
+        let keep: Vec<String> = e.keep.iter().map(|k| k.to_string()).collect();
+        install::install_release(&app, &key, &release, &target, &keep).await?;
+        emu::make_portable(&target, e)?;
+        let exe = emu::find_exe(&target, e).ok_or_else(|| format!("O pacote do {} não tem o programa esperado. A página oficial pode ter mudado.", e.name))?;
+        let rel = exe.strip_prefix(&target).map(|p| p.display().to_string()).unwrap_or_default();
+        let state = app.state::<AppState>();
+        let mut st = state.emu.lock().unwrap().clone();
+        st.installed.insert(id.clone(), emu::Installed { version: release.tag.clone(), dir: target.display().to_string(), exe: rel });
+        st.latest.insert(id.clone(), release.tag);
+        st.detected.remove(&id);
+        emu_save(&state, &st)
+    }
+    .await;
+    app.state::<AppState>().installing.lock().unwrap().remove(&key);
+    result
+}
+
+/// "Procurar atualizações": the newest version on each installed emulator's page.
+#[tauri::command]
+async fn emu_check_updates(app: AppHandle) -> Result<usize, String> {
+    let ids: Vec<String> = app.state::<AppState>().emu.lock().unwrap().installed.keys().cloned().collect();
+    let mut newer = 0;
+    for id in ids {
+        let Some(e) = emu::emulator(&id) else { continue };
+        if let Ok(r) = emu::latest(e).await {
+            let state = app.state::<AppState>();
+            let mut st = state.emu.lock().unwrap().clone();
+            if st.installed.get(&id).map(|i| i.version != r.tag).unwrap_or(false) {
+                newer += 1;
+            }
+            st.latest.insert(id.clone(), r.tag);
+            emu_save(&state, &st)?;
+        }
+    }
+    Ok(newer)
+}
+
+/// "Já tenho": the player points at the emulator's program.
+#[tauri::command]
+async fn emu_locate(app: AppHandle, id: String) -> Result<bool, String> {
+    let e = emu::emulator(&id).ok_or("Emulador desconhecido.")?;
+    let picked = app
+        .dialog()
+        .file()
+        .set_title(format!("Escolha o programa do {} (.exe)", e.name))
+        .add_filter("Programa", &["exe"])
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(exe) = picked else { return Ok(false) };
+    let name = exe.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    if !emu::is_program(e, &name) {
+        return Err(format!("{name} não parece ser o {}. Escolha o programa dele (por exemplo {}).", e.name, e.exes[0].trim_end_matches('*')));
+    }
+    let state = app.state::<AppState>();
+    let mut st = state.emu.lock().unwrap().clone();
+    st.own.insert(id, exe.display().to_string());
+    emu_save(&state, &st)?;
+    Ok(true)
+}
+
+/// Forgets an emulator the player pointed at (the program stays where it is).
+#[tauri::command]
+fn emu_forget(app: AppHandle, id: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let mut st = state.emu.lock().unwrap().clone();
+    st.own.remove(&id);
+    st.detected.remove(&id);
+    emu_save(&state, &st)
+}
+
+/// Which emulator plays a console that has more than one.
+#[tauri::command]
+fn emu_choose(app: AppHandle, system: String, emulator: String) -> Result<(), String> {
+    let s = emu::system(&system).ok_or("Console desconhecido.")?;
+    if !s.emulators.contains(&emulator.as_str()) {
+        return Err("Esse emulador não joga esse console.".into());
+    }
+    let state = app.state::<AppState>();
+    let mut st = state.emu.lock().unwrap().clone();
+    st.chosen.insert(system, emulator);
+    emu_save(&state, &st)
+}
+
+/// The emulator one game uses (None: its console's).
+#[tauri::command]
+fn emu_set_game_emulator(app: AppHandle, id: String, emulator: Option<String>) -> Result<GameView, String> {
+    update_entry(&app, &id, |e| e.emulator = emulator.clone().filter(|x| !x.is_empty()))
+}
+
+/// Opens one of Black Flag's emulation folders: "root", "bios", "games" (with a console) or
+/// "emulator" (the emulator's own folder).
+#[tauri::command]
+fn emu_open(app: AppHandle, what: String, id: Option<String>) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let st = state.emu.lock().unwrap().clone();
+    let root = st.root();
+    let path = match (what.as_str(), id.as_deref()) {
+        ("root", _) => root.clone(),
+        ("bios", Some(s)) if emu::system(s).is_some() => emu::bios_dir(&root, s),
+        ("games", Some(s)) if emu::system(s).is_some() => emu::games_dir(&root, s),
+        ("emulator", Some(e)) => {
+            let e = emu::emulator(e).ok_or("Emulador desconhecido.")?;
+            let f = emu::locate(&st, e, &[]).ok_or_else(|| format!("O {} não está neste PC.", e.name))?;
+            f.exe.parent().map(Path::to_path_buf).unwrap_or_default()
+        }
+        _ => return Err("Pasta desconhecida.".into()),
+    };
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    app.opener().open_path(path.display().to_string(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// "Abrir o emulador": its own window, to change its settings by hand.
+#[tauri::command]
+fn emu_run(app: AppHandle, id: String) -> Result<(), String> {
+    let e = emu::emulator(&id).ok_or("Emulador desconhecido.")?;
+    let st = app.state::<AppState>().emu.lock().unwrap().clone();
+    let f = emu::locate(&st, e, &[]).ok_or_else(|| format!("O {} não está neste PC.", e.name))?;
+    if f.managed {
+        emu::prepare(e, &f.exe, &st.root())?;
+    }
+    std::process::Command::new(&f.exe)
+        .current_dir(f.exe.parent().unwrap_or(Path::new(".")))
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| play::antivirus_error(&err).unwrap_or_else(|| format!("O Windows não abriu o {}: {err}", e.name)))
+}
+
+/// "Instalar o firmware": RPCS3 installs the PS3UPDAT.PUP the player put in BIOS\ps3.
+#[tauri::command]
+fn emu_install_firmware(app: AppHandle) -> Result<(), String> {
+    let st = app.state::<AppState>().emu.lock().unwrap().clone();
+    let e = emu::emulator("rpcs3").ok_or("RPCS3 desconhecido.")?;
+    let f = emu::locate(&st, e, &[]).ok_or("Instale o RPCS3 primeiro.")?;
+    let pup = emu::ps3_pup(&emu::bios_dir(&st.root(), "ps3")).ok_or("Coloque o PS3UPDAT.PUP na pasta BIOS\\ps3 primeiro.")?;
+    std::process::Command::new(&f.exe)
+        .current_dir(f.exe.parent().unwrap_or(Path::new(".")))
+        .arg("--installfw")
+        .arg(&pup)
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("O Windows não abriu o RPCS3: {err}"))
+}
+
+#[derive(Serialize)]
+struct EmuScan {
+    added: usize,
+    total: usize,
+    unknown: usize,
+}
+
+fn add_found(state: &AppState, found: &[roms::Found]) -> Result<usize, String> {
+    let mut added = 0;
+    {
+        let mut lib = state.library.lock().unwrap();
+        for f in found {
+            if lib.upsert_emulated(&f.id, f.system, &f.dir, &f.file, &f.title) {
+                added += 1;
+            }
+        }
+    }
+    save(state)?;
+    Ok(added)
+}
+
+/// "Procurar jogos": every console's folder and the player's games folders.
+#[tauri::command]
+async fn emu_scan(app: AppHandle) -> Result<EmuScan, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let st = state.emu.lock().unwrap().clone();
+        let _ = emu::make_folders(&st.root());
+        let scan = roms::scan_all(&st);
+        let added = add_found(&state, &scan.found)?;
+        let unknown = scan.unknown.len();
+        *state.emu_unknown.lock().unwrap() = scan.unknown;
+        Ok(EmuScan { added, total: scan.found.len(), unknown })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// "Adicionar uma pasta de jogos": a folder the player already has (`system`: all of one
+/// console; None: told apart file by file). Searched right away.
+#[tauri::command]
+async fn emu_add_folder(app: AppHandle, system: Option<String>) -> Result<Option<EmuScan>, String> {
+    let picked = app.dialog().file().set_title("Escolha a pasta dos seus jogos").blocking_pick_folder().and_then(|p| p.into_path().ok());
+    let Some(dir) = picked else { return Ok(None) };
+    let system = system.filter(|s| emu::system(s).is_some());
+    {
+        let state = app.state::<AppState>();
+        let mut st = state.emu.lock().unwrap().clone();
+        let path = dir.display().to_string();
+        st.folders.retain(|f| !f.path.eq_ignore_ascii_case(&path));
+        st.folders.push(emu::GameFolder { path, system });
+        emu_save(&state, &st)?;
+    }
+    emu_scan(app).await.map(Some)
+}
+
+#[tauri::command]
+fn emu_remove_folder(app: AppHandle, path: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let mut st = state.emu.lock().unwrap().clone();
+    st.folders.retain(|f| f.path != path);
+    emu_save(&state, &st)
+}
+
+/// A file the search could not tell apart, given its console by the player.
+#[tauri::command]
+fn emu_assign(app: AppHandle, path: String, system: String) -> Result<(), String> {
+    let s = emu::system(&system).ok_or("Console desconhecido.")?;
+    let state = app.state::<AppState>();
+    let known = state.emu_unknown.lock().unwrap().iter().any(|u| u.path == path && u.options.contains(&s.id));
+    if !known {
+        return Err("Esse arquivo não está na lista para escolher.".into());
+    }
+    let p = PathBuf::from(&path);
+    let dir = p.parent().ok_or("Caminho inválido.")?.to_path_buf();
+    let file = p.file_name().map(|n| n.to_string_lossy().to_string()).ok_or("Caminho inválido.")?;
+    let title = roms::clean_title(&p.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
+    add_found(&state, &[roms::Found { id: roms::game_id(s.id, &p), system: s.id, dir, file, title }])?;
+    state.emu_unknown.lock().unwrap().retain(|u| u.path != path);
+    Ok(())
+}
+
+/// "Mudar a pasta": where Emuladores, BIOS and Jogos live from now on. Emulators already
+/// installed stay where they are.
+#[tauri::command]
+async fn emu_set_root(app: AppHandle) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().set_title("Onde o Black Flag guarda emuladores, BIOS e jogos").blocking_pick_folder().and_then(|p| p.into_path().ok());
+    let Some(dir) = picked else { return Ok(None) };
+    let windows = std::env::var_os("SystemRoot").map(PathBuf::from);
+    if windows.as_deref().map(|w| dir.starts_with(w)).unwrap_or(false) {
+        return Err("Escolha outra pasta: essa é do Windows.".into());
+    }
+    let root = if dir.file_name().map(|n| n.eq_ignore_ascii_case("Black Flag")).unwrap_or(false) { dir } else { dir.join("Black Flag") };
+    emu::make_folders(&root)?;
+    let state = app.state::<AppState>();
+    let mut st = state.emu.lock().unwrap().clone();
+    st.root = Some(root.display().to_string());
+    emu_save(&state, &st)?;
+    Ok(Some(root.display().to_string()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // The elevated copy started to open a game with its environment variables: it opens the
@@ -4039,6 +4554,10 @@ pub fn run() {
                 ra_dir: dir.join("retroachievements"),
                 mods_dir: dir.join("mods"),
                 overlay_queue: Mutex::new(VecDeque::new()),
+                emu: Mutex::new(emu::State::load(&dir.join("emulators.json"))),
+                emu_path: dir.join("emulators.json"),
+                emu_unknown: Mutex::new(Vec::new()),
+                m3u_dir: dir.join("m3u"),
                 library: Mutex::new(Library::load(&library_path)),
                 library_path,
                 latest: Mutex::new(HashMap::new()),
@@ -4125,6 +4644,21 @@ pub fn run() {
             rename_game,
             set_tags,
             open_link,
+            emu_overview,
+            emu_install,
+            emu_check_updates,
+            emu_locate,
+            emu_forget,
+            emu_choose,
+            emu_set_game_emulator,
+            emu_open,
+            emu_run,
+            emu_install_firmware,
+            emu_scan,
+            emu_add_folder,
+            emu_remove_folder,
+            emu_assign,
+            emu_set_root,
             list_versions,
             get_community,
             community_release,
