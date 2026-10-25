@@ -1748,7 +1748,7 @@ struct UninstallInfo {
 /// at least two levels deep, and not Windows, the user's folder or one of its known folders
 /// (Desktop, Documentos, Downloads...), nor a folder that holds any of those.
 fn safe_to_delete(dir: &Path, home: Option<&Path>, windows: Option<&Path>) -> bool {
-    let same = |a: &Path, b: &Path| a.to_string_lossy().trim_end_matches(['\', '/']).eq_ignore_ascii_case(b.to_string_lossy().trim_end_matches(['\', '/']));
+    let same = |a: &Path, b: &Path| a.to_string_lossy().trim_end_matches(['\\', '/']).eq_ignore_ascii_case(b.to_string_lossy().trim_end_matches(['\\', '/']));
     let inside = |a: &Path, b: &Path| a.to_string_lossy().to_lowercase().starts_with(&b.to_string_lossy().to_lowercase());
     if !dir.is_absolute() || dir.components().count() < 4 {
         return false;
@@ -1765,7 +1765,7 @@ fn safe_to_delete(dir: &Path, home: Option<&Path>, windows: Option<&Path>) -> bo
         }
         const KNOWN: &[&str] = &[
             "Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos", "OneDrive", "AppData",
-            "AppData\Roaming", "AppData\Local", "AppData\LocalLow", "Saved Games", "Favorites",
+            r"AppData\Roaming", r"AppData\Local", r"AppData\LocalLow", "Saved Games", "Favorites",
         ];
         if KNOWN.iter().any(|k| same(dir, &h.join(k))) {
             return false;
