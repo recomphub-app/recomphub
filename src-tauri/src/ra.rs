@@ -15,6 +15,7 @@ const API: &str = "https://retroachievements.org/API/";
 const MEDIA: &str = "https://media.retroachievements.org/Badge/";
 pub const KEY_PAGE: &str = "https://retroachievements.org/settings";
 pub const N64: u32 = 2;
+pub const PS2: u32 = 21;
 const LIST_MAX_AGE: u64 = 7 * 86_400;
 pub const PROGRESS_MAX_AGE: u64 = 6 * 3600;
 
@@ -174,8 +175,72 @@ pub fn badge(dir: &Path, name: &str) -> Option<PathBuf> {
     Some(path)
 }
 
+/// "2026-10-25 16:06:27" (UTC), as RetroAchievements writes its dates.
+pub fn date_text(secs: u64) -> String {
+    let days = (secs / 86_400) as i64;
+    let rem = secs % 86_400;
+    // Days to a civil date (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02}", rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
+/// What PCSX2 writes in its log (pcsx2/Achievements.cpp) that Black Flag acts on.
+#[derive(Debug, PartialEq)]
+pub enum LogLine {
+    /// "Hash for 'SLUS_212.42' (… bytes, … bytes hashed): <md5>", when a game starts.
+    Hash(String),
+    /// "Achievements: Achievement <title> (<id>) for game <game> unlocked".
+    Unlock { title: String, id: u64, game: u64 },
+    /// "Achievements: Game <game> complete".
+    Complete(u64),
+}
+
+pub fn parse_log_line(line: &str) -> Option<LogLine> {
+    let line = line.trim_end();
+    if let Some(i) = line.find("Hash for '") {
+        let hash = line[i..].rsplit(": ").next()?.trim();
+        return (hash.len() == 32 && hash.chars().all(|c| c.is_ascii_hexdigit())).then(|| LogLine::Hash(hash.to_lowercase()));
+    }
+    if let Some(i) = line.find("Achievements: Achievement ") {
+        let rest = line[i + "Achievements: Achievement ".len()..].strip_suffix(" unlocked")?;
+        let (head, game) = rest.rsplit_once(" for game ")?;
+        let (title, id) = head.rsplit_once(" (")?;
+        return Some(LogLine::Unlock { title: title.to_string(), id: id.strip_suffix(')')?.parse().ok()?, game: game.trim().parse().ok()? });
+    }
+    if let Some(i) = line.find("Achievements: Game ") {
+        let game = line[i + "Achievements: Game ".len()..].strip_suffix(" complete")?;
+        return Some(LogLine::Complete(game.trim().parse().ok()?));
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn pcsx2_log_lines() {
+        use super::{parse_log_line, LogLine};
+        assert_eq!(
+            parse_log_line("[   12.3456] Achievements: Achievement Born (Again) (12345) for game 2911 unlocked"),
+            Some(LogLine::Unlock { title: "Born (Again)".into(), id: 12345, game: 2911 })
+        );
+        assert_eq!(
+            parse_log_line("[    3.0001] Hash for 'SLUS_212.42' (4096 bytes, 4096 bytes hashed): 0123456789ABCDEF0123456789abcdef"),
+            Some(LogLine::Hash("0123456789abcdef0123456789abcdef".into()))
+        );
+        assert_eq!(parse_log_line("Achievements: Game 2911 complete"), Some(LogLine::Complete(2911)));
+        assert_eq!(super::date_text(1_700_000_000), "2023-11-14 22:13:20");
+        assert_eq!(super::date_text(951_782_400), "2000-02-29 00:00:00");
+        assert_eq!(parse_log_line("Achievements: Attempting login with user 'x'..."), None);
+    }
+
     use super::*;
     use serde_json::json;
 

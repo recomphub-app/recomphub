@@ -485,3 +485,16 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     destaque, para a cor própria do perfil continuar valendo); avisos ficam em laranja para não
     se confundirem com ele. Os jogos viram blocos arredondados que crescem e brilham ao serem
     escolhidos (mouse, teclado ou controle). O tutorial espera 2 s por passo, não 6.
+
+76. **Conquistas do RetroAchievements no PCSX2, lidas do log.** Pedido do Gustavo em
+    25/10/2026. Quem desbloqueia é o PCSX2 (rcheevos, com o login feito nele; a senha e o token
+    nunca passam pelo Black Flag). O Black Flag abre o PCSX2 com `-logfile` apontando para um
+    arquivo dele (PCSX2 grava linha a linha, com `fflush`) e lê o que entra a cada segundo:
+    `Achievements: Achievement <título> (<id>) for game <jogo> unlocked` vira o aviso por cima do
+    jogo, com o emblema, na hora; `Hash for '<ELF>' (...): <md5>` acha o jogo na lista de PS2 do
+    RetroAchievements. Antes de jogar, o jogo é achado pelo mesmo hash que o PCSX2 calcula
+    (`Achievements::GetGameHash`: MD5 do nome do programa do BOOT2 seguido do programa, até 64 MB),
+    lido da .iso/.bin; um .chd espera a primeira partida. A lista na página usa o usuário e a
+    chave de API do perfil (decisão 32, só leitura). Polling da API foi descartado: atraso de até
+    um minuto e consultas à toa. "Ligar as conquistas" só escreve no PCSX2 que o Black Flag
+    instalou (decisão 73); no do jogador, o cartão explica onde ligar.

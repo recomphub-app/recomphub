@@ -1401,11 +1401,16 @@ let raResult = null;  // last "Salvar e testar" on the Perfis page
 
 function raBoxHtml(g) {
   const r = raCache[g.id];
-  const head = '<h3>RetroAchievements: o jogo original</h3>';
+  const emulated = g.kind === 'emulated';
+  const head = emulated ? '<h3>RetroAchievements</h3>' : '<h3>RetroAchievements: o jogo original</h3>';
   if (!r || r === 'loading') return `<div class="box">${head}<p class="muted">Carregando…</p></div>`;
   if (r.error) return `<div class="box">${head}<p class="muted">${esc(r.error)}</p>
     <div class="row"><button class="ghost" data-act="ra-refresh">Tentar de novo</button></div></div>`;
-  if (!r.linked) return '';
+  if (!r.linked) {
+    return emulated ? `<div class="box">${head}<p class="muted">Jogando pelo PCSX2 com o login do RetroAchievements feito
+      nele, cada conquista aparece por cima do jogo. Para ver a lista aqui, ponha o seu usuário e a chave de API em Gerenciar
+      perfis.</p></div>` : '';
+  }
   if (r.message) return `<div class="box">${head}<p class="muted">${esc(r.message)}</p></div>`;
   const earnedCount = r.achievements.filter((a) => a.earned || a.earned_hardcore).length;
   return `
@@ -1422,9 +1427,10 @@ function raBoxHtml(g) {
               : a.earned ? `<span class="muted small-text">Em ${esc(a.earned)}</span>` : ''}</span>
           <span class="ach-pts">${a.points}</span>
         </li>`).join('')}</ul>
-      <p class="muted">Conquistas que você ganhou no RetroAchievements jogando o jogo original em emuladores aprovados por
-        ele. O Black Flag só mostra; jogar o port não desbloqueia nada lá. Atualizado em ${sessionDate(r.fetched_at)}
-        (no máximo a cada 6 horas). ${earnedCount ? '' : 'Ainda nenhuma ganha.'}</p>
+      <p class="muted">${emulated ? `Conquistas do RetroAchievements neste jogo. Quem desbloqueia é o PCSX2, com o login feito
+        nele; o Black Flag mostra cada uma por cima do jogo na hora e atualiza esta lista.`
+        : 'Conquistas que você ganhou no RetroAchievements jogando o jogo original em emuladores aprovados por ele. O Black Flag só mostra; jogar o port não desbloqueia nada lá.'}
+        Atualizado em ${sessionDate(r.fetched_at)} (no máximo a cada 6 horas). ${earnedCount ? '' : 'Ainda nenhuma ganha.'}</p>
       <div class="row">
         <button class="ghost" data-act="ra-refresh">Atualizar agora</button>
         ${r.page ? `<button class="link" data-act="link" data-url="${esc(r.page)}">Página do jogo no RetroAchievements</button>` : ''}
@@ -1444,14 +1450,17 @@ async function loadRa(id, force) {
 }
 
 function decorateRa(g) {
-  // Only N64 ports: RetroAchievements finds the game by the player's ROM.
-  if (!g.in_library || g.kind !== 'port' || g.files_kind !== 'file') return;
+  // N64 ports (found by the player's ROM) and PS2 games (by the disc, or what PCSX2 told).
+  const ps2 = g.kind === 'emulated' && g.system === 'ps2';
+  if (!g.in_library || (!ps2 && (g.kind !== 'port' || g.files_kind !== 'file'))) return;
   if (raCache[g.id] === undefined) {
     raCache[g.id] = 'loading';
     setTimeout(() => loadRa(g.id, false), 0);
   }
   const ach = document.querySelector('#detail .ach-box');
+  const pane = document.querySelector('#detail #pane-conquistas');
   if (ach) ach.insertAdjacentHTML('afterend', raBoxHtml(g));
+  else if (pane) pane.insertAdjacentHTML('afterbegin', raBoxHtml(g));
 }
 
 function raAccountBox() {
@@ -1460,7 +1469,7 @@ function raAccountBox() {
     <div class="box">
       <h3>RetroAchievements do perfil ${esc(p.name)} (opcional)</h3>
       <p class="muted">Com seu usuário e sua chave de API (no site, em Configurações → Chaves → Web API Key), a página de cada
-        port de N64 mostra as conquistas que você ganhou no jogo original em emuladores. Só leitura.</p>
+        port de N64 e de cada jogo de PS2 mostra as suas conquistas do RetroAchievements. Só leitura.</p>
       <div class="tags-edit">
         <input type="text" id="ra-user" maxlength="40" value="${esc(p.ra_user)}" placeholder="Usuário">
         <input type="password" id="ra-key" maxlength="64" autocomplete="off" placeholder="${p.has_ra_key ? 'Chave guardada (vazio mantém)' : 'Web API Key'}">
@@ -3358,6 +3367,10 @@ listen('session', async (e) => {
 });
 
 listen('open-game', (e) => openGame(e.payload));
+listen('ra-unlock', (e) => {
+  delete raCache[e.payload.id];
+  if (openId === e.payload.id) render();
+});
 // A game put in a watched games folder (Emuladores) showed up by itself.
 listen('emu-games', async (e) => {
   const { added, unknown } = e.payload;
@@ -4542,6 +4555,30 @@ function emuButtons(e, s) {
   return `<div class="row">${b.join('')}</div>`;
 }
 
+// RetroAchievements in PCSX2: the login is made in PCSX2 (the password never passes through
+// Black Flag); Black Flag reads its log while you play and shows each unlock over the game.
+function pcsx2RaLine(e) {
+  if (!e || e.id !== 'pcsx2' || !e.found || !e.ra) return '';
+  const r = e.ra;
+  const mine = profiles && profiles.active.ra_user;
+  if (r.enabled && r.user) {
+    const other = mine && mine.toLowerCase() !== r.user.toLowerCase();
+    return `<p class="emu-need ok-text">✓ RetroAchievements ligado no PCSX2, conta ${esc(r.user)}. As conquistas aparecem
+        por cima do jogo e na página dele.</p>
+      ${other ? `<p class="emu-need muted">O perfil ${esc(profiles.active.name)} usa a conta ${esc(mine)} no Black Flag: a lista da página
+        do jogo é dessa conta.</p>` : ''}
+      ${mine ? '' : '<p class="emu-need muted">Para ver a lista de conquistas na página do jogo, ponha o seu usuário e a chave de API em Gerenciar perfis.</p>'}`;
+  }
+  return `<p class="emu-need muted">🏆 Conquistas do RetroAchievements: ${r.enabled ? 'ligadas, falta entrar com a sua conta'
+      : 'desligadas'}. ${e.found.managed && !r.enabled ? 'Clique em Ligar as conquistas e depois' : 'No PCSX2,'} abra
+      <b>Configurações > Conquistas</b> e clique em <b>Entrar</b> (login e senha ficam só no PCSX2).</p>
+    <div class="row">
+      ${e.found.managed && !r.enabled ? '<button class="small" data-emu="ra-enable">Ligar as conquistas</button>' : ''}
+      <button class="ghost small" data-emu="run" data-id="pcsx2">Abrir o PCSX2 para entrar</button>
+      <button class="ghost small" data-emu="refresh">Já entrei</button>
+    </div>`;
+}
+
 function needsLine(n) {
   if (!n || !n.asks) return '';
   const cls = n.ok ? 'ok-text' : n.blocks ? 'bad-text' : 'muted';
@@ -4560,6 +4597,7 @@ function consoleCard(s) {
       ${choose}
       ${emuStatusLine(e)}
       ${needsLine(s.needs)}
+      ${pcsx2RaLine(e)}
       ${e && !e.full && e.found ? '<p class="muted small-text">As configurações ficam no próprio emulador (Abrir o emulador).</p>' : ''}
       ${emuButtons(e, s)}
     </div>`;
@@ -4668,6 +4706,14 @@ async function emuAct(what, el) {
         break;
       case 'run':
         await invoke('emu_run', { id });
+        break;
+      case 'ra-enable':
+        await invoke('emu_ra_enable');
+        toast('Conquistas ligadas no PCSX2. Agora entre com a sua conta nele: Configurações > Conquistas > Entrar.');
+        await loadEmu();
+        break;
+      case 'refresh':
+        await loadEmu();
         break;
       case 'page':
         await call('open_link', { url: el.dataset.url });

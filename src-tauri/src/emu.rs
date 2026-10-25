@@ -604,6 +604,55 @@ pub fn ini_set(text: &str, section: &str, key: &str, value: &str) -> String {
     out
 }
 
+/// A key's value in an .ini text ("Enabled = true" under "[Achievements]").
+pub fn ini_get(text: &str, section: &str, key: &str) -> Option<String> {
+    let mut inside = false;
+    for l in text.lines().map(str::trim) {
+        if let Some(h) = l.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
+            inside = h.trim().eq_ignore_ascii_case(section);
+        } else if inside && !l.starts_with(';') && !l.starts_with('#') {
+            if let Some((k, v)) = l.split_once('=') {
+                if k.trim().eq_ignore_ascii_case(key) {
+                    return Some(v.trim().to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// PCSX2's settings file: in its own folder when portable, else in the player's Documentos\PCSX2.
+pub fn pcsx2_ini(exe: &Path) -> Option<PathBuf> {
+    let base = base_of(exe);
+    if base.join("portable.txt").exists() || base.join("portable.ini").exists() {
+        return Some(base.join("inis").join("PCSX2.ini"));
+    }
+    let docs = crate::reg::get_string(crate::reg::Root::User, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders", "Personal")?;
+    Some(PathBuf::from(docs).join("PCSX2").join("inis").join("PCSX2.ini"))
+}
+
+/// RetroAchievements in PCSX2: switched on, and the account it is logged in with (the login
+/// itself is PCSX2's; its token stays with it, Black Flag never reads it).
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Pcsx2Ra {
+    pub enabled: bool,
+    pub user: String,
+}
+
+pub fn pcsx2_ra(exe: &Path) -> Pcsx2Ra {
+    let text = pcsx2_ini(exe).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
+    Pcsx2Ra {
+        enabled: ini_get(&text, "Achievements", "Enabled").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false),
+        user: ini_get(&text, "Achievements", "Username").unwrap_or_default(),
+    }
+}
+
+/// "Ligar as conquistas": only in a PCSX2 Black Flag installed (decision 73).
+pub fn pcsx2_ra_enable(exe: &Path) -> Result<(), String> {
+    let ini = pcsx2_ini(exe).ok_or("Não achei as configurações do PCSX2.")?;
+    write_keys(&ini, &[("Achievements", "Enabled", "true".to_string())])
+}
+
 fn write_keys(path: &Path, keys: &[(&str, &str, String)]) -> Result<(), String> {
     let mut text = std::fs::read_to_string(path).unwrap_or_default();
     if path.exists() {
@@ -1014,6 +1063,14 @@ pub fn read_at(f: &mut std::fs::File, offset: u64, len: usize) -> Option<Vec<u8>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ini_values_are_read_by_section() {
+        let text = "[UI]\nEnabled = false\n\n[Achievements]\n; Enabled = false\nEnabled = true\nUsername = gustavo\n";
+        assert_eq!(ini_get(text, "Achievements", "Enabled").as_deref(), Some("true"));
+        assert_eq!(ini_get(text, "achievements", "username").as_deref(), Some("gustavo"));
+        assert_eq!(ini_get(text, "Achievements", "Token"), None);
+    }
 
     #[test]
     fn every_console_has_known_emulators() {

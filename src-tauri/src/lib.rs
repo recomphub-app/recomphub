@@ -2652,6 +2652,8 @@ pub struct Notice {
     badge: String,
     points: u32,
     sound: bool,
+    /// The badge as a picture (RetroAchievements); `badge` is the emoji otherwise.
+    picture: Option<String>,
 }
 
 /// Shows notices in the window over the game, opening it if needed. It closes by itself.
@@ -2733,6 +2735,7 @@ pub(crate) fn check_achievements(app: &AppHandle, id: &str, overlay: bool) -> Ve
                 badge: a.badge.clone(),
                 points: a.points,
                 sound: settings.achievement_sound,
+                picture: None,
             })
             .collect();
         if complete {
@@ -2744,6 +2747,7 @@ pub(crate) fn check_achievements(app: &AppHandle, id: &str, overlay: bool) -> Ve
                 badge: "💯".into(),
                 points: all.iter().map(|a| a.points).sum(),
                 sound: settings.achievement_sound,
+                picture: None,
             });
         }
         show_overlay(app, notices);
@@ -2861,6 +2865,7 @@ fn test_achievement_notice(app: AppHandle) {
                 badge: "🏆".into(),
                 points: 10,
                 sound,
+                picture: None,
             }],
         )
     });
@@ -2945,15 +2950,24 @@ async fn get_ra(app: AppHandle, id: String, force: bool) -> Result<RaView, Strin
         if !view.linked {
             return Ok(view);
         }
+        let ps2 = state
+            .library
+            .lock()
+            .unwrap()
+            .games
+            .get(&id)
+            .map(|e| e.kind == library::EntryKind::Emulated && e.system.as_deref() == Some("ps2"))
+            .unwrap_or(false);
         let rom = {
             let lib = state.library.lock().unwrap();
             let dir = lib.games.get(&id).map(|e| PathBuf::from(&e.install_dir));
             catalog::get(&id).zip(dir).and_then(|(g, d)| files::n64_rom_file(g, &d))
         };
-        let Some(rom) = rom.filter(|r| r.is_file()) else {
+        let rom = rom.filter(|r| r.is_file());
+        if !ps2 && rom.is_none() {
             view.message = Some("O RetroAchievements identifica o jogo pela ROM. Forneça a ROM na caixa \"Arquivos do jogo\" primeiro.".into());
             return Ok(view);
-        };
+        }
         let cache_dir = state.ra_dir.join("perfis").join(&profile);
         let cache = cache_dir.join(format!("{id}.json"));
         let now = library::now();
@@ -2961,11 +2975,23 @@ async fn get_ra(app: AppHandle, id: String, force: bool) -> Result<RaView, Strin
         let progress = match cached {
             Some(c) if !force && now < c.fetched_at + ra::PROGRESS_MAX_AGE => c,
             _ => {
-                let md5 = ra::rom_md5(&rom).ok_or("Não consegui ler a ROM.")?;
-                let list = ra::game_list(&state.ra_dir, ra::N64, &key)?;
-                let Some((game_id, _)) = ra::find_by_hash(&list, &md5) else {
-                    view.message = Some("Esta ROM não está na lista do RetroAchievements (ele aceita só versões conferidas).".into());
-                    return Ok(view);
+                let game_id = if ps2 {
+                    match ps2_ra_game(&state, &id, &key)? {
+                        Ok(g) => g,
+                        Err(message) => {
+                            view.message = Some(message);
+                            return Ok(view);
+                        }
+                    }
+                } else {
+                    let rom = rom.ok_or("Não consegui ler a ROM.")?;
+                    let md5 = ra::rom_md5(&rom).ok_or("Não consegui ler a ROM.")?;
+                    let list = ra::game_list(&state.ra_dir, ra::N64, &key)?;
+                    let Some((game_id, _)) = ra::find_by_hash(&list, &md5) else {
+                        view.message = Some("Esta ROM não está na lista do RetroAchievements (ele aceita só versões conferidas).".into());
+                        return Ok(view);
+                    };
+                    game_id
                 };
                 let p = ra::progress(&user, &key, game_id, now)?;
                 std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
@@ -2992,6 +3018,164 @@ async fn get_ra(app: AppHandle, id: String, force: bool) -> Result<RaView, Strin
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// The RetroAchievements game of an emulated PS2 game: the one saved, or found by the disc's
+/// hash in the PS2 list. The inner Err is what to tell the player; the outer one, a failure.
+fn ps2_ra_game(state: &AppState, id: &str, key: &str) -> Result<Result<u64, String>, String> {
+    let entry = state.library.lock().unwrap().games.get(id).cloned().ok_or("Jogo não encontrado.")?;
+    if let Some(g) = entry.ra_game {
+        return Ok(Ok(g));
+    }
+    let disc = PathBuf::from(&entry.install_dir).join(entry.exe.as_deref().unwrap_or(""));
+    let Some(hash) = roms::ps2_ra_hash(&disc) else {
+        return Ok(Err("O Black Flag descobre este jogo no RetroAchievements na primeira vez que você jogar com o login feito no PCSX2 (um arquivo .chd não dá para ler antes).".into()));
+    };
+    let list = ra::game_list(&state.ra_dir, ra::PS2, key)?;
+    let Some((game, _)) = ra::find_by_hash(&list, &hash) else {
+        return Ok(Err("Esta versão do jogo não está na lista do RetroAchievements (ele aceita só versões conferidas).".into()));
+    };
+    set_ra_game(state, id, game);
+    Ok(Ok(game))
+}
+
+fn set_ra_game(state: &AppState, id: &str, game: u64) {
+    let mut lib = state.library.lock().unwrap();
+    if let Some(e) = lib.games.get_mut(id) {
+        if e.ra_game != Some(game) {
+            e.ra_game = Some(game);
+            let _ = lib.save(&state.library_path);
+        }
+    }
+}
+
+/// PCSX2's log while a game runs: Black Flag gives it a file of its own (-logfile, which PCSX2
+/// writes and flushes line by line) and reads what is new every second. The game's hash finds
+/// it on RetroAchievements; each unlock shows in the window over the game, with the badge.
+fn spawn_ra_watch(app: AppHandle, id: String, log: PathBuf) {
+    std::thread::spawn(move || {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut pos = 0u64;
+        let mut partial = String::new();
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(900));
+            let alive = app.state::<AppState>().sessions.lock().unwrap().pids.contains_key(&id);
+            if let Ok(mut f) = std::fs::File::open(&log) {
+                let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+                if len < pos {
+                    pos = 0;
+                }
+                let mut buf = Vec::new();
+                if len > pos && f.seek(SeekFrom::Start(pos)).is_ok() && f.read_to_end(&mut buf).is_ok() {
+                    pos += buf.len() as u64;
+                    partial.push_str(&String::from_utf8_lossy(&buf));
+                    while let Some(nl) = partial.find('\n') {
+                        let line: String = partial.drain(..=nl).collect();
+                        if let Some(event) = ra::parse_log_line(&line) {
+                            ra_log_event(&app, &id, event);
+                        }
+                    }
+                }
+            }
+            if !alive {
+                // The last line, if PCSX2 closed before its line break.
+                if let Some(event) = ra::parse_log_line(&partial) {
+                    ra_log_event(&app, &id, event);
+                }
+                break;
+            }
+        }
+        let _ = std::fs::remove_file(&log);
+    });
+}
+
+#[derive(Serialize, Clone)]
+struct RaUnlockEvent {
+    id: String,
+}
+
+fn ra_log_event(app: &AppHandle, id: &str, event: ra::LogLine) {
+    let state = app.state::<AppState>();
+    let (profile, user, key) = {
+        let p = state.profiles.lock().unwrap();
+        let a = p.active();
+        (a.id.clone(), a.ra_user.clone(), a.ra_key.clone())
+    };
+    let linked = !user.is_empty() && !key.is_empty();
+    let known = state.library.lock().unwrap().games.get(id).and_then(|e| e.ra_game);
+    let title = view_any(&state, id).map(|g| g.title).unwrap_or_else(|_| id.to_string());
+    let settings = state.settings.lock().unwrap().clone();
+    match event {
+        ra::LogLine::Hash(hash) => {
+            if known.is_none() && linked {
+                if let Some((game, _)) = ra::game_list(&state.ra_dir, ra::PS2, &key).ok().and_then(|l| ra::find_by_hash(&l, &hash)) {
+                    set_ra_game(&state, id, game);
+                }
+            }
+        }
+        ra::LogLine::Unlock { title: name, id: ach, game } => {
+            // Another disc loaded from PCSX2's own menu: the notice shows, the game keeps its link.
+            let ours = known.map(|k| k == game).unwrap_or(true);
+            if ours {
+                set_ra_game(&state, id, game);
+            }
+            // The cached list gets the unlock right away (the server may take a moment to have it).
+            let now = library::now();
+            let cache_dir = state.ra_dir.join("perfis").join(&profile);
+            let cache = cache_dir.join(format!("{id}.json"));
+            let mut progress: Option<ra::Progress> =
+                std::fs::read(&cache).ok().and_then(|b| serde_json::from_slice(&b).ok()).filter(|p: &ra::Progress| p.game_id == game);
+            if linked && progress.as_ref().map(|p| !p.achievements.iter().any(|a| a.id == ach)).unwrap_or(true) {
+                progress = ra::progress(&user, &key, game, now).ok();
+            }
+            let mut found = if ours { None } else { progress.as_ref().and_then(|p| p.achievements.iter().find(|a| a.id == ach)).cloned() };
+            if let Some(p) = progress.as_mut().filter(|_| ours) {
+                if let Some(a) = p.achievements.iter_mut().find(|a| a.id == ach) {
+                    if a.earned.is_none() {
+                        a.earned = Some(ra::date_text(now));
+                    }
+                    found = Some(a.clone());
+                }
+                p.earned = p.achievements.iter().filter(|a| a.earned.is_some() || a.earned_hardcore.is_some()).count() as u32;
+                let _ = std::fs::create_dir_all(&cache_dir);
+                let _ = std::fs::write(&cache, serde_json::to_vec(&p).unwrap_or_default());
+            }
+            let _ = app.emit("ra-unlock", RaUnlockEvent { id: id.to_string() });
+            if settings.achievement_overlay {
+                let picture = found.as_ref().and_then(|a| ra::badge(&state.ra_dir.join("badges"), &a.badge)).and_then(|p| data_url(&p));
+                show_overlay(
+                    app,
+                    vec![Notice {
+                        kind: "main",
+                        game: title,
+                        title: name,
+                        description: found.as_ref().map(|a| a.description.clone()).unwrap_or_else(|| "RetroAchievements".into()),
+                        badge: "🏆".into(),
+                        points: found.map(|a| a.points).unwrap_or(0),
+                        sound: settings.achievement_sound,
+                        picture,
+                    }],
+                );
+            }
+        }
+        ra::LogLine::Complete(_) => {
+            if settings.achievement_overlay {
+                show_overlay(
+                    app,
+                    vec![Notice {
+                        kind: "complete",
+                        game: title.clone(),
+                        title: "100% no RetroAchievements!".into(),
+                        description: format!("Você desbloqueou todas as conquistas de {title}."),
+                        badge: "💯".into(),
+                        points: 0,
+                        sound: settings.achievement_sound,
+                        picture: None,
+                    }],
+                );
+            }
+        }
+    }
 }
 
 /// A RetroAchievements game page Black Flag itself linked to (from a cached lookup).
@@ -4094,8 +4278,18 @@ fn play_emulated(app: &AppHandle, id: &str, entry: &library::Entry) -> Result<()
         }
     }
     let mut args = play::split_args(&entry.launch_args);
+    let ra_log = (e.id == "pcsx2").then(|| state.ra_dir.join("ao-vivo").join(format!("{id}.log")));
+    if let Some(log) = &ra_log {
+        let _ = std::fs::create_dir_all(log.parent().unwrap_or(Path::new(".")));
+        let _ = std::fs::remove_file(log);
+        args.push("-logfile".into());
+        args.push(log.display().to_string());
+    }
     args.extend(emu::launch_args(e.id, system.id, &game));
     play::start_emulated(app, id, &found.exe, &args)?;
+    if let Some(log) = ra_log {
+        spawn_ra_watch(app.clone(), id.to_string(), log);
+    }
     if entry.play_count == 0 && entry.total_seconds == 0 && SLOW_FIRST_START.contains(&e.id) {
         let _ = app.emit("notify", format!("Primeira vez no {}: ele pode demorar alguns minutos preparando os gráficos. Não feche, é normal.", e.name));
     }
@@ -4117,6 +4311,8 @@ struct EmuRow {
     installing: bool,
     /// Consoles it plays, by name.
     consoles: Vec<&'static str>,
+    /// PCSX2: RetroAchievements switched on there, and who is logged in.
+    ra: Option<emu::Pcsx2Ra>,
 }
 
 #[derive(Serialize)]
@@ -4144,6 +4340,19 @@ fn emu_save(state: &AppState, st: &emu::State) -> Result<(), String> {
     st.save(&state.emu_path)?;
     *state.emu.lock().unwrap() = st.clone();
     Ok(())
+}
+
+/// "Ligar as conquistas" on the PCSX2 card (only in the one Black Flag installed).
+#[tauri::command]
+fn emu_ra_enable(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let st = state.emu.lock().unwrap().clone();
+    let e = emu::EMULATORS.iter().find(|e| e.id == "pcsx2").ok_or("PCSX2 desconhecido.")?;
+    let found = emu::locate(&st, e, &emu::installed_programs()).ok_or("O PCSX2 não está neste PC.")?;
+    if !found.managed {
+        return Err("Este PCSX2 é o seu: ligue as conquistas nele, em Configurações > Conquistas.".into());
+    }
+    emu::pcsx2_ra_enable(&found.exe)
 }
 
 /// The Emuladores page: every console with its emulator, what it needs and its games.
@@ -4183,6 +4392,7 @@ async fn emu_overview(app: AppHandle) -> Result<EmuOverview, String> {
                 update,
                 installing: installing.contains(&format!("emu-{}", e.id)),
                 consoles: emu::SYSTEMS.iter().filter(|s| s.emulators.contains(&e.id)).map(|s| s.name).collect(),
+                ra: found.as_ref().filter(|_| e.id == "pcsx2").map(|f| emu::pcsx2_ra(&f.exe)),
             });
         }
         let counts: HashMap<String, usize> = {
@@ -4725,6 +4935,7 @@ pub fn run() {
             emu_remove_folder,
             emu_assign,
             emu_set_root,
+            emu_ra_enable,
             emu_cover,
             list_versions,
             get_community,

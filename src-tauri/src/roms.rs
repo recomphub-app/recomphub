@@ -429,6 +429,104 @@ pub fn disc_serial(path: &Path) -> Option<String> {
     serial_from_cnf(&cnf?)
 }
 
+/// Where an ISO9660 disc keeps its files: sector size, the bytes before each sector's data
+/// (raw .bin) and the root folder (sector, length).
+fn iso_layout(f: &mut std::fs::File) -> Option<(u64, u64, u64, u64)> {
+    for (sector, skip) in [(2048u64, 0u64), (2352, 24), (2352, 16)] {
+        let Some(pvd) = read_at(f, 16 * sector + skip, 2048) else { continue };
+        if &pvd[1..6] != b"CD001" {
+            continue;
+        }
+        let root = &pvd[156..190];
+        let lba = u32::from_le_bytes([root[2], root[3], root[4], root[5]]) as u64;
+        let len = u32::from_le_bytes([root[10], root[11], root[12], root[13]]) as u64;
+        return Some((sector, skip, lba, len));
+    }
+    None
+}
+
+/// The data of a file on the disc, up to `max` bytes.
+fn iso_read(f: &mut std::fs::File, (sector, skip): (u64, u64), lba: u64, size: u64, max: u64) -> Option<Vec<u8>> {
+    let size = size.min(max);
+    let mut out = Vec::with_capacity(size as usize);
+    for i in 0..size.div_ceil(2048) {
+        out.extend(read_at(f, (lba + i) * sector + skip, 2048)?);
+    }
+    out.truncate(size as usize);
+    Some(out)
+}
+
+/// A file on the disc by its path ("SLUS_212.42" or "DATA\MAIN.ELF"), as (sector, size); the
+/// ";1" version is ignored on both sides.
+fn iso_find(f: &mut std::fs::File, layout: (u64, u64, u64, u64), path: &str) -> Option<(u64, u64)> {
+    let (sector, skip, mut lba, mut len) = layout;
+    let parts: Vec<String> = path.split(['\', '/']).filter(|p| !p.is_empty()).map(|p| p.split(';').next().unwrap_or("").to_uppercase()).collect();
+    for (i, part) in parts.iter().enumerate() {
+        let dir = iso_read(f, (sector, skip), lba, len, 256 * 1024)?;
+        let mut pos = 0usize;
+        let mut next = None;
+        while pos + 33 < dir.len() {
+            let rec_len = dir[pos] as usize;
+            if rec_len == 0 {
+                pos = (pos / 2048 + 1) * 2048;
+                continue;
+            }
+            let name_len = dir[pos + 32] as usize;
+            let name = String::from_utf8_lossy(dir.get(pos + 33..pos + 33 + name_len)?).to_uppercase();
+            if name.split(';').next() == Some(part.as_str()) {
+                let at = u32::from_le_bytes([dir[pos + 2], dir[pos + 3], dir[pos + 4], dir[pos + 5]]) as u64;
+                let size = u32::from_le_bytes([dir[pos + 10], dir[pos + 11], dir[pos + 12], dir[pos + 13]]) as u64;
+                next = Some((at, size));
+                break;
+            }
+            pos += rec_len;
+        }
+        let (at, size) = next?;
+        if i == parts.len() - 1 {
+            return Some((at, size));
+        }
+        lba = at;
+        len = size;
+    }
+    None
+}
+
+/// The hash RetroAchievements knows a PS2 disc by, made the way PCSX2 makes it
+/// (Achievements::GetGameHash): MD5 of the boot program's name ("SLUS_212.42", from
+/// SYSTEM.CNF's BOOT2) followed by the program itself, up to 64 MB. None for a .chd, which
+/// would need its decoder: PCSX2 says the hash in its log when the game starts instead.
+pub fn ps2_ra_hash(path: &Path) -> Option<String> {
+    use md5::{Digest, Md5};
+    let target = match ext_of(path).as_str() {
+        ".iso" | ".bin" | ".img" => path.to_path_buf(),
+        ".cue" => path.parent()?.join(cue_files(path).into_iter().next()?),
+        _ => return None,
+    };
+    let mut f = std::fs::File::open(target).ok()?;
+    let layout = iso_layout(&mut f)?;
+    let (at, size) = iso_find(&mut f, layout, "SYSTEM.CNF")?;
+    let cnf = iso_read(&mut f, (layout.0, layout.1), at, size, 4096)?;
+    let cnf = String::from_utf8_lossy(&cnf).to_string();
+    let boot = cnf.lines().find_map(|l| {
+        let (k, v) = l.split_once('=')?;
+        k.trim().eq_ignore_ascii_case("BOOT2").then(|| v.trim().to_string())
+    })?;
+    // PCSX2's GetELFNameForHash: after the last backslash, before the ';'.
+    let start = boot.rfind('\').map(|i| i + 1).unwrap_or(0);
+    let end = boot.rfind(';').filter(|&e| e >= start).unwrap_or(boot.len());
+    let name = &boot[start..end];
+    if name.is_empty() {
+        return None;
+    }
+    let inside = boot.split_once(':').map(|(_, p)| p).unwrap_or(&boot);
+    let (at, size) = iso_find(&mut f, layout, inside)?;
+    let elf = iso_read(&mut f, (layout.0, layout.1), at, size, 64 * 1024 * 1024)?;
+    let mut md5 = Md5::new();
+    md5.update(name.as_bytes());
+    md5.update(&elf);
+    Some(format!("{:x}", md5.finalize()))
+}
+
 /// A quick look at the games folders: the folders in them (three levels down) and when each
 /// last changed. Windows updates a folder's time when something is added to it or taken out,
 /// so a game put in any of them changes this.
@@ -666,6 +764,37 @@ mod tests {
         assert_eq!(sniff(&d.join("c.iso")), Some("ps2"));
         assert_eq!(disc_serial(&d.join("c.iso")), Some("SLUS-21242".into()));
         assert_eq!(sniff(&d.join("d.iso")), Some("ps1"));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn ps2_hash_is_made_like_pcsx2() {
+        use md5::{Digest, Md5};
+        let d = tmp("rahash");
+        let mut iso = vec![0u8; 2048 * 24];
+        let pvd = 16 * 2048;
+        iso[pvd + 1..pvd + 6].copy_from_slice(b"CD001");
+        iso[pvd + 156 + 2..pvd + 156 + 6].copy_from_slice(&20u32.to_le_bytes());
+        iso[pvd + 156 + 10..pvd + 156 + 14].copy_from_slice(&2048u32.to_le_bytes());
+        let mut rec = 20 * 2048;
+        let cnf = b"BOOT2 = cdrom0:\SLUS_212.42;1\r\nVER = 1.00\r\n";
+        let elf = b"\x7fELF the game";
+        for (name, lba, size) in [(&b"SYSTEM.CNF;1"[..], 21u32, cnf.len()), (&b"SLUS_212.42;1"[..], 22, elf.len())] {
+            iso[rec] = (33 + name.len() + 1) as u8;
+            iso[rec + 2..rec + 6].copy_from_slice(&lba.to_le_bytes());
+            iso[rec + 10..rec + 14].copy_from_slice(&(size as u32).to_le_bytes());
+            iso[rec + 32] = name.len() as u8;
+            iso[rec + 33..rec + 33 + name.len()].copy_from_slice(name);
+            rec += 33 + name.len() + 1;
+        }
+        iso[21 * 2048..21 * 2048 + cnf.len()].copy_from_slice(cnf);
+        iso[22 * 2048..22 * 2048 + elf.len()].copy_from_slice(elf);
+        std::fs::write(d.join("g.iso"), &iso).unwrap();
+        let mut want = Md5::new();
+        want.update(b"SLUS_212.42");
+        want.update(elf);
+        assert_eq!(ps2_ra_hash(&d.join("g.iso")), Some(format!("{:x}", want.finalize())));
+        assert_eq!(ps2_ra_hash(&d.join("nada.chd")), None);
         let _ = std::fs::remove_dir_all(&d);
     }
 

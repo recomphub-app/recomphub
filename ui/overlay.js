@@ -30,13 +30,13 @@ async function show(n) {
   const label = n.kind === 'complete' ? 'Jogo completo' : n.kind === 'test' ? 'Teste' : 'Conquista desbloqueada';
   card.className = 'card' + (n.kind === 'complete' ? ' complete' : '');
   card.innerHTML = `
-    <div class="badge">${esc(n.badge || '🏆')}</div>
+    <div class="badge">${n.picture ? `<img src="${n.picture}" alt="">` : esc(n.badge || '🏆')}</div>
     <div>
       <div class="k">${label} · ${esc(n.game)}</div>
       <div class="t">${esc(n.title)}</div>
       <div class="d">${esc(n.description)}</div>
     </div>
-    <div class="p">${n.points} pts</div>`;
+    ${n.points ? `<div class="p">${n.points} pts</div>` : ''}`;
   await sleep(30);
   card.classList.add('show');
   if (n.sound) chime(n.kind === 'complete');

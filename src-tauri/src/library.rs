@@ -106,6 +106,10 @@ pub struct Entry {
     /// Emulated PS1/PS2 disc: its serial ("SLUS-20946"), for covers.
     #[serde(default)]
     pub serial: Option<String>,
+    /// Emulated game: its game on RetroAchievements, once found (by the disc's hash, or
+    /// from the emulator's log while playing).
+    #[serde(default)]
+    pub ra_game: Option<u64>,
 }
 
 /// A note left when a session ends ("no chefe do trem"), shown when the player comes back.
