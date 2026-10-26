@@ -215,6 +215,7 @@ function renderGrid() {
   $('#lib-back').hidden = true;
   $('#tabs').hidden = catalog || community;
   if (catalog || community) { $('#lib-hero').innerHTML = ''; $('#lib-hero').className = ''; } else renderLibHero();
+  renderSetupHint(!catalog && !community);
   if (tab === 'community') return renderCommunityGrid();
   $('#community-head').hidden = true;
   renderTabs();
@@ -3998,6 +3999,10 @@ function padBack() {
     closeTour();
     return;
   }
+  if (!$('#setup').hidden) {
+    closeSetup();
+    return;
+  }
   const back = [...document.querySelectorAll('[data-act="back"]')].find(isShown);
   if (back) {
     // Back on the library, the game just left keeps the focus.
@@ -4881,7 +4886,6 @@ function bindEmuGameBox(g) {
 const TOUR_SEEN = 'recomphub-tutorial-1';
 const TOUR_WAIT = 2;     // seconds before Próximo and Pular work on a step, so it gets read
 let tourStep = 0;
-let tourResult = null;   // "Salvar e testar" of the SteamGridDB key inside the tutorial
 let tourWait = 0;        // seconds left on the step shown now
 let tourTimer = null;
 const tourRead = new Set();   // steps already waited on, which open at once when shown again
@@ -4980,32 +4984,10 @@ function tourSteps() {
         <p class="muted">No meio de um jogo, segure o botão Guide (ou Back + Start) para trazer o Black Flag de volta.</p>`,
     },
     {
-      title: 'Capas para todos os seus jogos',
-      feature: true,
-      html: `<p class="tour-lead">Sem capa, cada jogo aparece só com o nome. Com uma chave grátis da <b>SteamGridDB</b>, o
-          Black Flag busca capas e banners de verdade para a biblioteca inteira.</p>
-        ${tourCoverSample()}
-        ${sgdb ? '<p class="ok-text tour-done">✓ A sua chave já está guardada. Se quiser trocar, cole outra abaixo.</p>' : ''}
-        <ol class="tour-big">
-          <li><button class="link" data-tour-link="${esc(settings.sgdb_key_page || 'https://www.steamgriddb.com/profile/preferences/api')}">Abra a página de API da SteamGridDB</button>.</li>
-          <li>Entre com a sua conta Steam (botão Login no alto da página).</li>
-          <li>Clique em <b>Generate API Key</b> e copie a chave.</li>
-          <li>Cole aqui e clique em Salvar e testar:</li>
-        </ol>
-        <div class="tour-key">
-          <input type="password" id="tour-sgdb" autocomplete="off" placeholder="${sgdb ? 'Chave já guardada' : 'Chave de API da SteamGridDB'}">
-          <button class="primary" data-tour="sgdb">Salvar e testar</button>
-        </div>
-        ${tourResult ? `<ul>${tourResult.map((r) => `<li class="${r.ok ? 'ok-text' : 'bad-text'}">${esc(r.message)}</li>`).join('')}</ul>` : ''}
-        <p class="muted">Prefere as suas imagens? Na página de cada jogo, em Ajustes > Minhas capas, você escolhe arquivos do
-          PC. A capa do perfil fica em Gerenciar perfis.</p>
-        <p class="muted">A chave fica só neste PC. Descrição e ano dos jogos vêm da IGDB, que pede uma chave da Twitch: o
-          passo a passo está em Configurações > Capas e GitHub.</p>`,
-    },
-    {
       title: 'Pronto',
       html: `<p class="tour-lead">Isso é o básico.</p>
         <p>Para rever este tutorial, use <b>Mais > Tutorial</b>, no alto.</p>
+        ${setupMissing() ? '<p><b>Logo depois:</b> as chaves grátis para as capas e as conquistas, num passo à parte.</p>' : ''}
         <p class="muted">Se o GitHub disser que você passou do limite de consultas (comum com muitos jogos), crie um token
           grátis em Configurações > Capas e GitHub.</p>`,
     },
@@ -5033,9 +5015,7 @@ function renderTour() {
         </div>
       </div>
     </div>`;
-  $('#tour').querySelectorAll('[data-tour]').forEach((el) => el.addEventListener('click', () => tourAct(el.dataset.tour, el)));
-  $('#tour').querySelectorAll('[data-tour-link]').forEach((el) =>
-    el.addEventListener('click', () => call('open_link', { url: el.dataset.tourLink })));
+  $('#tour').querySelectorAll('[data-tour]').forEach((el) => el.addEventListener('click', () => tourAct(el.dataset.tour)));
   tourButtons();
 }
 
@@ -5051,14 +5031,12 @@ function tourButtons() {
   });
   const bar = card.querySelector('.tour-wait');
   if (bar) bar.hidden = !locked;
-  const typing = document.activeElement && document.activeElement.id === 'tour-sgdb';
-  if (typing) return;
   const main = card.querySelector('[data-tour=next], [data-tour=close].primary');
   if (!locked && main) main.focus();
   else if (locked) card.focus();
 }
 
-// Called when a step comes on screen (not when the covers step redraws after "Salvar e testar").
+// Called when a step comes on screen.
 function tourLock() {
   clearInterval(tourTimer);
   tourWait = tourRead.has(tourStep) ? 0 : TOUR_WAIT;
@@ -5075,7 +5053,7 @@ function tourLock() {
   }, 1000);
 }
 
-async function tourAct(what, el) {
+function tourAct(what) {
   if ((what === 'next' || what === 'close') && tourWait > 0) return;
   if (what === 'next') {
     tourStep += 1;
@@ -5085,29 +5063,12 @@ async function tourAct(what, el) {
     tourLock();
   } else if (what === 'close') {
     return closeTour();
-  } else if (what === 'sgdb') {
-    const key = $('#tour-sgdb').value.trim();
-    if (!key) {
-      tourResult = [{ ok: false, message: 'Cole a chave no campo primeiro.' }];
-    } else {
-      el.disabled = true;
-      try {
-        tourResult = await invoke('set_api_keys', { steamgriddb: key, igdbClientId: '', igdbClientSecret: '', clear: false });
-        settings = await invoke('get_settings');
-        for (const id of Object.keys(metaCache)) if (!metaCache[id].cached) delete metaCache[id];
-        coverTried.clear();
-        coversInBackground();
-      } catch (e) {
-        tourResult = [{ ok: false, message: String(e) }];
-      }
-    }
   }
   renderTour();
 }
 
 function openTour() {
   tourStep = 0;
-  tourResult = null;
   tourRead.clear();
   $('#tour').hidden = false;
   tourLock();
@@ -5124,6 +5085,178 @@ function closeTour() {
   clearInterval(tourTimer);
   $('#tour').hidden = true;
   try { localStorage.setItem(TOUR_SEEN, '1'); } catch { /* shown again next time */ }
+  // Finished or skipped, the keys come next while one is missing.
+  if (setupMissing()) openSetup();
+}
+
+// ---- Capas e conquistas: the free keys, a step of its own after the tutorial ----
+// It opens when the tutorial ends (even by Pular) while a key is missing, again from
+// Mais > Capas e conquistas, and the library keeps a notice until both are in.
+
+const SETUP_SNOOZE = 'blackflag-chaves-depois';   // when "Agora não" was clicked on the notice
+const SETUP_WAIT = 2;
+let setupResult = { sgdb: null, ra: null };
+let setupWait = 0;
+let setupTimer = null;
+
+const raLinked = () => !!(profiles && profiles.active && profiles.active.ra_user && profiles.active.has_ra_key);
+const setupMissing = () => !settings.has_steamgriddb || !raLinked();
+
+function setupResultHtml(r) {
+  return r ? `<ul>${r.map((x) => `<li class="${x.ok ? 'ok-text' : 'bad-text'}">${esc(x.message)}</li>`).join('')}</ul>` : '';
+}
+
+function renderSetup() {
+  const sgdb = settings.has_steamgriddb;
+  const ra = raLinked();
+  const p = profiles && profiles.active;
+  $('#setup').innerHTML = `
+    <div class="tour-card tour-feature setup-card" role="dialog" aria-modal="true" aria-labelledby="setup-title" tabindex="-1">
+      <p class="tour-count">Passo extra · recomendado</p>
+      <h2 id="setup-title">Capas e conquistas</h2>
+      <p class="tour-lead">Duas chaves grátis deixam o Black Flag completo. Leva uns minutos e é feito uma vez só.</p>
+      <section class="setup-part${sgdb ? ' done' : ''}">
+        <h3>🎨 Capas de todos os jogos <span class="chip family">SteamGridDB</span>${sgdb ? '<span class="ok-text">✓ Pronta</span>' : ''}</h3>
+        <p>Sem capa, cada jogo aparece só com o nome. Com a chave, o Black Flag busca capas e banners para a biblioteca inteira,
+          na hora.</p>
+        ${tourCoverSample()}
+        <ol class="tour-big">
+          <li><button class="link" data-setup-link="${esc(settings.sgdb_key_page || 'https://www.steamgriddb.com/profile/preferences/api')}">Abra a página de API da SteamGridDB</button>.</li>
+          <li>Entre com a sua conta Steam (botão Login no alto da página).</li>
+          <li>Clique em <b>Generate API Key</b>, copie a chave e cole aqui:</li>
+        </ol>
+        <div class="tour-key">
+          <input type="password" id="setup-sgdb" autocomplete="off" placeholder="${sgdb ? 'Chave já guardada (cole outra para trocar)' : 'Chave de API da SteamGridDB'}">
+          <button class="primary" data-setup="sgdb">Salvar e testar</button>
+        </div>
+        ${setupResultHtml(setupResult.sgdb)}
+      </section>
+      <section class="setup-part${ra ? ' done' : ''}">
+        <h3>🏆 Conquistas do RetroAchievements${ra ? '<span class="ok-text">✓ Conectado</span>' : ''}</h3>
+        <p>Mostra as suas conquistas nos ports de N64 e nos jogos de PS2 do PCSX2, com a lista na página de cada jogo.</p>
+        <ol class="tour-big">
+          <li><button class="link" data-setup-link="https://retroachievements.org/settings">Abra as configurações do RetroAchievements</button>
+            (crie uma conta grátis se ainda não tiver).</li>
+          <li>Em <b>Keys</b>, copie a <b>Web API Key</b>.</li>
+          <li>Ponha o seu usuário e a chave aqui:</li>
+        </ol>
+        <div class="tour-key">
+          <input type="text" id="setup-ra-user" maxlength="40" autocomplete="off" placeholder="Usuário" value="${esc((p && p.ra_user) || '')}">
+          <input type="password" id="setup-ra-key" maxlength="64" autocomplete="off" placeholder="${p && p.has_ra_key ? 'Chave guardada (vazio mantém)' : 'Web API Key'}">
+          <button class="primary" data-setup="ra">Salvar e testar</button>
+        </div>
+        ${setupResultHtml(setupResult.ra)}
+        <p class="muted">Fica no perfil ${esc((p && p.name) || '')}. As conquistas da Steam não precisam de chave.</p>
+      </section>
+      <p class="muted">As chaves ficam só neste PC. Dá para trocar depois em Configurações e em Gerenciar perfis.</p>
+      <div class="tour-nav">
+        <div class="tour-wait" ${setupWait > 0 ? '' : 'hidden'}><span style="animation-duration:${SETUP_WAIT}s"></span></div>
+        <div class="row">
+          <span class="grow"></span>
+          ${sgdb && ra ? '' : '<button class="ghost" data-setup="later" data-wait>Fazer depois</button>'}
+          <button class="${sgdb && ra ? 'primary' : ''}" data-setup="done" data-wait>${sgdb && ra ? 'Pronto' : 'Concluir'}</button>
+        </div>
+      </div>
+    </div>`;
+  $('#setup').querySelectorAll('[data-setup]').forEach((el) => el.addEventListener('click', () => setupAct(el.dataset.setup, el)));
+  $('#setup').querySelectorAll('[data-setup-link]').forEach((el) =>
+    el.addEventListener('click', () => call('open_link', { url: el.dataset.setupLink })));
+  setupButtons();
+}
+
+function setupButtons() {
+  $('#setup').querySelectorAll('[data-wait]').forEach((b) => (b.disabled = setupWait > 0));
+  const bar = $('#setup .tour-wait');
+  if (bar) bar.hidden = setupWait <= 0;
+}
+
+function openSetup() {
+  setupResult = { sgdb: null, ra: null };
+  $('#setup').hidden = false;
+  clearInterval(setupTimer);
+  setupWait = SETUP_WAIT;
+  setupTimer = setInterval(() => {
+    setupWait -= 1;
+    if (setupWait <= 0) clearInterval(setupTimer);
+    setupButtons();
+  }, 1000);
+  renderSetup();
+  const card = $('#setup .tour-card');
+  if (card) card.focus();
+}
+
+function closeSetup() {
+  if (setupWait > 0) return;
+  $('#setup').hidden = true;
+  render();
+}
+
+// A new SteamGridDB key: every game without a cover is looked up again, at once.
+function refreshAllCovers() {
+  for (const id of Object.keys(metaCache)) if (!metaCache[id].cached) delete metaCache[id];
+  coverTried.clear();
+  coversInBackground();
+}
+
+async function setupAct(what, el) {
+  if (what === 'later' || what === 'done') return closeSetup();
+  el.disabled = true;
+  if (what === 'sgdb') {
+    const key = $('#setup-sgdb').value.trim();
+    if (!key) {
+      setupResult.sgdb = [{ ok: false, message: 'Cole a chave no campo primeiro.' }];
+    } else {
+      try {
+        setupResult.sgdb = await invoke('set_api_keys', { steamgriddb: key, igdbClientId: '', igdbClientSecret: '', clear: false });
+        settings = await invoke('get_settings');
+        if (settings.has_steamgriddb) {
+          refreshAllCovers();
+          toast('Chave guardada. Buscando as capas de todos os jogos…');
+        }
+      } catch (e) {
+        setupResult.sgdb = [{ ok: false, message: String(e) }];
+      }
+    }
+  } else if (what === 'ra') {
+    try {
+      const message = await invoke('set_ra_account', { user: $('#setup-ra-user').value, key: $('#setup-ra-key').value, clear: false });
+      setupResult.ra = [{ ok: true, message }];
+    } catch (e) {
+      setupResult.ra = [{ ok: false, message: String(e) }];
+    }
+    await loadProfiles();
+    for (const id of Object.keys(raCache)) delete raCache[id];
+  }
+  renderSetup();
+}
+
+// The notice on top of the library while a key is missing.
+function setupHintHtml() {
+  if (!('has_steamgriddb' in settings) || !profiles || !setupMissing()) return '';
+  try {
+    const later = Number(localStorage.getItem(SETUP_SNOOZE) || 0);
+    if (Date.now() - later < 3 * 86_400_000) return '';
+  } catch { /* shown */ }
+  const missing = [!settings.has_steamgriddb && 'as capas (SteamGridDB)', !raLinked() && 'as conquistas (RetroAchievements)'].filter(Boolean);
+  return `
+    <span class="setup-hint-icon" aria-hidden="true">✦</span>
+    <div><b>Deixe a sua biblioteca completa</b>
+      <p class="muted">Falta pôr a chave grátis para ${missing.join(' e ')}. São uns minutos, uma vez só.</p></div>
+    <div class="row"><button class="primary small" data-hint="open">Configurar agora</button>
+      <button class="ghost small" data-hint="later">Agora não</button></div>`;
+}
+
+function renderSetupHint(show) {
+  const el = $('#setup-hint');
+  if (!el) return;
+  const html = show ? setupHintHtml() : '';
+  el.hidden = !html;
+  el.innerHTML = html;
+  el.querySelectorAll('[data-hint]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.hint === 'open') return openSetup();
+    try { localStorage.setItem(SETUP_SNOOZE, String(Date.now())); } catch { /* shown again */ }
+    renderSetupHint(false);
+  }));
 }
 
 function tourSeen() {
@@ -5132,7 +5265,9 @@ function tourSeen() {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('#tour').hidden) closeTour();
+  else if (e.key === 'Escape' && !$('#setup').hidden) closeSetup();
 });
+$('#btn-setup').addEventListener('click', openSetup);
 
 $('#btn-profile').addEventListener('click', () => (profiles ? whoOpen() : openProfiles()));
 $('#btn-settings').addEventListener('click', async () => {

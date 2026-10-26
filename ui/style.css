@@ -876,3 +876,21 @@ button.primary.danger-fill:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--ru
   .nav-ico { display: none; }
   .clock { display: none; }
 }
+
+/* Capas e conquistas: the keys, after the tutorial, and the notice on the library */
+.setup-part { margin: 14px 0; padding: 14px 18px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.setup-part.done { border-color: var(--ok); }
+.setup-part h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 18px; }
+.setup-part h3 .chip { margin: 0; }
+.setup-part h3 .ok-text { margin-left: auto; font: 600 13px var(--mono); }
+.setup-part p { margin: 6px 0; }
+.setup-card .tour-key input[type=text] { flex: 0 1 160px; min-width: 0; }
+.setup-hint {
+  display: flex; align-items: center; gap: 14px 18px; flex-wrap: wrap; max-width: 980px; margin: 0 auto 20px; padding: 14px 18px;
+  background: rgba(217, 180, 90, .08); border: 1px solid var(--rule); border-left: 5px solid var(--red); border-radius: var(--radius);
+}
+.setup-hint > div:nth-child(2) { flex: 1 1 320px; }
+.setup-hint b { font: 800 16px var(--wide); font-stretch: 112%; }
+.setup-hint p { margin: 2px 0 0; }
+.setup-hint .row { margin: 0; }
+.setup-hint-icon { font-size: 22px; color: var(--red); }

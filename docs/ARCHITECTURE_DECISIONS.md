@@ -519,3 +519,12 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     Steam, o arquivo de progresso é olhado a cada 2 segundos e o que aparecer de novo vira o aviso
     por cima do jogo. Limite conhecido: o aviso depende de quando a Steam regrava esse arquivo;
     o registro dela (`logs/stats_log.txt`) mostra a gravação, mas não o nome da conquista.
+
+79. **As chaves num passo à parte, depois do tutorial.** Pedido do Gustavo em 26/10/2026: quem
+    pulava o tutorial nunca via o passo das capas. Agora o tutorial só explica o programa e, ao
+    terminar ou ser pulado, abre "Capas e conquistas" enquanto faltar a chave da SteamGridDB ou a
+    conta do RetroAchievements (cada uma com Salvar e testar e com o passo a passo para conseguir
+    a chave). "Fazer depois" fecha; a biblioteca continua com um aviso até as duas estarem
+    postas, e o "Agora não" do aviso o esconde por 3 dias (no `localStorage`, por ser só uma
+    preferência deste PC). Ao salvar a chave da SteamGridDB, todos os jogos sem capa são
+    buscados de novo na hora.
