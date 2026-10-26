@@ -5887,6 +5887,8 @@ function notesText(body) {
     .replace(/^\s*[-*]\s+/gm, '• ')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
+    .replace(/^&gt;\s?/gm, '')
+    .replace(/\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/g, '')
     .replace(/\n{3,}/g, '\n\n');
 }
 

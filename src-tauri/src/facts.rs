@@ -98,8 +98,10 @@ pub fn from_releases(list: &[ReleaseJson]) -> Facts {
                 .min_by_key(|(rank, _)| *rank)
                 .map(|(_, size)| size)
         }),
+        // Test builds crowd the list in some projects: the stable versions' notes, when there are any.
         notes: shown
             .iter()
+            .filter(|r| !r.prerelease || shown.iter().all(|s| s.prerelease))
             .take(NOTES)
             .map(|r| Note {
                 tag: r.tag_name.clone(),
@@ -200,8 +202,11 @@ mod tests {
         assert_eq!(f.latest_tag.as_deref(), Some("v2.7"));
         assert_eq!(f.latest_size, Some(76));
         assert_eq!(f.first_release, github::parse_time("2026-10-10T10:00:00Z"));
-        assert_eq!(f.notes[0].tag, "v3.0-beta");
-        assert_eq!(f.notes[1].body, "Mudanças da v2.7");
+        assert_eq!(f.notes.len(), 2);
+        assert_eq!(f.notes[0].tag, "v2.7");
+        assert_eq!(f.notes[0].body, "Mudanças da v2.7");
+        // Only test builds: their notes are what there is.
+        assert_eq!(from_releases(&list[..1]).notes[0].tag, "v3.0-beta");
         assert_eq!(from_releases(&[]).latest_tag, None);
     }
 }

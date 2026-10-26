@@ -599,3 +599,15 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     versões (Markdown mostrado como texto: o HTML do projeto nunca entra na página). São duas
     consultas ao GitHub por projeto, guardadas por 6 horas; sem resposta, fica a última ficha. Do
     site deles não veio a aparência (azul e vidro) nem as capas oficiais; ficam o preto e dourado.
+
+85. **Catálogo de ports no site, uma página por port.** Pedido do Gustavo em 26/10/2026, a segunda
+    parte do estudo do recomplauncher.com. As páginas são HTML pronto, geradas na publicação por
+    `tools/site-ports.mjs` a partir do mesmo `catalog.json` do programa, e não montadas no navegador:
+    assim o Google lê cada port e o visitante não esbarra no limite de consultas do GitHub. A
+    publicação roda também todo dia, para os números não envelhecerem. Cada página tem o que o
+    port pede (Você fornece), como jogar em três passos, o "Bom saber" do catálogo, o que mudou nas
+    últimas versões estáveis (as de teste ficam de fora quando há estáveis, no site e no programa) e
+    a ficha ao lado, a mesma do programa, com Baixar o Black Flag no topo. Entram só os ports
+    verificados; os 400 da Comunidade continuam só dentro do programa, com o aviso deles, porque uma
+    página no nosso site pareceria uma recomendação. Sem arte de jogos (regra do site): um quadro
+    com o console e o nome do jogo no lugar da capa.

@@ -178,7 +178,7 @@ async function ports() {
       <tbody>${c.ports.map((p) => `
         <tr>
           <td>${esc(p.title)} <span class="sys">${esc(p.family)}</span></td>
-          <td><a href="${esc(p.project_url)}">${esc(p.port_name)}</a><span class="by">${esc(p.port_authors)}</span></td>
+          <td><a href="port-${esc(p.id)}.html">${esc(p.port_name)}</a><span class="by">${esc(p.port_authors)}</span></td>
           <td class="needs">${esc(p.needs)}</td>
         </tr>`).join('')}</tbody></table>`;
   } catch {

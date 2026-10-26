@@ -1,11 +1,14 @@
-# Publishes site/ on GitHub Pages whenever the site or the catalog changes.
+# Publishes site/ on GitHub Pages whenever the site or the catalog changes, and once a day so the
+# numbers on the port pages (stars, downloads, versions) stay current.
 name: Site
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 9 * * *'
   push:
     branches: [main]
-    paths: ['site/**', 'src-tauri/catalog.json', '.github/workflows/site.yml']
+    paths: ['site/**', 'src-tauri/catalog.json', 'tools/site-ports.mjs', '.github/workflows/site.yml']
 
 permissions:
   contents: read
@@ -27,6 +30,14 @@ jobs:
       # The port list on the site comes from the same catalog the program uses.
       - name: Copy the catalog
         run: cp src-tauri/catalog.json site/catalog.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A page for each port, with its facts sheet read from the project's GitHub.
+      - name: Build the port pages
+        run: node tools/site-ports.mjs site
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

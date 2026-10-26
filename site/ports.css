@@ -1,0 +1,86 @@
+/* The port pages (made by tools/site-ports.mjs): the same world as the rest of the site, with
+   the program's facts sheet beside each port. */
+
+.crumbs { display: flex; align-items: center; height: 100%; }
+.crumbs a {
+  display: flex; align-items: center; height: 100%; padding: 0 16px; color: var(--muted); text-decoration: none;
+  font: 750 15px var(--wide); font-stretch: 112%; white-space: nowrap; transition: color .2s var(--ease);
+}
+.crumbs a:hover { color: var(--text); }
+.crumbs a[aria-current="page"] { color: var(--gold); box-shadow: inset 0 -3px 0 var(--gold); }
+
+.ports-index, .port-page { width: var(--page); margin: 56px auto 0; }
+.ports-index > .lead { margin-bottom: 40px; }
+.back { display: inline-block; margin-bottom: 26px; color: var(--muted); text-decoration: none; font-weight: 600; }
+.back:hover { color: var(--text); }
+
+/* A lettered tile in place of game art: the console small, the game's name large */
+.tile {
+  position: relative; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  background: radial-gradient(120% 90% at 100% 0%, rgba(217, 180, 90, .16), transparent 60%), linear-gradient(160deg, var(--raised), var(--panel));
+}
+.tile::after { content: ""; position: absolute; inset: auto 16px 14px auto; width: 26px; height: 3px; background: var(--gold); border-radius: 2px; }
+.tile-sys { color: var(--gold); font: 700 12.5px var(--wide); letter-spacing: .02em; }
+.tile-name { font: 900 22px/1.04 var(--wide); font-stretch: 112%; color: var(--text); overflow-wrap: break-word; hyphens: auto; padding-right: 22px; }
+.tile.long .tile-name { font-size: 17px; font-stretch: 104%; }
+.tile.big { width: 220px; }
+.tile.big .tile-name { font-size: 26px; }
+.tile.big.long .tile-name { font-size: 21px; }
+
+.port-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 28px 22px; }
+.port-card { display: grid; gap: 4px; color: var(--text); text-decoration: none; }
+.port-card .tile { margin-bottom: 8px; transition: border-color .2s var(--ease), box-shadow .25s var(--ease), transform .25s var(--ease); }
+.port-card:hover .tile, .port-card:focus-visible .tile { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 14px 34px -12px rgba(217, 180, 90, .45); transform: translateY(-3px); }
+.port-card:focus-visible { outline: none; }
+.pc-name { font: 800 17px var(--wide); font-stretch: 112%; }
+.pc-game { color: #d9d4c8; font-size: 14.5px; }
+.pc-meta { color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+.port-head { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; align-items: end; }
+.port-head h1 { margin-top: 6px; }
+.port-head .lead { margin-top: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.chips span { padding: 3px 10px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.chips .ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+
+.port-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 48px; align-items: start; margin-top: 48px; }
+.block { padding: 26px 0; border-top: 1px solid var(--hair); }
+.block:first-child { padding-top: 0; border-top: 0; }
+.block h2 { font-size: 22px; margin-bottom: 12px; }
+.block p { margin: 8px 0; }
+.needs p:first-of-type { font-size: 17px; }
+.steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+.steps li::marker { color: var(--gold); font-weight: 800; }
+.guide { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: #d9d4c8; }
+.block details { border-top: 1px solid var(--hair); padding: 10px 0; }
+.block details:first-of-type { border-top: 0; }
+.block summary { display: flex; gap: 14px; align-items: baseline; cursor: pointer; }
+.note-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 4px; color: #d9d4c8; font-size: 15px; line-height: 1.55; }
+
+.sheet { position: sticky; top: 92px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.sheet .button { width: 100%; justify-content: center; }
+.sheet-how { font-size: 13.5px; margin: 10px 0 14px; }
+.sheet dl { margin: 0; }
+.sheet dl div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--hair); font-size: 14.5px; }
+.sheet dt { color: var(--muted); }
+.sheet dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.sheet-links { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair); font-size: 14.5px; }
+
+.community-note { margin-top: 70px; }
+.community-note p { max-width: 44em; margin-bottom: 20px; }
+
+@media (max-width: 980px) {
+  .crumbs a { padding: 0 9px; font-size: 14px; }
+  .port-body { grid-template-columns: 1fr; }
+  .sheet { position: static; }
+}
+@media (max-width: 640px) {
+  .bar { grid-template-columns: auto 1fr; }
+  .bar .bar-link { display: none; }
+  .crumbs { justify-self: end; overflow-x: auto; }
+  .crumbs a:not([href="ports.html"]) { display: none; }
+  .port-head { grid-template-columns: 1fr; gap: 20px; }
+  .tile.big { width: 160px; }
+  .ports-index, .port-page { margin-top: 32px; }
+}
