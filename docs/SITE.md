@@ -15,8 +15,13 @@ o mesmo visual preto e dourado do programa. Os prints e vídeos e como gravar os
 - **Páginas dos ports:** `tools/site-ports.mjs` gera `ports.html` e uma `port-<id>.html` para cada port do
   catálogo, com a ficha lida do GitHub do projeto (versão, tamanho, downloads, estrelas, problemas abertos,
   licença) e o que mudou nas últimas versões estáveis. Roda a cada publicação e todo dia às 6h17 (horário de
-  Brasília), então os números se atualizam sozinhos. Sem arte de jogos: cada port tem um quadro com o nome.
-  Para ver antes, rode `node tools/site-ports.mjs <cópia do site>` numa cópia com o `catalog.json`.
+  Brasília), então os números se atualizam sozinhos. Para ver antes, rode
+  `node tools/site-ports.mjs <cópia do site>` numa cópia com o `catalog.json`.
+- **Capas e banners dos ports:** vêm da SteamGridDB quando o repositório tem o segredo `SGDB_KEY` (GitHub >
+  Settings > Secrets and variables > Actions > New repository secret, nome `SGDB_KEY`, valor = a chave de
+  API da SteamGridDB). São baixados na publicação, ficam em `img/ports/` (fora do git) e cada página dá o
+  crédito a quem enviou. Sem o segredo, cada port mostra um quadro com o console e o nome. Para tirar uma
+  imagem a pedido do dono: ponha o id do port em `SKIP_ART` no script e publique de novo.
 - **Novidades:** as 5 últimas versões, com as linhas "- …" das notas de cada Release.
 
 ## Para lançar uma versão

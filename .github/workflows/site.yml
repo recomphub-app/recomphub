@@ -33,11 +33,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # A page for each port, with its facts sheet read from the project's GitHub.
+      # A page for each port, with its facts sheet read from the project's GitHub and, when the
+      # SGDB_KEY secret is set, its cover and banner from SteamGridDB.
       - name: Build the port pages
         run: node tools/site-ports.mjs site
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SGDB_KEY: ${{ secrets.SGDB_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

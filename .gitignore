@@ -5,3 +5,4 @@ src-tauri/icons/
 site/catalog.json
 site/ports.html
 site/port-*.html
+site/img/ports/

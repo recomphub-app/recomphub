@@ -56,7 +56,7 @@
 .block details { border-top: 1px solid var(--hair); padding: 10px 0; }
 .block details:first-of-type { border-top: 0; }
 .block summary { display: flex; gap: 14px; align-items: baseline; cursor: pointer; }
-.note-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 4px; color: #d9d4c8; font-size: 15px; line-height: 1.55; }
+.note-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 4px; color: #d9d4c8; font-size: 15px; line-height: 1.55; max-height: 460px; overflow: auto; }
 
 .sheet { position: sticky; top: 92px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 .sheet .button { width: 100%; justify-content: center; }
@@ -83,4 +83,20 @@
   .port-head { grid-template-columns: 1fr; gap: 20px; }
   .tile.big { width: 160px; }
   .ports-index, .port-page { margin-top: 32px; }
+}
+
+/* SteamGridDB art: the cover in place of the lettered tile, the banner behind the port's top */
+.tile.art { padding: 0; background: var(--panel); }
+.tile.art::after { display: none; }
+.tile.art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.port-banner { position: absolute; top: 68px; left: 0; right: 0; height: 420px; z-index: -1; overflow: hidden; }
+.port-banner img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; opacity: .55; }
+.port-banner::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 8, 10, .2) 0%, rgba(8, 8, 10, .75) 60%, var(--bg) 100%); }
+.port-page.over-banner { padding-top: 120px; }
+.port-page.over-banner .port-head .tile { box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .8); }
+.art-credit { margin: 12px 0 0; font-size: 12.5px; }
+.art-credit a { color: var(--muted); }
+@media (max-width: 640px) {
+  .port-banner { height: 260px; }
+  .port-page.over-banner { padding-top: 70px; }
 }

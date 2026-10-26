@@ -611,3 +611,15 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     verificados; os 400 da Comunidade continuam só dentro do programa, com o aviso deles, porque uma
     página no nosso site pareceria uma recomendação. Sem arte de jogos (regra do site): um quadro
     com o console e o nome do jogo no lugar da capa.
+
+86. **Capas e banners da SteamGridDB nas páginas de ports do site.** Pedido do Gustavo em 26/10/2026,
+    para o site ficar como o recomplauncher.com, que faz o mesmo. Muda a regra de não ter arte de
+    jogos no site, só para estas páginas, e por escolha dele, sabendo do risco: muitas imagens da
+    SteamGridDB são a arte oficial dos jogos, e um pedido de remoção da Nintendo ou da Sony ao GitHub
+    pode tirar o site do ar até ser resolvido. Para reduzir: as imagens vêm da comunidade da
+    SteamGridDB (capa quadrada, artes de fãs antes de capas escaneadas), cada página credita quem
+    enviou, o rodapé diz que qualquer imagem sai a pedido do dono (abrindo um pedido no GitHub), e
+    `SKIP_ART` no script tira as de um port sem mexer no resto. A busca usa uma chave da SteamGridDB
+    guardada como segredo do repositório (`SGDB_KEY`), posta pelo próprio Gustavo; sem ela, ficam os
+    quadros com o nome. As imagens são as versões menores da SteamGridDB (as originais chegam a 4 MB),
+    baixadas na publicação, e não entram no git.

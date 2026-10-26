@@ -5,10 +5,12 @@
 //
 //   node tools/site-ports.mjs site            (GITHUB_TOKEN raises GitHub's request limit)
 //
-// Pages are plain HTML, readable without JavaScript and by search engines. No game art: the
-// site shows no Nintendo, Sony or Microsoft pictures, so each port gets a lettered tile.
+// Pages are plain HTML, readable without JavaScript and by search engines. With SGDB_KEY (a
+// SteamGridDB key, a secret of the repository), each port gets a cover and a banner from
+// SteamGridDB, kept in img/ports/ and credited to whoever sent them (decision 86); without it,
+// or for a port with nothing there, a lettered tile stands in.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const out = process.argv[2] || 'site';
@@ -29,6 +31,59 @@ async function api(path) {
   const r = await fetch(`https://api.github.com/${path}`, { headers });
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
   return r.json();
+}
+
+// ---- Art from SteamGridDB (sent by its community; the author is credited on the page) ----
+
+const SGDB = 'https://www.steamgriddb.com/api/v2';
+// Ports whose pictures came out at their owner's request: the lettered tile stays.
+const SKIP_ART = [];
+const FILTERS = 'types=static&nsfw=false&humor=false&epilepsy=false';
+const MAX_IMAGE = 8 * 1024 * 1024;
+
+async function sgdb(path) {
+  const r = await fetch(`${SGDB}${path}`, { headers: { Authorization: `Bearer ${process.env.SGDB_KEY}` } });
+  if (!r.ok) throw new Error(`SteamGridDB ${r.status}`);
+  return (await r.json()).data;
+}
+
+const plain = (s) => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+
+// The first image of the list from SteamGridDB's own image server, downloaded to img/ports/.
+// Its smaller copy ("thumb"): the full ones reach 4 MB, too heavy for a page.
+async function keep(list, file) {
+  for (const it of list || []) {
+    let url;
+    try { url = new URL(it.thumb || it.url); } catch { continue; }
+    if (url.protocol !== 'https:' || !/(^|\.)steamgriddb\.com$/.test(url.hostname)) continue;
+    const ext = (url.pathname.match(/\.(png|jpe?g|webp)$/i) || [])[1];
+    if (!ext) continue;
+    const r = await fetch(url);
+    const bytes = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+    if (!bytes || bytes.length > MAX_IMAGE) continue;
+    const name = `${file}.${ext.toLowerCase()}`;
+    writeFileSync(join(out, 'img', 'ports', name), bytes);
+    return { src: `img/ports/${name}`, author: (it.author && it.author.name) || '' };
+  }
+  return null;
+}
+
+// Cover (square when there is one, art made by fans before scans of the box) and banner.
+async function art(port) {
+  if (!process.env.SGDB_KEY || SKIP_ART.includes(port.id)) return null;
+  try {
+    const found = await sgdb(`/search/autocomplete/${encodeURIComponent(port.title)}`);
+    const want = plain(port.title);
+    const game = (found || []).find((g) => plain(g.name) === want) || (found || [])[0];
+    if (!game) return null;
+    const square = await sgdb(`/grids/game/${game.id}?dimensions=1024x1024,512x512&styles=alternate,material,no_logo,white_logo&${FILTERS}`);
+    const tall = square && square.length ? [] : await sgdb(`/grids/game/${game.id}?dimensions=600x900,660x930&${FILTERS}`);
+    const heroes = await sgdb(`/heroes/game/${game.id}?${FILTERS}`);
+    return { cover: await keep([...(square || []), ...(tall || [])], `${port.id}-capa`), banner: await keep(heroes, `${port.id}-banner`) };
+  } catch (e) {
+    console.warn(`sem arte para ${port.title}: ${e.message}`);
+    return null;
+  }
 }
 
 // The sheet, as in the program (facts.rs); the Windows file is the catalog's own asset name.
@@ -70,9 +125,19 @@ function notesText(body) {
     .replace(/\n{3,}/g, '\n\n');
 }
 
-const tile = (p, big) => `<div class="tile${big ? ' big' : ''}${p.title.length > 22 ? ' long' : ''}" aria-hidden="true"><span class="tile-sys">${esc(p.family)}</span><span class="tile-name">${esc(p.title)}</span></div>`;
+const tile = (p, big, a) => (a && a.cover
+  ? `<div class="tile art${big ? ' big' : ''}"><img src="${a.cover.src}" alt="" loading="lazy" decoding="async"></div>`
+  : `<div class="tile${big ? ' big' : ''}${p.title.length > 22 ? ' long' : ''}" aria-hidden="true"><span class="tile-sys">${esc(p.family)}</span><span class="tile-name">${esc(p.title)}</span></div>`);
 
-function head(title, description, path) {
+// Who sent the pictures, as SteamGridDB asks.
+function artCredit(a) {
+  if (!a || !(a.cover || a.banner)) return '';
+  const by = (x, word) => (x.author ? ` ${word} por ${esc(x.author)}` : '');
+  const parts = [a.cover && `capa${by(a.cover, 'enviada')}`, a.banner && `banner${by(a.banner, 'enviado')}`].filter(Boolean);
+  return `<p class="muted art-credit">Imagens da <a href="https://www.steamgriddb.com/">SteamGridDB</a>: ${parts.join('; ')}.</p>`;
+}
+
+function head(title, description, path, image) {
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -83,12 +148,12 @@ function head(title, description, path) {
   <link rel="canonical" href="${SITE}${path}">
   <meta property="og:title" content="${esc(title)}">
   <meta property="og:description" content="${esc(description)}">
-  <meta property="og:image" content="${SITE}img/biblioteca.jpg">
+  <meta property="og:image" content="${SITE}${image || 'img/biblioteca.jpg'}">
   <meta name="theme-color" content="#08080a">
   <link rel="icon" href="img/icone.png">
   <link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css?v=4">
-  <link rel="stylesheet" href="ports.css?v=1">
+  <link rel="stylesheet" href="ports.css?v=3">
 </head>
 <body>
   <div class="glow" aria-hidden="true"></div>
@@ -106,14 +171,16 @@ const foot = (built) => `
     <p><b>Nenhum arquivo de jogo aqui.</b> O Black Flag e os projetos para onde ele aponta trazem só os ports e as
       ferramentas. Todo jogo precisa da sua própria cópia, obtida legalmente. Os ports pertencem aos seus autores; marcas e
       jogos pertencem aos seus donos. O Black Flag não tem ligação com Nintendo, Sony, Microsoft ou outras empresas.</p>
-    <p class="muted">Números lidos do GitHub de cada projeto em ${esc(built)}.</p>
+    <p class="muted">Números lidos do GitHub de cada projeto em ${esc(built)}. Capas e banners da SteamGridDB, enviados pela
+      comunidade dela, com o crédito em cada página. Se uma imagem é sua ou da sua empresa e você quer que ela saia,
+      <a href="${APP}/issues">abra um pedido no GitHub do Black Flag</a> que ela é retirada.</p>
     <p><a href="${APP}">Código no GitHub</a><a href="${APP}/issues">Relatar um problema</a><a href="${APP}/releases">Todas as versões</a></p>
   </footer>
 </body>
 </html>
 `;
 
-function sheet(p, f) {
+function sheet(p, f, a) {
   const row = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
   const rows = f ? `<dl>
       ${row('Versão', f.latest ? esc(version(f.latest.tag)) : 'nenhuma publicada')}
@@ -136,10 +203,11 @@ function sheet(p, f) {
         <a href="https://github.com/${esc(p.repo)}/releases">Todas as versões do port</a>
         <a href="https://github.com/${esc(p.repo)}/issues">Relatar um problema no port</a>
       </div>
+      ${artCredit(a)}
     </aside>`;
 }
 
-function portPage(p, f, built) {
+function portPage(p, f, a, built) {
   const desc = `${p.port_name}: ${p.title} rodando nativo no Windows. Você fornece a sua própria cópia; o Black Flag instala e confere os arquivos.`;
   const notes = f && f.notes.length ? `
       <section class="block">
@@ -155,11 +223,12 @@ function portPage(p, f, built) {
         <h2>Bom saber</h2>
         <ul class="guide">${p.guide.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>
       </section>` : '';
-  return `${head(`${p.title} no PC: ${p.port_name} | Black Flag`, desc, `port-${p.id}.html`)}
-  <main class="port-page">
+  return `${head(`${p.title} no PC: ${p.port_name} | Black Flag`, desc, `port-${p.id}.html`, a && a.banner && a.banner.src)}
+  ${a && a.banner ? `<div class="port-banner" aria-hidden="true"><img src="${a.banner.src}" alt=""></div>` : ''}
+  <main class="port-page${a && a.banner ? ' over-banner' : ''}">
     <a class="back" href="ports.html">← Todos os ports</a>
     <div class="port-head">
-      ${tile(p, true)}
+      ${tile(p, true, a)}
       <div>
         <p class="chips"><span>${esc(p.family)}</span>${(p.tags || []).filter((t) => t.toLowerCase() !== p.family.toLowerCase()).map((t) => `<span>${esc(t)}</span>`).join('')}<span class="ok">Verificado pelo Black Flag</span></p>
         <h1>${esc(p.port_name)}</h1>
@@ -186,7 +255,7 @@ function portPage(p, f, built) {
         ${guide}
         ${notes}
       </div>
-      ${sheet(p, f)}
+      ${sheet(p, f, a)}
     </div>
   </main>${foot(built)}`;
 }
@@ -197,9 +266,9 @@ function indexPage(list, built) {
     <h1>Ports verificados</h1>
     <p class="lead">Jogos de console reconstruídos para rodar nativos no Windows. Cada um foi conferido pelo Black Flag:
       ele baixa da página oficial do projeto, confere os arquivos da sua cópia e explica o que falta.</p>
-    <ul class="port-grid">${list.map(({ p, f }) => `
+    <ul class="port-grid">${list.map(({ p, f, a }) => `
       <li><a class="port-card" href="port-${esc(p.id)}.html">
-        ${tile(p)}
+        ${tile(p, false, a)}
         <span class="pc-name">${esc(p.port_name)}</span>
         <span class="pc-game">${esc(p.title)}</span>
         <span class="pc-meta">${f ? [f.stars ? `★ ${numberPt(f.stars)}` : '', f.releases ? `${numberPt(f.downloads)} downloads` : '', f.latest ? esc(version(f.latest.tag)) : ''].filter(Boolean).join(' · ') : ''}</span>
@@ -216,8 +285,9 @@ function indexPage(list, built) {
 
 const built = new Date().toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 const list = [];
-for (const p of catalog.ports) list.push({ p, f: await facts(p) });
+mkdirSync(join(out, 'img', 'ports'), { recursive: true });
+for (const p of catalog.ports) list.push({ p, f: await facts(p), a: await art(p) });
 list.sort((a, b) => ((b.f && b.f.stars) || 0) - ((a.f && a.f.stars) || 0));
-for (const { p, f } of list) writeFileSync(join(out, `port-${p.id}.html`), portPage(p, f, built));
+for (const { p, f, a } of list) writeFileSync(join(out, `port-${p.id}.html`), portPage(p, f, a, built));
 writeFileSync(join(out, 'ports.html'), indexPage(list, built));
-console.log(`${list.length} páginas de port, ${list.filter((x) => x.f).length} com ficha`);
+console.log(`${list.length} páginas de port, ${list.filter((x) => x.f).length} com ficha, ${list.filter((x) => x.a && x.a.cover).length} com capa`);
