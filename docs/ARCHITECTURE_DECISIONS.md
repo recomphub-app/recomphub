@@ -500,7 +500,7 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     instalou (decisão 73); no do jogador, o cartão explica onde ligar.
 
 77. **Conquistas de Majora's Mask e Harvest Moon 64 lidas do save.** Pedido do Gustavo em
-    26/10/2026. Mesmo caminho do Banjo (decisão 47): só leitura, layout tirado das
+    26/10/2026. Mesmo caminho do Banjo (decisão 33): só leitura, layout tirado das
     decompilações públicas e conferido em teste. Majora's Mask: a flash de 128 KB (zeldaret/mm,
     `z64save.h` e `z_sram_NES.c`), 2 arquivos com cópia e save da coruja, valendo o melhor de
     todos; o ciclo de 3 dias apaga rúpias e munição, então só entram coisas que ficam (restos dos
