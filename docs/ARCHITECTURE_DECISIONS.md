@@ -508,3 +508,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     (harvestwhisperer/hm64-decomp, `sramBuffer.h`), um diário a cada 0x1000 bytes com a
     assinatura "PACKINSOFT FARM2". Donkey Kong 64 ficou de fora: o save é um fluxo de bits com
     tabelas ainda sem nome na decompilação; ler errado daria conquistas falsas.
+
+78. **Conquistas da Steam lidas dos arquivos do cliente.** Pedido do Gustavo em 26/10/2026. A
+    Steam guarda em `appcache/stats` o esquema de cada jogo (`UserGameStatsSchema_<app>.bin`:
+    nome e descrição em cada idioma, ícone) e o progresso da conta
+    (`UserGameStats_<conta>_<app>.bin`: um bit por conquista e a data de cada uma), os dois em
+    KeyValues binário, o formato do `shortcuts.vdf` que o Black Flag já lia. Nada de chave da Web
+    API nem login: o Black Flag só lê esses arquivos (a conta é a última que usou a Steam no PC)
+    e baixa o ícone uma vez do servidor de imagens da Steam. Durante uma sessão de um jogo da
+    Steam, o arquivo de progresso é olhado a cada 2 segundos e o que aparecer de novo vira o aviso
+    por cima do jogo. Limite conhecido: o aviso depende de quando a Steam regrava esse arquivo;
+    o registro dela (`logs/stats_log.txt`) mostra a gravação, mas não o nome da conquista.

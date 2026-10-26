@@ -27,6 +27,7 @@ mod roms;
 mod saves;
 mod shortcut;
 mod steam;
+mod steam_ach;
 mod stores;
 mod tray;
 
@@ -78,6 +79,8 @@ pub struct AppState {
     pub achievements_dir: PathBuf,
     /// RetroAchievements cache: game list, progress per profile, badges.
     pub ra_dir: PathBuf,
+    /// Steam achievement icons, downloaded once.
+    pub steam_icons: PathBuf,
     /// Central de Mods: Thunderstore lists, installed packages, profile choices, collections.
     pub mods_dir: PathBuf,
     /// Notices waiting for the window over the game.
@@ -3178,6 +3181,122 @@ fn ra_log_event(app: &AppHandle, id: &str, event: ra::LogLine) {
     }
 }
 
+// ---- Steam achievements (read from the Steam client's own files) ----
+
+#[derive(Serialize)]
+struct SteamBadge {
+    #[serde(flatten)]
+    a: steam_ach::Achievement,
+    picture: Option<String>,
+}
+
+#[derive(Serialize, Default)]
+struct SteamAchView {
+    /// Steam has the game's achievements on this PC.
+    found: bool,
+    total: usize,
+    unlocked: usize,
+    achievements: Vec<SteamBadge>,
+}
+
+/// The icons of a list, eight downloads at a time (each one only the first time).
+fn steam_pictures(dir: &Path, app: u32, list: &[steam_ach::Achievement]) -> Vec<Option<String>> {
+    let mut out = vec![None; list.len()];
+    for (chunk, slots) in list.chunks(8).zip(out.chunks_mut(8)) {
+        std::thread::scope(|s| {
+            let jobs: Vec<_> = chunk.iter().map(|a| s.spawn(move || steam_ach::icon(dir, app, &a.icon).and_then(|p| data_url(&p)))).collect();
+            for (slot, job) in slots.iter_mut().zip(jobs) {
+                *slot = job.join().ok().flatten();
+            }
+        });
+    }
+    out
+}
+
+/// The game page's "Conquistas da Steam": every achievement, the unlocked ones first by date.
+#[tauri::command]
+async fn get_steam_achievements(app: AppHandle, id: String) -> Result<SteamAchView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(app_id) = steam_ach::app_of(&id) else { return Ok(SteamAchView::default()) };
+        let Some(root) = steam::steam_root() else { return Ok(SteamAchView::default()) };
+        let Some(mut list) = steam_ach::list(&root, app_id) else { return Ok(SteamAchView::default()) };
+        list.sort_by_key(|a| (a.unlocked_at.is_none(), std::cmp::Reverse(a.unlocked_at.unwrap_or(0))));
+        let dir = app.state::<AppState>().steam_icons.clone();
+        let pictures = steam_pictures(&dir, app_id, &list);
+        let unlocked = list.iter().filter(|a| a.unlocked_at.is_some()).count();
+        Ok(SteamAchView {
+            found: true,
+            total: list.len(),
+            unlocked,
+            achievements: list.into_iter().zip(pictures).map(|(a, picture)| SteamBadge { a, picture }).collect(),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// While a Steam game runs, its file of unlocked achievements is looked at every 2 seconds;
+/// what is new since the session began shows in the window over the game (Steam shows its own
+/// too). The file is the Steam client's; Black Flag only reads it.
+fn spawn_steam_watch(app: AppHandle) {
+    std::thread::spawn(move || {
+        // id -> (file time, unlocked)
+        let mut seen: HashMap<String, (std::time::SystemTime, std::collections::BTreeSet<(u32, u32)>)> = HashMap::new();
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let running: Vec<String> = {
+                let state = app.state::<AppState>();
+                let s = state.sessions.lock().unwrap();
+                s.running.keys().filter(|id| id.starts_with("steam-")).cloned().collect()
+            };
+            seen.retain(|id, _| running.contains(id));
+            if running.is_empty() {
+                continue;
+            }
+            let Some(root) = steam::steam_root() else { continue };
+            for id in running {
+                let Some(app_id) = steam_ach::app_of(&id) else { continue };
+                let Some(file) = steam_ach::progress_file(&root, app_id) else { continue };
+                let Ok(when) = std::fs::metadata(&file).and_then(|m| m.modified()) else { continue };
+                if seen.get(&id).map(|(t, _)| *t == when).unwrap_or(false) {
+                    continue;
+                }
+                let now: std::collections::BTreeSet<(u32, u32)> =
+                    std::fs::read(&file).map(|b| steam_ach::parse_progress(&b).into_keys().collect()).unwrap_or_default();
+                let before = seen.insert(id.clone(), (when, now.clone()));
+                let Some((_, before)) = before else { continue };
+                let new: Vec<(u32, u32)> = now.difference(&before).copied().collect();
+                if new.is_empty() {
+                    continue;
+                }
+                let _ = app.emit("steam-ach", RaUnlockEvent { id: id.clone() });
+                let state = app.state::<AppState>();
+                let settings = state.settings.lock().unwrap().clone();
+                if !settings.achievement_overlay {
+                    continue;
+                }
+                let title = view_any(&state, &id).map(|g| g.title).unwrap_or_else(|_| id.clone());
+                let list = steam_ach::list(&root, app_id).unwrap_or_default();
+                let notices = new
+                    .iter()
+                    .filter_map(|key| list.iter().find(|a| (a.stat, a.bit) == *key))
+                    .map(|a| Notice {
+                        kind: "main",
+                        game: title.clone(),
+                        title: a.title.clone(),
+                        description: a.description.clone(),
+                        badge: "🏆".into(),
+                        points: 0,
+                        sound: settings.achievement_sound,
+                        picture: steam_ach::icon(&state.steam_icons, app_id, &a.icon).and_then(|p| data_url(&p)),
+                    })
+                    .collect();
+                show_overlay(&app, notices);
+            }
+        }
+    });
+}
+
 /// A RetroAchievements game page Black Flag itself linked to (from a cached lookup).
 fn known_ra_page(state: &AppState, url: &str) -> bool {
     let Some(id) = url.strip_prefix("https://retroachievements.org/game/") else { return false };
@@ -4828,6 +4947,7 @@ pub fn run() {
                 profiles_dir: dir.join("profiles"),
                 achievements_dir: dir.join("achievements"),
                 ra_dir: dir.join("retroachievements"),
+                steam_icons: dir.join("steam-conquistas"),
                 mods_dir: dir.join("mods"),
                 overlay_queue: Mutex::new(VecDeque::new()),
                 emu: Mutex::new(emu::State::load(&dir.join("emulators.json"))),
@@ -4845,6 +4965,7 @@ pub fn run() {
             play::spawn_watcher(app.handle().clone());
             pad::spawn(app.handle().clone());
             spawn_games_watcher(app.handle().clone());
+            spawn_steam_watch(app.handle().clone());
             // Games installed or uninstalled in the stores since last time.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -4937,6 +5058,7 @@ pub fn run() {
             emu_assign,
             emu_set_root,
             emu_ra_enable,
+            get_steam_achievements,
             emu_cover,
             list_versions,
             get_community,

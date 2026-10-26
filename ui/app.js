@@ -1463,6 +1463,63 @@ function decorateRa(g) {
   else if (pane) pane.insertAdjacentHTML('afterbegin', raBoxHtml(g));
 }
 
+// ---- Steam achievements: read from the Steam client's files on this PC ----
+
+const steamAchCache = {};   // id -> 'loading' | SteamAchView | { error }
+let steamAchShowLocked = false;
+
+async function loadSteamAch(id) {
+  steamAchCache[id] = 'loading';
+  try {
+    steamAchCache[id] = await invoke('get_steam_achievements', { id });
+  } catch (e) {
+    steamAchCache[id] = { error: String(e) };
+  }
+  if (openId === id) render();
+}
+
+function steamAchHtml(g) {
+  const r = steamAchCache[g.id];
+  const head = '<h3>Conquistas da Steam</h3>';
+  if (!r || r === 'loading') return `<div class="box">${head}<p class="muted">Lendo as conquistas que a Steam guarda neste PC…</p></div>`;
+  if (r.error) return `<div class="box">${head}<p class="muted">${esc(r.error)}</p></div>`;
+  if (!r.found) {
+    return `<div class="box">${head}<p class="muted">A Steam ainda não guardou as conquistas deste jogo neste PC. Elas aparecem
+      aqui depois da primeira vez que você abrir o jogo pela Steam (se o jogo tiver conquistas).</p></div>`;
+  }
+  const done = r.achievements.filter((a) => a.unlocked_at);
+  const rest = r.achievements.filter((a) => !a.unlocked_at);
+  const item = (a) => {
+    const secret = a.hidden && !a.unlocked_at;
+    return `<li class="ach${a.unlocked_at ? '' : ' locked'}">
+      <span class="ach-badge">${a.picture && !secret ? `<img src="${a.picture}" alt="">` : secret ? '❔' : '🏆'}</span>
+      <span class="ach-text"><b>${secret ? 'Conquista secreta' : esc(a.title)}</b>
+        <span class="muted">${secret ? 'Ela aparece quando você desbloquear.' : esc(a.description)}</span>
+        ${a.unlocked_at ? `<span class="muted small-text">Em ${sessionDate(a.unlocked_at)}</span>` : ''}</span>
+    </li>`;
+  };
+  return `
+    <details class="box ach-box steam-ach" open>
+      <summary>${head}</summary>
+      <p>${r.unlocked} de ${r.total} desbloqueadas</p>
+      <div class="progress"><div style="width:${r.total ? Math.round((r.unlocked / r.total) * 100) : 0}%"></div></div>
+      <ul class="achs">${done.map(item).join('')}${steamAchShowLocked ? rest.map(item).join('') : ''}</ul>
+      ${rest.length ? `<div class="row"><button class="ghost" data-act="steam-ach-locked">${steamAchShowLocked ? 'Esconder as que faltam' : `Ver as ${rest.length} que faltam`}</button></div>` : ''}
+      <p class="muted">Lidas dos arquivos que a própria Steam guarda neste PC; o Black Flag só mostra. Durante o jogo, cada
+        conquista nova também aparece no aviso por cima do jogo.</p>
+    </details>`;
+}
+
+function decorateSteamAch(g) {
+  if (!g.in_library || storeTab(g) !== 'steam') return;
+  if (steamAchCache[g.id] === undefined) {
+    steamAchCache[g.id] = 'loading';
+    setTimeout(() => loadSteamAch(g.id), 0);
+  }
+  const pane = document.querySelector('#detail #pane-conquistas');
+  if (pane) pane.insertAdjacentHTML('afterbegin', steamAchHtml(g));
+}
+
 function raAccountBox() {
   const p = profiles.active;
   return `
@@ -2311,6 +2368,7 @@ function renderDetail() {
   decorateBackups(g);
   decorateAchievements(g);
   decorateRa(g);
+  decorateSteamAch(g);
   document.querySelectorAll('#detail [data-act]').forEach((el) =>
     el.addEventListener('click', () => act(el.dataset.act, g, el)));
   bindEmuGameBox(g);
@@ -2535,6 +2593,10 @@ async function act(action, g, el) {
   switch (action) {
     case 'link':
       await call('open_link', { url: el.dataset.url });
+      break;
+    case 'steam-ach-locked':
+      steamAchShowLocked = !steamAchShowLocked;
+      render();
       break;
     case 'cover-choose': {
       const updated = await call('choose_cover', { id: g.id });
@@ -3367,6 +3429,10 @@ listen('session', async (e) => {
 });
 
 listen('open-game', (e) => openGame(e.payload));
+listen('steam-ach', (e) => {
+  delete steamAchCache[e.payload.id];
+  if (openId === e.payload.id) render();
+});
 listen('ra-unlock', (e) => {
   delete raCache[e.payload.id];
   if (openId === e.payload.id) render();
