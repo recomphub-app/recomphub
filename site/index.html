@@ -4,198 +4,341 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Black Flag</title>
-  <meta name="description" content="Launcher gratuito para Windows dos ports nativos de jogos de console. Instala o port da página oficial, confere os arquivos da sua cópia, conta o tempo de jogo e faz backup dos saves.">
+  <meta name="description" content="Launcher gratuito para Windows que junta os jogos da Steam, Epic e GOG, os ports nativos e os jogos de console em emuladores numa biblioteca só, do jeito de um console.">
   <meta property="og:title" content="Black Flag">
-  <meta property="og:description" content="Launcher gratuito para Windows dos ports nativos de jogos de console.">
+  <meta property="og:description" content="Os seus jogos de PC, os ports nativos e os jogos de console numa biblioteca só, do jeito de um console.">
   <meta property="og:image" content="img/biblioteca.jpg">
+  <meta name="theme-color" content="#08080a">
   <link rel="icon" href="img/icone.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112..125,700..900&display=swap">
-  <link rel="stylesheet" href="style.css">
+  <link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
-  <header class="top">
-    <a class="brand" href="#topo"><img src="img/icone.png" alt="" width="28" height="28">Black Flag</a>
-    <nav>
-      <a href="#recursos">Recursos</a>
-      <a href="#ports">Ports</a>
-      <a href="#comecar">Como começar</a>
-      <a href="#perguntas">Perguntas</a>
-      <a href="#novidades">Novidades</a>
-      <a href="#apoie" id="nav-apoie" hidden>Apoiar</a>
+  <div class="glow" aria-hidden="true"></div>
+
+  <header class="bar">
+    <a class="brand" href="#visao" data-tab-link="visao"><img class="logo" src="img/logo.svg" alt="" width="34" height="34">Black <span>Flag</span></a>
+    <nav class="tabs" aria-label="Seções do site" role="tablist">
+      <kbd class="key" aria-hidden="true">Q</kbd>
+      <a href="#visao" role="tab" data-tab="visao">Visão geral</a>
+      <a href="#recursos" role="tab" data-tab="recursos">Recursos</a>
+      <a href="#galeria" role="tab" data-tab="galeria">Galeria</a>
+      <a href="#sobre" role="tab" data-tab="sobre">Sobre e próximos passos</a>
+      <kbd class="key" aria-hidden="true">E</kbd>
+      <span class="tab-mark" aria-hidden="true"></span>
     </nav>
+    <a class="bar-link" href="https://github.com/recomphub-app/recomphub">Código</a>
   </header>
 
-  <main id="topo">
-    <section class="hero">
-      <div class="hero-text">
-        <h1>Um launcher para os ports nativos de jogos de console.</h1>
-        <p class="lead">Ele baixa cada port da página oficial do projeto, confere se os arquivos da sua cópia do jogo são a
-          versão certa e abre o jogo. O tempo de jogo e o backup dos saves ficam por conta dele.</p>
-        <div class="cta" id="baixar">
-          <a class="btn" id="download" href="https://github.com/recomphub-app/recomphub/releases/latest">Baixar para Windows</a>
-          <span class="dl-info" id="download-info">instalador .exe</span>
+  <main>
+    <!-- ================= Visão geral ================= -->
+    <section class="panel" id="visao" role="tabpanel" data-panel="visao">
+      <div class="hero">
+        <div class="hero-text">
+          <h1>A sua estante de jogos, com cara de console.</h1>
+          <p class="lead">O Black Flag reúne num lugar só os jogos da Steam, da Epic e da GOG, os ports nativos de jogos de
+            console e os jogos que rodam em emulador. Você escolhe com o mouse ou com o controle; ele abre o jogo, conta o tempo e guarda os saves.</p>
+          <ul class="facts">
+            <li>Grátis e de código aberto</li>
+            <li>Windows 10 e 11</li>
+            <li>Sem conta e sem coleta de dados</li>
+          </ul>
+          <a class="more" href="#recursos" data-tab-link="recursos">Ver o que ele faz</a>
         </div>
-        <p class="fine">Ao instalar, o Windows pode avisar que protegeu o computador, porque o instalador ainda não tem
-          assinatura digital. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.
-          <a href="#perguntas">Por que isso acontece?</a></p>
+        <figure class="hero-media frame">
+          <video src="video/foco.webm" poster="img/biblioteca.jpg" autoplay muted loop playsinline aria-label="A biblioteca do Black Flag: o fundo muda para a arte do jogo em que o cursor para"></video>
+          <figcaption class="glass">O jogo em foco pinta a tela com a própria arte.</figcaption>
+        </figure>
       </div>
-      <dl class="spec">
-        <div><dt>Preço</dt><dd>Grátis</dd></div>
-        <div><dt>Código</dt><dd>Aberto, licença MIT</dd></div>
-        <div><dt>Sistema</dt><dd>Windows 10 e 11</dd></div>
-        <div><dt>Conta</dt><dd>Não precisa</dd></div>
-        <div><dt>Jogos</dt><dd>Nenhum incluso: você usa a sua cópia</dd></div>
-        <div><dt>Ports</dt><dd>Das páginas oficiais de cada projeto</dd></div>
-      </dl>
+
+      <div class="sources">
+        <p>Entra na mesma biblioteca:</p>
+        <ul>
+          <li>Steam</li><li>Epic Games</li><li>GOG</li><li>Ports nativos</li><li>PlayStation 1, 2 e 3</li><li>GameCube e Wii</li><li>Nintendo 64</li><li>PSP</li><li>Jogos de PC</li>
+        </ul>
+      </div>
+
+      <div class="duo">
+        <figure class="frame tilt-left">
+          <video data-lazy src="video/modo-tv.webm" poster="img/modo-tv.jpg" muted loop playsinline aria-label="O Modo TV sendo navegado pelo controle"></video>
+        </figure>
+        <div class="duo-text">
+          <h2>Do sofá, com o controle</h2>
+          <p>O Modo TV abre a biblioteca em tela cheia, numa fileira de capas que anda com o direcional. LB e RB trocam entre
+            jogos, ports, emulados e conquistas. Controles de Xbox e PlayStation funcionam do jeito que vieram.</p>
+          <p>No meio de uma partida, segurar o botão do controle traz o Black Flag de volta.</p>
+        </div>
+      </div>
+
+      <div class="duo flip">
+        <figure class="frame">
+          <img src="img/antes-de-jogar.jpg" alt="Página de um jogo com o aviso Antes de jogar: falta o Visual C++, com o botão para instalar" loading="lazy" width="1600" height="870">
+        </figure>
+        <div class="duo-text">
+          <h2>Antes de abrir, ele confere</h2>
+          <p>Se faltar o Visual C++ ou o DirectX, se o jogo estiver só na nuvem do OneDrive ou numa pasta sem permissão, o
+            Black Flag avisa e resolve com um clique, antes do jogo fechar sozinho.</p>
+          <p>Se ainda assim o jogo fechar com erro, ele explica o motivo provável e o que tentar.</p>
+        </div>
+      </div>
+
+      <div class="pillars">
+        <div>
+          <h3>Nada de jogo baixado</h3>
+          <p>O Black Flag nunca baixa jogos, ROMs, BIOS ou firmware. Os arquivos vêm da sua própria cópia.</p>
+        </div>
+        <div>
+          <h3>Emuladores das páginas oficiais</h3>
+          <p>Quando você instala um emulador por ele, o download vem do projeto oficial, já com o controle configurado.</p>
+        </div>
+        <div>
+          <h3>Tudo fica no seu PC</h3>
+          <p>Tempo de jogo, saves, perfis e chaves ficam no computador. Não existe conta nem servidor do Black Flag.</p>
+        </div>
+      </div>
     </section>
 
-    <figure class="shot">
-      <img src="img/biblioteca.jpg" alt="Biblioteca do Black Flag com quatro jogos instalados" width="1600" height="1000">
-      <figcaption><span>Fig. 1</span> A biblioteca, com os ports instalados e o tempo de cada um.</figcaption>
-    </figure>
+    <!-- ================= Recursos ================= -->
+    <section class="panel" id="recursos" role="tabpanel" data-panel="recursos" hidden>
+      <div class="panel-head">
+        <h1>Tudo o que ele faz</h1>
+        <p class="lead">Escolha um recurso na lista. Com o teclado, as setas para cima e para baixo também andam por ela.</p>
+      </div>
+      <div class="menu">
+        <ul class="menu-list" role="listbox" aria-label="Recursos">
+          <li><button role="option" data-feature="biblioteca">Biblioteca</button></li>
+          <li><button role="option" data-feature="tv">Modo TV e controle</button></li>
+          <li><button role="option" data-feature="emuladores">Emuladores</button></li>
+          <li><button role="option" data-feature="conquistas">Conquistas</button></li>
+          <li><button role="option" data-feature="antes">Antes de jogar</button></li>
+          <li><button role="option" data-feature="perfis">Perfis</button></li>
+          <li><button role="option" data-feature="saves">Saves e backup</button></li>
+          <li><button role="option" data-feature="ports">Ports e Comunidade</button></li>
+        </ul>
+        <div class="menu-view" aria-live="polite">
+          <!-- Each feature: the picture and the text; site.js shows one at a time. -->
+          <article class="feature" data-feature="biblioteca">
+            <figure class="frame"><video data-lazy src="video/abrir-jogo.webm" poster="img/biblioteca.jpg" muted loop playsinline aria-label="Um jogo sendo aberto: a capa viaja da grade até a página do jogo"></video></figure>
+            <h2>Uma biblioteca para tudo</h2>
+            <p>Os jogos da Steam, da Epic e da GOG entram sozinhos, junto com os ports e os jogos de console. Cada loja tem a
+              sua aba, e as capas chegam em segundo plano.</p>
+            <ul>
+              <li>“Continuar jogando” no alto, com o recado que você deixou ao sair</li>
+              <li>Ao abrir um jogo, a capa desliza da grade até a página dele</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="tv" hidden>
+            <figure class="frame"><img src="img/modo-tv.jpg" alt="O Modo TV com a fileira de capas e o jogo escolhido maior" loading="lazy" width="1600" height="1000"></figure>
+            <h2>Modo TV e controle</h2>
+            <p>O programa inteiro anda com controle de Xbox ou PlayStation. O Modo TV é a biblioteca em tela cheia, feita para
+              ser lida do sofá.</p>
+            <ul>
+              <li>Direcional anda, A ou ✕ escolhe, B ou ○ volta</li>
+              <li>LB e RB trocam de seção, a barra de baixo mostra os botões do seu controle</li>
+              <li>Segurar o botão Xbox ou PS traz o Black Flag de volta de dentro do jogo</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="emuladores" hidden>
+            <figure class="frame"><img src="img/emuladores.jpg" alt="A página Emuladores com um cartão para cada console" loading="lazy" width="1160" height="470"></figure>
+            <h2>Emuladores já configurados</h2>
+            <p>Cada console tem um cartão com o emulador certo. Um clique instala da página oficial e já deixa o controle e a
+              pasta da BIOS configurados.</p>
+            <ul>
+              <li>16 emuladores para 24 consoles, ou os que você já tem no PC</li>
+              <li>Pastas vigiadas: o jogo colocado nelas aparece sozinho, com capa</li>
+              <li>Diz o que falta (BIOS, firmware) e onde colocar</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="conquistas" hidden>
+            <figure class="frame frame-small"><img src="img/conquista.png" alt="Aviso de conquista desbloqueada por cima do jogo" loading="lazy" width="440" height="160"></figure>
+            <h2>Conquistas de onde você joga</h2>
+            <p>O aviso dourado aparece por cima do jogo, com o emblema, sempre que você desbloqueia alguma coisa.</p>
+            <ul>
+              <li>Conquistas da Steam, lidas do próprio PC, sem login</li>
+              <li>RetroAchievements no PCSX2, no momento do desbloqueio</li>
+              <li>Conquistas próprias lidas do save de ports como Banjo-Kazooie, Majora’s Mask e Harvest Moon 64</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="antes" hidden>
+            <figure class="frame"><img src="img/antes-de-jogar.jpg" alt="O aviso Antes de jogar na página de um jogo" loading="lazy" width="1600" height="870"></figure>
+            <h2>Antes de jogar</h2>
+            <p>O Black Flag lê o que o jogo precisa e confere o PC antes de abrir. O que dá para resolver, ele resolve.</p>
+            <ul>
+              <li>Visual C++ e DirectX com um clique, baixados só da Microsoft</li>
+              <li>Também avisa de arquivos que estão só na nuvem do OneDrive, de caminhos longos demais e de pastas sem permissão</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="perfis" hidden>
+            <figure class="frame"><img src="img/perfis.jpg" alt="A tela Quem vai jogar? com três perfis" loading="lazy" width="1600" height="1000"></figure>
+            <h2>Um perfil para cada pessoa</h2>
+            <p>Cada um da casa tem tempo de jogo, saves e conquistas separados, com foto, capa e cor próprias.</p>
+            <ul>
+              <li>“Quem vai jogar?” ao abrir, também pelo controle</li>
+              <li>“Onde eu parei”: um recado para você mesmo quando o jogo fecha</li>
+              <li>Aparência por perfil: tamanho das capas, lista, letras maiores</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="saves" hidden>
+            <figure class="frame"><img src="img/jogo.jpg" alt="Página de um jogo com o tempo de jogo e o recado de onde parou" loading="lazy" width="1600" height="780"></figure>
+            <h2>Saves guardados</h2>
+            <p>Quando o jogo fecha, o Black Flag faz uma cópia do save, só se ele mudou. Restaurar guarda antes o que estava
+              lá.</p>
+            <ul>
+              <li>Backups por perfil, com data e tamanho</li>
+              <li>Ao desinstalar um port, os saves ficam; ao reinstalar, voltam</li>
+              <li>Os saves de jogos de PC são achados pelo banco do Ludusavi</li>
+              <li>Um backup travado nunca é apagado automaticamente</li>
+            </ul>
+          </article>
+          <article class="feature" data-feature="ports" hidden>
+            <figure class="frame"><img src="img/biblioteca.jpg" alt="A biblioteca do Black Flag" loading="lazy" width="1600" height="1000"></figure>
+            <h2>Ports nativos e a Comunidade</h2>
+            <p>Os ports do catálogo são instalados da página oficial de cada projeto, e o Black Flag confere se a sua cópia do
+              jogo é a versão certa.</p>
+            <ul>
+              <li>Atualizações dos ports avisadas na biblioteca</li>
+              <li>Mods pela Thunderstore, com backup dos saves antes</li>
+              <li>A aba Comunidade lista mais de 100 ports achados no GitHub, com aviso de que ninguém os conferiu</li>
+            </ul>
+          </article>
+        </div>
+      </div>
 
-    <section class="origin">
-      <h2>De onde vem cada coisa</h2>
-      <p>Os ports são feitos por comunidades de decompilação e recompilação, e o Black Flag baixa cada um da página de
-        versões do próprio projeto no GitHub. Ele nunca baixa jogos nem diz onde encontrá-los: o port só abre com a ROM ou o
-        dump da sua cópia, e o Black Flag confere se é a versão que o port espera. Todo port mostra quem fez e tem um link
-        para a página do projeto.</p>
+      <div class="port-list">
+        <h2>Ports com suporte completo</h2>
+        <p class="sub">Nestes, o Black Flag instala, atualiza e confere os arquivos. A lista cresce a cada versão.</p>
+        <div id="port-table"></div>
+      </div>
     </section>
 
-    <section id="recursos" class="features">
-      <h2>O que ele faz</h2>
-
-      <article class="feature">
-        <h3>Biblioteca e Modo TV</h3>
-        <div class="feature-text">
-          <p>Cada port instalado aparece com capa, tempo de jogo e o botão Jogar. Dá para escolher a versão do port, voltar
-            para uma anterior e criar atalhos na área de trabalho, no menu Iniciar ou na Steam. O Modo TV ocupa a tela
-            inteira e funciona com controle.</p>
-          <p>Jogos que pedem administrador abrem com o pedido de permissão do Windows. Seus outros jogos de PC também
-            podem entrar na biblioteca, só para contar o tempo.</p>
-        </div>
-        <img src="img/biblioteca.jpg" alt="" loading="lazy" width="1600" height="1000">
-      </article>
-
-      <article class="feature">
-        <h3>Central de Mods</h3>
-        <div class="feature-text">
-          <p>Os mods de Majora's Mask e Banjo-Kazooie vêm da Thunderstore. O Black Flag instala cada mod com as dependências,
-            liga e desliga quando você quiser e guarda uma combinação de mods para cada perfil.</p>
-          <p>Antes de ligar um mod, ele faz backup dos saves.</p>
-        </div>
-        <img src="img/mods.jpg" alt="" loading="lazy" width="1600" height="1000">
-      </article>
-
-      <article class="feature">
-        <h3>Conquistas</h3>
-        <div class="feature-text">
-          <p>Algumas conquistas contam tempo e sessões. No Banjo-Kazooie ele também lê do save quantos Jiggies e notas
-            você pegou, sem alterar nada. O aviso aparece no canto da tela durante o jogo.</p>
-          <p>Se você tem conta no RetroAchievements, ele mostra o que você já ganhou jogando o original. Jogar o port não
-            desbloqueia nada lá.</p>
-        </div>
-        <img src="img/conquistas.jpg" alt="" loading="lazy" width="1600" height="1000">
-      </article>
-
-      <article class="feature">
-        <h3>Perfis e estatísticas</h3>
-        <div class="feature-text">
-          <p>Cada pessoa da casa pode ter um perfil com o próprio tempo de jogo, conquistas e saves. Ao abrir, o Black Flag
-            pergunta quem vai jogar, e dá para responder pelo controle.</p>
-          <p>A página de estatísticas mostra os dias e as semanas jogados e quais jogos você mais abriu.</p>
-        </div>
-        <img src="img/estatisticas.jpg" alt="" loading="lazy" width="1600" height="1000">
-      </article>
-
-      <dl class="extras">
-        <div><dt>Saves</dt><dd>Backup quando o jogo fecha, só se o save mudou. Restaurar guarda uma cópia do que estava lá antes.</dd></div>
-        <div><dt>Arquivos do jogo</dt><dd>Solte a ROM na janela ou deixe o Black Flag procurar na pasta Downloads.</dd></div>
-        <div><dt>Capas</dt><dd>Da SteamGridDB e da IGDB, com uma chave gratuita sua. Ficam guardadas no PC.</dd></div>
-        <div><dt>Comunidade</dt><dd>Mais de 100 ports de outros projetos, com instalação experimental e aviso.</dd></div>
-      </dl>
+    <!-- ================= Galeria ================= -->
+    <section class="panel" id="galeria" role="tabpanel" data-panel="galeria" hidden>
+      <div class="panel-head">
+        <h1>Galeria</h1>
+        <p class="lead">Capturas e gravações do programa. Os jogos e as capas são fictícios, feitos para estas imagens.</p>
+      </div>
+      <div class="gallery">
+        <button class="shot wide" data-full="video/abrir-jogo.webm" data-poster="img/jogo.jpg">
+          <video data-lazy src="video/abrir-jogo.webm" poster="img/biblioteca.jpg" muted loop playsinline aria-hidden="true"></video>
+          <span class="glass">Abrir um jogo</span>
+        </button>
+        <button class="shot" data-full="img/modo-tv.jpg"><img src="img/modo-tv.jpg" alt="" loading="lazy" width="1600" height="1000"><span class="glass">Modo TV</span></button>
+        <button class="shot" data-full="img/perfis.jpg"><img src="img/perfis.jpg" alt="" loading="lazy" width="1600" height="1000"><span class="glass">Quem vai jogar?</span></button>
+        <button class="shot" data-full="img/jogo.jpg"><img src="img/jogo.jpg" alt="" loading="lazy" width="1600" height="780"><span class="glass">Página do jogo</span></button>
+        <button class="shot" data-full="img/antes-de-jogar.jpg"><img src="img/antes-de-jogar.jpg" alt="" loading="lazy" width="1600" height="870"><span class="glass">Antes de jogar</span></button>
+        <button class="shot wide" data-full="video/foco.webm" data-poster="img/biblioteca.jpg">
+          <video data-lazy src="video/foco.webm" poster="img/biblioteca.jpg" muted loop playsinline aria-hidden="true"></video>
+          <span class="glass">O fundo segue o jogo em foco</span>
+        </button>
+        <button class="shot" data-full="img/emuladores.jpg"><img src="img/emuladores.jpg" alt="" loading="lazy" width="1160" height="470"><span class="glass">Emuladores</span></button>
+        <button class="shot" data-full="video/modo-tv.webm" data-poster="img/modo-tv.jpg">
+          <video data-lazy src="video/modo-tv.webm" poster="img/modo-tv.jpg" muted loop playsinline aria-hidden="true"></video>
+          <span class="glass">Modo TV no controle</span>
+        </button>
+        <button class="shot fit" data-full="img/conquista.png"><img src="img/conquista.png" alt="" loading="lazy" width="440" height="160"><span class="glass">Conquista desbloqueada</span></button>
+        <!-- Lugares para as gravações que precisam de um jogo de verdade rodando (docs/SITE-CAPTURAS.md):
+             jogo-com-conquista.webm, controle-na-mao.webm, instalar-emulador.webm -->
+      </div>
     </section>
 
-    <section id="ports" class="ports">
-      <h2>Ports com suporte completo</h2>
-      <p class="sub">Nestes, o Black Flag instala, atualiza e confere os arquivos. A lista cresce a cada versão.</p>
-      <div id="port-table"></div>
-    </section>
+    <!-- ================= Sobre ================= -->
+    <section class="panel" id="sobre" role="tabpanel" data-panel="sobre" hidden>
+      <div class="panel-head">
+        <h1>Sobre o Black Flag</h1>
+        <p class="lead">Um projeto independente e de código aberto, feito no tempo livre.</p>
+      </div>
 
-    <section id="comecar" class="steps">
-      <h2>Como começar</h2>
-      <ol>
-        <li><b>Instale o Black Flag.</b> Não precisa de administrador.</li>
-        <li><b>Escolha um port e clique em Instalar.</b> Ele vem da página oficial do projeto.</li>
-        <li><b>Mostre onde estão os arquivos da sua cópia.</b> A ROM do seu cartucho ou o dump do seu console. Cada port
-          explica como fazer a cópia, e o Black Flag confere se é a versão certa.</li>
-        <li><b>Clique em Jogar.</b></li>
+      <div class="about">
+        <div>
+          <p>Começou como um launcher para os ports nativos de jogos de Nintendo 64, recompilados pela comunidade. Depois passou a
+            abrir também os jogos das lojas de PC e os jogos de console em emulador.</p>
+          <p>Três regras não mudam: nenhum jogo, BIOS ou firmware passa pelo programa; os downloads vêm só das páginas
+            oficiais de cada projeto; e nada sai do seu PC sem você pedir.</p>
+        </div>
+        <dl class="spec">
+          <div><dt>Preço</dt><dd>Grátis</dd></div>
+          <div><dt>Código</dt><dd>Aberto, licença MIT</dd></div>
+          <div><dt>Sistema</dt><dd>Windows 10 e 11</dd></div>
+          <div><dt>Conta</dt><dd>Não precisa</dd></div>
+        </dl>
+      </div>
+
+      <h2>O caminho até aqui</h2>
+      <ol class="timeline">
+        <li><span>v0.27</span><p>O programa inteiro com controle e o “Antes de jogar”.</p></li>
+        <li><span>v0.28</span><p>Jogos da Steam, Epic e GOG na biblioteca, e o nome Black Flag.</p></li>
+        <li><span>v0.30</span><p>Perfis para cada pessoa da casa, com “Quem vai jogar?”.</p></li>
+        <li><span>v0.40</span><p>Emuladores: 16 emuladores para 24 consoles, das páginas oficiais.</p></li>
+        <li><span>v0.42</span><p>O visual de console em preto e dourado, com as seções no alto.</p></li>
+        <li><span>v0.45</span><p>Conquistas da Steam e do RetroAchievements avisando por cima do jogo.</p></li>
+        <li><span>v0.47</span><p>A capa que viaja até a página do jogo e o fundo que segue o jogo em foco.</p></li>
       </ol>
-    </section>
 
-    <section id="perguntas" class="faq">
+      <h2>Próximos passos</h2>
+      <ul class="next">
+        <li><b>Configurar os emuladores pelo programa.</b> Resolução e as opções mais usadas de cada um, sem abrir o emulador.</li>
+        <li><b>Saves dos emuladores no backup.</b> Os mesmos cuidados que os ports já têm.</li>
+        <li><b>Mais conquistas lidas do save.</b> Donkey Kong 64 é o próximo da lista.</li>
+        <li><b>Mais ports no catálogo.</b> Cada um com os dados conferidos no código-fonte do projeto.</li>
+      </ul>
+
       <h2>Perguntas</h2>
-      <details>
-        <summary>Isso é pirataria?</summary>
-        <p>Não. Os ports são projetos de código aberto da comunidade e nenhum traz os arquivos do jogo. Você precisa da
-          sua própria cópia, e o Black Flag nunca baixa, hospeda ou indica onde baixar jogos.</p>
-      </details>
-      <details>
-        <summary>Por que o Windows mostra um aviso ao instalar?</summary>
-        <p>O instalador ainda não tem assinatura digital, que é paga. O código é aberto e o instalador é gerado pelo GitHub
-          Actions a partir dele. Clique em <b>Mais informações</b> e em <b>Executar assim mesmo</b>.</p>
-      </details>
-      <details>
-        <summary>Como faço a ROM ou o dump do meu jogo?</summary>
-        <p>Cada port tem a seção "Como obter seus arquivos" dentro do programa, com o caminho para copiar o jogo do seu
-          cartucho ou console, por exemplo com um leitor de cartuchos.</p>
-      </details>
-      <details>
-        <summary>E os meus saves?</summary>
-        <p>Ficam onde o port guarda. O Black Flag faz backup quando o jogo fecha, guarda os saves ao desinstalar e devolve
-          quando você instala de novo.</p>
-      </details>
-      <details>
-        <summary>Os mods são seguros?</summary>
-        <p>Mods são programas da comunidade. O Black Flag só baixa da Thunderstore, mostra o autor, confere se o mod é do jogo
-          certo e faz backup dos saves antes de ligar. Instale mods de quem você confia.</p>
-      </details>
-      <details>
-        <summary>As conquistas são do RetroAchievements?</summary>
-        <p>Não, são do próprio Black Flag. Do RetroAchievements ele só mostra, se você quiser, o que você ganhou jogando o
-          original em emuladores.</p>
-      </details>
-      <details>
-        <summary>Coleta meus dados?</summary>
-        <p>Não há conta nem coleta de dados, e tudo fica no seu PC. Ele só acessa o GitHub dos projetos e, quando você usa,
-          a Thunderstore, a SteamGridDB, a IGDB e o RetroAchievements.</p>
-      </details>
-    </section>
+      <div class="faq">
+        <details>
+          <summary>Isso é pirataria?</summary>
+          <p>Não. Os ports são projetos de código aberto e nenhum traz os arquivos do jogo. Você precisa da sua própria
+            cópia, e o Black Flag nunca baixa, hospeda ou indica onde baixar jogos.</p>
+        </details>
+        <details>
+          <summary>Por que o Windows mostra um aviso ao instalar?</summary>
+          <p>O instalador ainda não tem assinatura digital, que é paga. O código é aberto e o instalador é gerado pelo
+            GitHub Actions a partir dele. Clique em <b>Mais informações</b> e em <b>Executar assim mesmo</b>.</p>
+        </details>
+        <details>
+          <summary>De onde vêm as conquistas?</summary>
+          <p>Da Steam, lidas dos arquivos que ela guarda no seu PC; do RetroAchievements, desbloqueadas pelo PCSX2 com a sua
+            conta; e do próprio Black Flag, lidas do save de alguns ports.</p>
+        </details>
+        <details>
+          <summary>Coleta meus dados?</summary>
+          <p>Não há conta nem coleta de dados. O Black Flag só acessa o GitHub dos projetos e, quando você usa, a Thunderstore,
+            a SteamGridDB, a IGDB e o RetroAchievements.</p>
+        </details>
+      </div>
 
-    <section id="apoie" class="donate" hidden>
-      <h2>Apoie o projeto</h2>
-      <p class="sub" id="apoie-msg"></p>
-      <div class="donate-grid" id="apoie-opcoes"></div>
-      <p class="fine">Doar é opcional. O Black Flag continua grátis e completo para todo mundo.</p>
-    </section>
+      <section id="apoie" class="donate" hidden>
+        <h2>Apoie o projeto</h2>
+        <p class="sub" id="apoie-msg"></p>
+        <div class="donate-grid" id="apoie-opcoes"></div>
+      </section>
 
-    <section id="novidades" class="news">
       <h2>Novidades</h2>
-      <div id="releases"><p class="sub">Carregando as últimas versões…</p></div>
+      <div id="releases" class="news"><p class="sub">Carregando as últimas versões…</p></div>
+
+      <div class="get">
+        <div>
+          <h2>Quando quiser experimentar</h2>
+          <p class="sub" id="download-info">Instalador para Windows, da página de versões do GitHub.</p>
+        </div>
+        <a class="button" id="download" href="https://github.com/recomphub-app/recomphub/releases/latest">Baixar o Black Flag</a>
+      </div>
     </section>
   </main>
 
   <footer>
     <p>O Black Flag é um projeto independente de código aberto. Os ports pertencem aos seus autores, com crédito em cada
-      página. Marcas e jogos pertencem aos seus donos. O Black Flag não tem ligação com Nintendo, Sony, Microsoft ou outras
-      empresas e não distribui arquivos de jogos.</p>
-    <p><a href="https://github.com/recomphub-app/recomphub">Código no GitHub</a> ·
-      <a href="https://github.com/recomphub-app/recomphub/issues">Relatar um problema</a> ·
+      página. Marcas e jogos pertencem aos seus donos; o Black Flag não tem ligação com Nintendo, Sony, Microsoft, Valve,
+      Epic ou outras empresas e não distribui arquivos de jogos.</p>
+    <p><a href="https://github.com/recomphub-app/recomphub">Código no GitHub</a>
+      <a href="https://github.com/recomphub-app/recomphub/issues">Relatar um problema</a>
       <a href="https://github.com/recomphub-app/recomphub/releases">Todas as versões</a></p>
   </footer>
 
-  <script src="site.js"></script>
+  <div class="viewer" id="viewer" hidden>
+    <button class="viewer-close" aria-label="Fechar">Fechar</button>
+    <div class="viewer-stage" id="viewer-stage"></div>
+  </div>
+
+  <script src="site.js?v=3"></script>
 </body>
 </html>

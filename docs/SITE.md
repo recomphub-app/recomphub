@@ -3,6 +3,10 @@
 O site fica em `site/` (HTML, CSS e JS puros, sem build) e vai para o GitHub Pages pelo
 workflow `.github/workflows/site.yml`.
 
+Desde 26/10/2026 ele tem quatro abas (Visão geral, Recursos, Galeria, Sobre e próximos passos), com
+o mesmo visual preto e dourado do programa. Os prints e vídeos e como gravar os que faltam estão em
+`SITE-CAPTURAS.md`.
+
 ## O que se atualiza sozinho
 
 - **Botão Baixar:** pega o `.exe` do último Release do GitHub (`releases/latest`). Sem Release,
