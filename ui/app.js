@@ -222,7 +222,12 @@ function renderGrid() {
   $('#tabs').hidden = catalog || community;
   if (catalog || community) { $('#lib-hero').innerHTML = ''; $('#lib-hero').className = ''; } else renderLibHero();
   renderSetupHint(!catalog && !community);
+  $('#showcase').hidden = true;
   if (tab === 'community') return renderCommunityGrid();
+  if (catalog && !search) {
+    $('#community-head').hidden = true;
+    return renderShowcase();
+  }
   $('#community-head').hidden = true;
   renderTabs();
   const list = visibleGames();
@@ -2440,7 +2445,8 @@ function renderPortDetail(g) {
         </div>
       </div>
       ${pcCheckBox(g, 'warn')}
-      ${guideBox(g)}`;
+      ${guideBox(g)}
+      ${notesBox(g.repo)}`;
   } else {
     const picked = filesResult[g.id];
     const filesOk = g.files && g.files.ok && !(picked && !picked.ok);
@@ -2464,6 +2470,7 @@ function renderPortDetail(g) {
       ...(g.has_mods ? [['mods', 'Mods', modsBox(g)]] : []),
       ['saves', 'Saves', ''],
       ['conquistas', 'Conquistas', ''],
+      ...(notesBox(g.repo) ? [['novidades', 'Atualizações', notesBox(g.repo)]] : []),
       ['ajustes', 'Ajustes', pcCheckBox(g, 'warn') + artBox(g) + (filesOk ? filesBox(g) : '') + gfxBox(g) + shaderBox(g) + versionBox(g)
         + shortcutsRow(g) + launchBox(g) + tagsBox(g) + crashScan(g)
         + manageBox(g, 'Abrir pasta do port', g.installed_by_hub
@@ -2473,9 +2480,9 @@ function renderPortDetail(g) {
   }
 
   $('#detail').innerHTML = `
-    <button class="ghost back" data-act="back">← Biblioteca</button>
+    <button class="ghost back" data-act="back">${g.in_library ? '← Biblioteca' : '← Instalar ports'}</button>
     <div class="detail">
-      <div>${coverColumn(g)}</div>
+      <div>${coverColumn(g)}${factsHtml(g.repo, g.in_library ? '' : g.needs)}</div>
       <div>
         <h2>${esc(g.title)}</h2>
         <div class="credit">Port <b>${esc(g.port_name)}</b>, feito por ${esc(g.port_authors)} ·
@@ -3774,8 +3781,13 @@ function renderCommunityItem(repo) {
       </div>`;
   }
   $('#detail').innerHTML = `
-    <button class="ghost back" data-act="back">← Comunidade</button>
-    <div class="covers-page">
+    <button class="ghost back" data-act="back">${tab === 'discover' ? '← Instalar ports' : '← Comunidade'}</button>
+    <div class="detail">
+      <div>${(() => {
+        const art = communityArt && communityArt[id];
+        return art ? `<figure class="community-shot"><img src="${art[0]}" alt=""><figcaption class="muted">${esc(ART_SOURCE[art[1]] || '')}</figcaption></figure>` : '';
+      })()}${factsHtml(repo, '')}</div>
+      <div>
       <h2>${esc(i.game || i.name)}</h2>
       <div class="credit">${i.game && i.game !== i.name ? `${esc(i.name)} · ` : ''}${i.console ? `${esc(i.console)} · ` : ''}
         <button class="link" data-cact="page">${esc(i.repo)} no GitHub</button></div>
@@ -3784,12 +3796,10 @@ function renderCommunityItem(repo) {
         <span class="chip family">Fonte: ${i.sources.map(esc).join(' e ')}</span>
         ${i.stars != null ? `<span class="chip family">★ ${i.stars}</span>` : ''}
       </div>
-      ${(() => {
-        const art = communityArt && communityArt[id];
-        return art ? `<figure class="community-shot"><img src="${art[0]}" alt=""><figcaption class="muted">${esc(ART_SOURCE[art[1]] || '')}</figcaption></figure>` : '';
-      })()}
       ${i.description ? `<p>${esc(i.description)}</p>` : ''}
       ${install}
+      ${notesBox(repo)}
+      </div>
     </div>`;
   const on = (sel, fn) => document.querySelectorAll(`#detail [data-cact=${sel}]`).forEach((el) => el.addEventListener('click', () => fn(el)));
   document.querySelector('#detail [data-act=back]').addEventListener('click', () => { openId = null; render(); });
@@ -4594,8 +4604,9 @@ $('#btn-discover').addEventListener('click', () => {
 function navNow() {
   if (openId === '__emu') return 'emu';
   if (openId === '__stats') return 'stats';
-  if (openId && openId.startsWith('c:')) return 'community';
+  if (openId && openId.startsWith('c:')) return tab === 'discover' ? 'discover' : 'community';
   if (openId && openId.startsWith('__')) return null;
+  if (tab === 'discover' && openId && !(games.find((g) => g.id === openId) || {}).in_library) return 'discover';
   if (!openId && (tab === 'discover' || tab === 'community')) return tab;
   return 'library';
 }
@@ -5639,4 +5650,264 @@ document.addEventListener('keydown', (e) => {
 listen('pad-alert', (e) => {
   toast(`${e.payload.title}. ${e.payload.description}`, e.payload.kind === 'pad');
   if (padtestOn) padtestRefresh();
+});
+
+// ---- Instalar ports: the showcase (a featured port, consoles, shelves) and the facts sheet ----
+
+// The catalog's verified ports lead; the Comunidade fills the shelves. Searching shows the plain
+// grid of the catalog, as before.
+const portFacts = {};          // repo -> facts sheet | 'loading' | 'error'
+let savedFacts = null;         // repo -> sheet already on disk (saved_port_facts), for the shelves
+let showcaseAt = 0;            // featured port shown
+let showcaseTimer = null;
+const SHOWCASE_EVERY = 7000;
+
+const numberPt = (n) => (n >= 1e6 ? `${(n / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`
+  : n >= 1e4 ? `${Math.round(n / 1e3).toLocaleString('pt-BR')} mil`
+  : n.toLocaleString('pt-BR'));
+const datePt = (unix) => (unix ? new Date(unix * 1000).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+
+function agoPt(unix) {
+  if (!unix) return '—';
+  const days = Math.floor((Date.now() / 1000 - unix) / 86400);
+  if (days < 1) return 'hoje';
+  if (days === 1) return 'ontem';
+  if (days < 31) return `há ${days} dias`;
+  const months = Math.floor(days / 30.4);
+  if (months < 12) return months === 1 ? 'há 1 mês' : `há ${months} meses`;
+  const years = Math.floor(days / 365);
+  return years === 1 ? 'há 1 ano' : `há ${years} anos`;
+}
+
+function loadFacts(repo) {
+  if (!repo || portFacts[repo]) return;
+  portFacts[repo] = 'loading';
+  invoke('port_facts', { repo })
+    .then((f) => { portFacts[repo] = f; })
+    .catch(() => { portFacts[repo] = 'error'; })
+    .finally(() => {
+      const here = openId && (openId === `c:${repo}` || (games.find((g) => g.id === openId) || {}).repo === repo);
+      if (here) render();
+    });
+}
+
+function showcasePorts() {
+  return games.filter((g) => g.kind === 'port').sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+}
+
+function showcaseStats(repo) {
+  const f = (portFacts[repo] && typeof portFacts[repo] === 'object' && portFacts[repo]) || (savedFacts && savedFacts[repo]);
+  if (!f) return '';
+  return [f.stars ? `★ ${numberPt(f.stars)}` : '', f.downloads ? `${numberPt(f.downloads)} downloads` : '',
+    f.latest_published ? `versão nova ${agoPt(f.latest_published)}` : ''].filter(Boolean).join(' · ');
+}
+
+function showcaseHero(list) {
+  if (!list.length) return '';
+  const g = list[showcaseAt % list.length];
+  const art = realArt(g) || g.cover;
+  const stats = g.repo ? showcaseStats(g.repo) : '';
+  return `
+    <section class="sc-hero" aria-roledescription="carrossel" aria-label="Ports verificados">
+      <div class="sc-hero-art">${art ? `<img src="${art}" alt="">` : `<span class="sc-hero-blank" aria-hidden="true">${esc(g.title)}</span>`}</div>
+      <div class="sc-hero-card">
+        <span class="sc-kicker">Verificado pelo Black Flag</span>
+        <h2>${esc(g.title)}</h2>
+        <p>Port <b>${esc(g.port_name)}</b>, de ${esc(g.port_authors)}. Instala com um clique e confere os arquivos da sua cópia.</p>
+        <div class="sc-hero-meta"><span class="chip family">${esc(g.family)}</span>${stats ? `<span class="muted">${stats}</span>` : ''}</div>
+        <div class="row">
+          <button class="primary" data-sc="open" data-id="${esc(g.id)}">${g.in_library ? 'Abrir na biblioteca' : 'Ver o port'}</button>
+        </div>
+      </div>
+      <div class="sc-dots" role="tablist">${list.map((x, i) => `<button role="tab" aria-selected="${i === showcaseAt % list.length}"
+        aria-label="${esc(x.title)}" data-sc="dot" data-i="${i}"></button>`).join('')}</div>
+    </section>`;
+}
+
+function shelfCard(x, rank) {
+  const num = rank ? `<span class="sc-rank" aria-hidden="true">${rank}</span>` : '';
+  if (x.game) {
+    const g = x.game;
+    return `<button class="sc-card" data-sc="open" data-id="${esc(g.id)}">${num}${coverHtml(g)}
+      <span class="sc-name">${esc(g.title)}</span>
+      <span class="sc-sub">${g.in_library ? 'Na biblioteca' : `Port ${esc(g.port_name)}`}</span>
+      <span class="chip family">${esc(g.family)}</span></button>`;
+  }
+  const i = x.item;
+  return `<button class="sc-card" data-sc="repo" data-repo="${esc(i.repo)}">${num}${communityCover(i)}
+    <span class="sc-name">${esc(i.game || i.name)}</span>
+    <span class="sc-sub">${esc(i.game && i.game !== i.name ? i.name : i.repo.split('/')[0])}${i.stars != null ? ` · ★ ${numberPt(i.stars)}` : ''}</span>
+    ${i.console ? `<span class="chip family">${esc(i.console)}</span>` : ''}</button>`;
+}
+
+function shelf(title, note, cards, more) {
+  if (!cards.length) return '';
+  return `
+    <section class="sc-shelf">
+      <div class="sc-shelf-head"><h2>${title}</h2>${more || ''}</div>
+      ${note ? `<p class="muted">${note}</p>` : ''}
+      <div class="sc-row">${cards.join('')}</div>
+    </section>`;
+}
+
+function renderShowcase() {
+  const box = $('#showcase');
+  box.hidden = false;
+  $('#grid').innerHTML = '';
+  $('#empty').hidden = true;
+  $('#tagbar').innerHTML = '';
+  if (!communityData && !communityLoading && !communityAsked) {
+    communityAsked = true;
+    loadCommunity(false).catch(() => {});
+  }
+  if (!communityArt) loadCommunityArt();
+  if (!savedFacts) {
+    savedFacts = {};
+    invoke('saved_port_facts').then((f) => { savedFacts = f || {}; if (tab === 'discover' && !openId) render(); }).catch(() => {});
+  }
+  const ports = showcasePorts();
+  ports.forEach((g) => g.repo && loadFacts(g.repo));
+  const items = (communityData && communityData.items.filter((i) => !i.catalog_id)) || [];
+  const consoles = {};
+  items.forEach((i) => { if (i.console) consoles[i.console] = (consoles[i.console] || 0) + 1; });
+  const consoleChips = Object.entries(consoles).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const popular = items.filter((i) => i.stars).sort((a, b) => b.stars - a.stars).slice(0, 10);
+  const picked = items.filter((i) => i.recommended).slice(0, 12);
+  const fresh = items.filter((i) => i.pushed).sort((a, b) => b.pushed - a.pushed).slice(0, 12);
+  const all = items.length ? `<button class="link" data-sc="community">Ver os ${items.length} da Comunidade</button>` : '';
+  box.innerHTML = `
+    ${showcaseHero(ports)}
+    ${consoleChips.length ? `<nav class="sc-consoles" aria-label="Consoles na Comunidade">${consoleChips.map(([c, n]) =>
+      `<button data-sc="console" data-console="${esc(c)}"><span>${esc(c)}</span><span class="count">${n}</span></button>`).join('')}</nav>` : ''}
+    ${shelf('Verificados pelo Black Flag', 'Instalação com um clique: o Black Flag baixa da página oficial e confere os arquivos da sua cópia.',
+      ports.map((g) => shelfCard({ game: g })))}
+    ${shelf('Mais populares na Comunidade', 'Pelas estrelas no GitHub. Ports da Comunidade não são verificados pelo Black Flag.',
+      popular.map((i, n) => shelfCard({ item: i }, n + 1)), all)}
+    ${shelf('Recomendados pela lista', 'Os mais fáceis de usar, segundo a lista awesome-unofficial-pc-ports.', picked.map((i) => shelfCard({ item: i })))}
+    ${shelf('Atualizados há pouco', '', fresh.map((i) => shelfCard({ item: i })))}
+    ${!items.length && communityLoading ? '<p class="muted">Buscando os ports da Comunidade no GitHub…</p>' : ''}`;
+  box.querySelectorAll('[data-sc]').forEach((el) => el.addEventListener('click', () => showcaseAct(el)));
+  box.querySelectorAll('.sc-card').forEach((el) => {
+    const img = el.querySelector('img');
+    if (!img) return;
+    el.addEventListener('mouseenter', () => setFocusArt(img.src));
+    el.addEventListener('focus', () => setFocusArt(img.src));
+  });
+  box.onmouseleave = () => setFocusArt(null);
+  showcaseSchedule(ports.length);
+}
+
+function showcaseAct(el) {
+  const what = el.dataset.sc;
+  if (what === 'open') return openGame(el.dataset.id);
+  if (what === 'repo') return openGame('c:' + el.dataset.repo);
+  if (what === 'dot') {
+    showcaseAt = Number(el.dataset.i);
+    return showcaseSwap();
+  }
+  if (what === 'community' || what === 'console') {
+    tab = 'community';
+    tagFilter = what === 'console' ? el.dataset.console : null;
+    search = '';
+    $('#search').value = '';
+    render();
+  }
+}
+
+// Only the featured part changes, crossfading; the shelves stay where they are.
+function showcaseSwap() {
+  const old = $('#showcase .sc-hero');
+  if (!old) return;
+  const ports = showcasePorts();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = showcaseHero(ports);
+  const hero = tmp.firstElementChild;
+  hero.classList.add('sc-in');
+  old.replaceWith(hero);
+  hero.querySelectorAll('[data-sc]').forEach((el) => el.addEventListener('click', () => showcaseAct(el)));
+  showcaseSchedule(ports.length);
+}
+
+function showcaseSchedule(n) {
+  clearTimeout(showcaseTimer);
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (n < 2 || still) return;
+  showcaseTimer = setTimeout(() => {
+    const hero = $('#showcase .sc-hero');
+    if (!hero || $('#showcase').hidden || openId) return;
+    // Not while it is being looked at or chosen with the controller.
+    if (hero.matches(':hover') || hero.contains(document.activeElement)) return showcaseSchedule(n);
+    showcaseAt = (showcaseAt + 1) % n;
+    showcaseSwap();
+  }, SHOWCASE_EVERY);
+}
+
+// The facts sheet beside a port's page. `needs`: what the player brings (catalog ports).
+function factsHtml(repo, needs) {
+  if (!repo) return '';
+  loadFacts(repo);
+  const f = portFacts[repo];
+  const row = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
+  let rows = '';
+  if (f === 'loading') rows = '<p class="muted">Lendo os números no GitHub…</p>';
+  else if (f === 'error' || !f) rows = '<p class="muted">Não deu para ler os números no GitHub agora.</p>';
+  else {
+    rows = `<dl>
+      ${row('Versão', f.latest_tag ? esc(versionLabel(f.latest_tag)) : 'nenhuma publicada')}
+      ${row('Última versão', f.latest_published ? `${agoPt(f.latest_published)}` : '')}
+      ${row('Tamanho', f.latest_size ? `${Math.max(1, Math.round(f.latest_size / 1048576))} MB` : '')}
+      ${row('Downloads', f.releases ? numberPt(f.downloads) : '')}
+      ${row('Estrelas', numberPt(f.stars))}
+      ${row('Versões', f.releases ? String(f.releases) : '')}
+      ${row('Primeira versão', f.first_release ? datePt(f.first_release) : '')}
+      ${row('Problemas abertos', numberPt(f.open_issues))}
+      ${row('Licença', f.license ? esc(f.license) : 'não informada')}
+    </dl>
+    <p class="muted fact-note">Do GitHub do projeto, ${agoPt(f.fetched_at) === 'hoje' ? 'lido hoje' : `lido ${agoPt(f.fetched_at)}`}.</p>`;
+  }
+  return `
+    <aside class="facts" aria-label="Ficha do port">
+      ${needs ? `<div class="facts-needs"><b>Você fornece</b><p>${esc(needs)}</p></div>` : ''}
+      ${rows}
+      <div class="facts-links">
+        <button class="ghost small" data-fact="page" data-repo="${esc(repo)}">Ver no GitHub</button>
+        <button class="ghost small" data-fact="releases" data-repo="${esc(repo)}">Todas as versões</button>
+        <button class="ghost small" data-fact="issue" data-repo="${esc(repo)}">Relatar um problema</button>
+      </div>
+    </aside>`;
+}
+
+// Release notes, written in Markdown by each project: shown as plain text with its headings,
+// lists and links' words, never as HTML from the project.
+function notesText(body) {
+  return esc(body)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^#{1,6}\s*(.+)$/gm, '<b>$1</b>')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function notesBox(repo) {
+  const f = portFacts[repo];
+  if (!f || typeof f !== 'object' || !f.notes.length) return '';
+  return `
+    <div class="box notes">
+      <h3>O que mudou</h3>
+      ${f.notes.map((n, i) => `
+        <details ${i === 0 ? 'open' : ''}>
+          <summary><b>${esc(versionLabel(n.tag))}</b><span class="muted">${datePt(n.published)}</span></summary>
+          <div class="note-body">${n.body ? notesText(n.body) : '<span class="muted">Sem notas nesta versão.</span>'}</div>
+        </details>`).join('')}
+    </div>`;
+}
+
+$('#detail').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-fact]');
+  if (!el) return;
+  const repo = el.dataset.repo;
+  const url = { page: `https://github.com/${repo}`, releases: `https://github.com/${repo}/releases`, issue: `https://github.com/${repo}/issues` }[el.dataset.fact];
+  if (url) call('open_link', { url });
 });

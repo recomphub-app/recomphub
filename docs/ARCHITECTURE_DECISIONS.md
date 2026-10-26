@@ -584,3 +584,18 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     release, e o instalador da release já é o que o site oferece. Instalar nunca começa sem o
     clique: o programa não fecha sozinho no meio de uma partida. Vale a partir da 0.50.0; quem tem
     uma versão anterior atualiza uma vez pela página, como antes.
+
+84. **Instalar ports como vitrine, e a ficha do port.** Pedido do Gustavo em 26/10/2026, depois de
+    estudar o recomplauncher.com. A tela deixa de ser uma grade e vira uma vitrine: um destaque que
+    passa sozinho a cada 7 s pelos ports verificados (para quando o mouse ou o controle está nele, e
+    não passa com "reduzir movimento"), atalhos por console com a contagem da Comunidade, e
+    prateleiras: Verificados pelo Black Flag, Mais populares na Comunidade (numerada, pelas
+    estrelas), Recomendados pela lista e Atualizados há pouco. O catálogo verificado tem poucos ports,
+    então a Comunidade preenche as prateleiras, sempre marcada como não verificada. Buscar volta à
+    grade de antes. A página de cada port (do catálogo e da Comunidade) ganha ao lado a ficha do
+    GitHub do projeto (facts.rs): versão, quando saiu, tamanho do arquivo para Windows, downloads de
+    todas as versões, estrelas, quantas versões, a primeira, problemas abertos e licença, com "Você
+    fornece" no topo para quem ainda não instalou, e "O que mudou" com as notas das últimas 8
+    versões (Markdown mostrado como texto: o HTML do projeto nunca entra na página). São duas
+    consultas ao GitHub por projeto, guardadas por 6 horas; sem resposta, fica a última ficha. Do
+    site deles não veio a aparência (azul e vidro) nem as capas oficiais; ficam o preto e dourado.

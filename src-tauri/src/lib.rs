@@ -6,6 +6,7 @@ mod community;
 mod community_art;
 mod diagnose;
 mod emu;
+mod facts;
 mod covers;
 mod files;
 mod fps;
@@ -705,7 +706,8 @@ fn open_link(app: AppHandle, url: String) -> Result<(), String> {
         || url
             .strip_prefix("https://github.com/")
             .map(|repo| known_community_repo(&state, repo))
-            .unwrap_or(false);
+            .unwrap_or(false)
+        || facts_page(&state, &url);
     if !known {
         return Err("Link fora do catálogo.".into());
     }
@@ -1420,6 +1422,42 @@ fn known_community_repo(state: &AppState, repo: &str) -> bool {
     community::valid_repo(repo)
         && (community::load(&state.community_path).items.iter().any(|i| i.repo.eq_ignore_ascii_case(repo))
             || state.library.lock().unwrap().games.values().any(|e| e.repo.as_deref() == Some(repo)))
+}
+
+/// The links of the facts sheet: a catalog or Comunidade port's GitHub page, its versions and
+/// its problems.
+fn facts_page(state: &AppState, url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://github.com/") else { return false };
+    let mut parts = rest.splitn(3, '/');
+    let (Some(owner), Some(name)) = (parts.next(), parts.next()) else { return false };
+    if !matches!(parts.next(), None | Some("releases") | Some("issues")) {
+        return false;
+    }
+    let repo = format!("{owner}/{name}");
+    community::valid_repo(&repo)
+        && (catalog::games().iter().any(|g| g.repo.eq_ignore_ascii_case(&repo)) || known_community_repo(state, &repo))
+}
+
+fn facts_dir(state: &AppState) -> PathBuf {
+    state.community_path.with_file_name("fichas")
+}
+
+/// The facts sheet beside a port's page (facts.rs): catalog ports and the Comunidade's.
+#[tauri::command]
+async fn port_facts(app: AppHandle, repo: String) -> Result<facts::Facts, String> {
+    let state = app.state::<AppState>();
+    let in_catalog = catalog::games().iter().any(|g| g.repo.eq_ignore_ascii_case(&repo));
+    if !(in_catalog || known_community_repo(&state, &repo)) {
+        return Err("Port fora do catálogo e da Comunidade.".into());
+    }
+    let dir = facts_dir(&state);
+    facts::get(&dir, &repo).await
+}
+
+/// The sheets fetched before, for the Instalar ports shelves (no request to GitHub).
+#[tauri::command]
+fn saved_port_facts(app: AppHandle) -> HashMap<String, facts::Facts> {
+    facts::all_saved(&facts_dir(&app.state::<AppState>()))
 }
 
 #[tauri::command]
@@ -5304,6 +5342,8 @@ pub fn run() {
             check_app_update,
             open_app_update,
             install_app_update,
+            port_facts,
+            saved_port_facts,
             take_pending_open,
             remove_game,
             open_project,
