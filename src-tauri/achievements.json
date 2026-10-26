@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 1,
+  "revision": 2,
   "generic": [
     { "id": "primeira-sessao", "title": "Primeiros passos", "description": "Jogue uma sessão pelo Black Flag.", "points": 5, "type": "progression", "badge": "👣", "trigger": { "stat": "play_count", "at_least": 1 } },
     { "id": "uma-hora", "title": "Uma hora de aventura", "description": "Jogue por 1 hora no total.", "points": 10, "type": "progression", "badge": "⏱️", "trigger": { "stat": "play_seconds", "at_least": 3600 } },
@@ -25,6 +25,45 @@
         { "id": "favos-24", "title": "Colmeia cheia", "description": "Junte os 24 favos de mel vazios.", "points": 25, "type": "progression", "badge": "🐝", "trigger": { "stat": "honeycombs", "at_least": 24 } },
         { "id": "mumbo-50", "title": "Freguês do Mumbo", "description": "Pegue 50 Mumbo Tokens.", "points": 15, "type": "progression", "badge": "💀", "trigger": { "stat": "mumbo_tokens", "at_least": 50 } },
         { "id": "mumbo-116", "title": "Colecionador de caveiras", "description": "Pegue os 116 Mumbo Tokens.", "points": 30, "type": "progression", "badge": "☠️", "hidden": true, "trigger": { "stat": "mumbo_tokens", "at_least": 116 } }
+      ]
+    },
+    "mm": {
+      "reader": "mm_flash",
+      "source": "Estruturas do save conferidas na decompilação zeldaret/mm: include/z64save.h, include/z64item.h e src/code/z_sram_NES.c.",
+      "achievements": [
+        { "id": "mm-mascara-1", "title": "Rosto novo", "description": "Ganhe a sua primeira máscara.", "points": 5, "type": "progression", "badge": "🎭", "trigger": { "stat": "masks", "at_least": 1 } },
+        { "id": "mm-odolwa", "title": "Pântano limpo", "description": "Derrote Odolwa, no Templo de Woodfall.", "points": 10, "type": "progression", "badge": "🌿", "trigger": { "stat": "odolwa", "at_least": 1 } },
+        { "id": "mm-goht", "title": "Primavera na montanha", "description": "Derrote Goht, no Templo de Snowhead.", "points": 10, "type": "progression", "badge": "❄️", "trigger": { "stat": "goht", "at_least": 1 } },
+        { "id": "mm-gyorg", "title": "Mar calmo", "description": "Derrote Gyorg, no Templo da Grande Baía.", "points": 10, "type": "progression", "badge": "🌊", "trigger": { "stat": "gyorg", "at_least": 1 } },
+        { "id": "mm-twinmold", "title": "Céu de Ikana", "description": "Derrote Twinmold, na Torre de Pedra.", "points": 10, "type": "progression", "badge": "🏜️", "trigger": { "stat": "twinmold", "at_least": 1 } },
+        { "id": "mm-gigantes", "title": "Os quatro gigantes", "description": "Liberte os quatro gigantes.", "points": 25, "type": "win_condition", "badge": "🗿", "trigger": { "stat": "remains", "at_least": 4 } },
+        { "id": "mm-cancoes", "title": "Ocarina afinada", "description": "Aprenda as 10 canções do jogo.", "points": 15, "type": "progression", "badge": "🎶", "trigger": { "stat": "songs", "at_least": 10 } },
+        { "id": "mm-bombers", "title": "Clube dos Bombers", "description": "Ganhe o Caderno dos Bombers.", "points": 5, "type": "progression", "badge": "📓", "trigger": { "stat": "notebook", "at_least": 1 } },
+        { "id": "mm-mascaras-12", "title": "Meia coleção", "description": "Tenha 12 máscaras.", "points": 10, "type": "progression", "badge": "👺", "trigger": { "stat": "masks", "at_least": 12 } },
+        { "id": "mm-mascaras-24", "title": "Todas as máscaras", "description": "Tenha as 24 máscaras.", "points": 50, "type": "progression", "badge": "🎎", "trigger": { "stat": "masks", "at_least": 24 } },
+        { "id": "mm-deus-feroz", "title": "Deus Feroz", "description": "Ganhe a Máscara do Deus Feroz.", "points": 25, "type": "progression", "badge": "⚔️", "hidden": true, "trigger": { "stat": "fierce_deity", "at_least": 1 } },
+        { "id": "mm-coracoes", "title": "Vinte corações", "description": "Chegue a 20 corações.", "points": 25, "type": "progression", "badge": "❤️", "trigger": { "stat": "hearts", "at_least": 20 } },
+        { "id": "mm-skulltulas", "title": "Casa sem aranhas", "description": "Pegue as 30 Skulltulas douradas de uma das casas.", "points": 20, "type": "progression", "badge": "🕷️", "trigger": { "stat": "skulltulas", "at_least": 30 } }
+      ]
+    },
+    "hm64": {
+      "reader": "hm64_sram",
+      "source": "Estruturas do save conferidas na decompilação harvestwhisperer/hm64-decomp: src/buffers/sramBuffer.h, src/game/gameFile.c e src/game/gameStatus.h.",
+      "achievements": [
+        { "id": "hm-colheita-100", "title": "Primeira colheita", "description": "Envie 100 colheitas.", "points": 5, "type": "progression", "badge": "🥕", "trigger": { "stat": "crops", "at_least": 100 } },
+        { "id": "hm-colheita-1000", "title": "Celeiro cheio", "description": "Envie 1.000 colheitas.", "points": 15, "type": "progression", "badge": "🌽", "trigger": { "stat": "crops", "at_least": 1000 } },
+        { "id": "hm-leite", "title": "Leite fresco", "description": "Envie 100 garrafas de leite.", "points": 10, "type": "progression", "badge": "🥛", "trigger": { "stat": "milk", "at_least": 100 } },
+        { "id": "hm-ovos", "title": "Galinheiro feliz", "description": "Envie 100 ovos.", "points": 10, "type": "progression", "badge": "🥚", "trigger": { "stat": "eggs", "at_least": 100 } },
+        { "id": "hm-peixes", "title": "Pescador", "description": "Pesque 50 peixes.", "points": 10, "type": "progression", "badge": "🎣", "trigger": { "stat": "fish", "at_least": 50 } },
+        { "id": "hm-ouro-10k", "title": "Fazenda no azul", "description": "Junte 10.000 G.", "points": 10, "type": "progression", "badge": "💰", "trigger": { "stat": "gold", "at_least": 10000 } },
+        { "id": "hm-ouro-100k", "title": "Fazendeiro rico", "description": "Junte 100.000 G.", "points": 25, "type": "progression", "badge": "🏦", "trigger": { "stat": "gold", "at_least": 100000 } },
+        { "id": "hm-cavalo", "title": "Companheiro", "description": "Ganhe um cavalo.", "points": 5, "type": "progression", "badge": "🐴", "trigger": { "stat": "horse", "at_least": 1 } },
+        { "id": "hm-estufa", "title": "Estufa", "description": "Construa a estufa.", "points": 15, "type": "progression", "badge": "🏡", "trigger": { "stat": "greenhouse", "at_least": 1 } },
+        { "id": "hm-frutas-5", "title": "Mais fôlego", "description": "Coma 5 frutas do poder.", "points": 10, "type": "progression", "badge": "🍇", "trigger": { "stat": "power_nuts", "at_least": 5 } },
+        { "id": "hm-frutas-10", "title": "Força total", "description": "Coma as 10 frutas do poder.", "points": 25, "type": "progression", "badge": "💪", "hidden": true, "trigger": { "stat": "power_nuts", "at_least": 10 } },
+        { "id": "hm-casamento", "title": "Sinos de casamento", "description": "Case-se.", "points": 25, "type": "progression", "badge": "💍", "trigger": { "stat": "married", "at_least": 1 } },
+        { "id": "hm-bebe", "title": "Família crescendo", "description": "Tenha um bebê.", "points": 25, "type": "progression", "badge": "👶", "trigger": { "stat": "baby", "at_least": 1 } },
+        { "id": "hm-segundo-ano", "title": "Segundo ano", "description": "Chegue ao segundo ano na fazenda.", "points": 15, "type": "progression", "badge": "📅", "trigger": { "stat": "year", "at_least": 2 } }
       ]
     }
   }

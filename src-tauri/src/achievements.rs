@@ -63,7 +63,14 @@ pub struct Defs {
 
 /// Stats each kind of trigger may use.
 pub const GENERIC_STATS: &[&str] = &["play_count", "play_seconds", "longest_session", "days_played"];
-pub const READERS: &[(&str, &[&str])] = &[("bk_eeprom", &["jiggies", "notes", "honeycombs", "mumbo_tokens"])];
+pub const READERS: &[(&str, &[&str])] = &[
+    ("bk_eeprom", &["jiggies", "notes", "honeycombs", "mumbo_tokens"]),
+    (
+        "mm_flash",
+        &["masks", "fierce_deity", "odolwa", "goht", "gyorg", "twinmold", "remains", "songs", "notebook", "hearts", "skulltulas"],
+    ),
+    ("hm64_sram", &["year", "gold", "milk", "eggs", "crops", "fish", "power_nuts", "married", "baby", "horse", "greenhouse"]),
+];
 
 pub fn parse(text: &str) -> Result<Defs, String> {
     let d: Defs = serde_json::from_str(text).map_err(|e| format!("conquistas ilegíveis: {e}"))?;
@@ -145,10 +152,97 @@ pub fn read_bk_eeprom(bytes: &[u8]) -> BTreeMap<String, u64> {
     best
 }
 
+/// Keeps the highest value of each stat over the save's files.
+fn keep_best(best: &mut BTreeMap<String, u64>, stats: &[(&str, u64)]) {
+    for (k, v) in stats {
+        let e = best.entry(k.to_string()).or_insert(0);
+        *e = (*e).max(*v);
+    }
+}
+
+/// Majora's Mask's 128 KB flash, kept by the recomp in the console's byte order. Each file has
+/// a new-cycle save at 0x0000/0x4000 (backups at 0x2000/0x6000) and an owl save at
+/// 0x8000/0x10000 (backups at 0xC000/0x14000), each one a `Save` (zeldaret/mm
+/// include/z64save.h, src/code/z_sram_NES.c): "ZELDA3" at 0x24, max life at 0x34 (0x10 a
+/// heart), the 48 item slots at 0x70 (the last 24 are masks), quest items at 0xBC (bits 0-3
+/// the remains, 6-16 the songs, 18 the Bombers' Notebook) and the Skulltula tokens at 0xEC0
+/// (Swamp in the upper half, Ocean in the lower). The best of every valid save counts.
+pub fn read_mm_flash(bytes: &[u8]) -> BTreeMap<String, u64> {
+    const SLOTS: [usize; 8] = [0x0000, 0x2000, 0x4000, 0x6000, 0x8000, 0xC000, 0x10000, 0x14000];
+    // Sonata, Lullaby, Bossa Nova, Elegy, Oath, Time, Healing, Epona, Soaring, Storms.
+    const SONGS: [u32; 10] = [6, 7, 8, 9, 10, 12, 13, 14, 15, 16];
+    const FIERCE_DEITY: u8 = 0x35;
+    let mut best = BTreeMap::new();
+    for at in SLOTS {
+        let Some(s) = bytes.get(at..at + 0x100C) else { continue };
+        if &s[0x24..0x2A] != b"ZELDA3" {
+            continue;
+        }
+        let be32 = |o: usize| u32::from_be_bytes([s[o], s[o + 1], s[o + 2], s[o + 3]]);
+        let quest = be32(0xBC);
+        let bit = |b: u32| u64::from((quest >> b) & 1);
+        let masks = &s[0x70 + 24..0x70 + 48];
+        let tokens = be32(0xEC0);
+        keep_best(
+            &mut best,
+            &[
+                ("masks", masks.iter().filter(|m| (0x32..=0x49).contains(*m)).count() as u64),
+                ("fierce_deity", u64::from(masks.contains(&FIERCE_DEITY))),
+                ("odolwa", bit(0)),
+                ("goht", bit(1)),
+                ("gyorg", bit(2)),
+                ("twinmold", bit(3)),
+                ("remains", (0..4).map(bit).sum()),
+                ("songs", SONGS.iter().map(|&b| bit(b)).sum()),
+                ("notebook", bit(18)),
+                ("hearts", (u64::from(u16::from_be_bytes([s[0x34], s[0x35]])) / 0x10).min(20)),
+                ("skulltulas", u64::from((tokens >> 16).max(tokens & 0xFFFF)).min(30)),
+            ],
+        );
+    }
+    best
+}
+
+/// Harvest Moon 64's SRAM: each diary is 0x1000 bytes (slot << 12) starting with
+/// "PACKINSOFT FARM2" (harvestwhisperer/hm64-decomp src/buffers/sramBuffer.h): year at 0x10,
+/// gold at 0x20, the Power Nuts found at 0x54 (10 bits), milk, eggs and crops shipped at
+/// 0x7C, 0x80 and 0x84, fish caught at 0x88, and the life events at 0xF00 (bit 0 married,
+/// 1 baby, 5 horse, 19 greenhouse; game/gameStatus.h). The best diary counts.
+pub fn read_hm64_sram(bytes: &[u8]) -> BTreeMap<String, u64> {
+    let mut best = BTreeMap::new();
+    for slot in 0..8 {
+        let Some(s) = bytes.get(slot * 0x1000..(slot + 1) * 0x1000) else { break };
+        if &s[..16] != b"PACKINSOFT FARM2" {
+            continue;
+        }
+        let be32 = |o: usize| u64::from(u32::from_be_bytes([s[o], s[o + 1], s[o + 2], s[o + 3]]));
+        let life = |n: usize| (be32(0xF00 + n / 32 * 4) >> (n % 32)) & 1;
+        keep_best(
+            &mut best,
+            &[
+                ("year", u64::from(s[0x10]).min(99)),
+                ("gold", be32(0x20).min(999_999)),
+                ("power_nuts", u64::from((be32(0x54) & 0x3FF).count_ones())),
+                ("milk", be32(0x7C)),
+                ("eggs", be32(0x80)),
+                ("crops", be32(0x84)),
+                ("fish", be32(0x88)),
+                ("married", life(0)),
+                ("baby", life(1)),
+                ("horse", life(5)),
+                ("greenhouse", life(19)),
+            ],
+        );
+    }
+    best
+}
+
 pub fn read_save(reader: &str, path: &Path) -> BTreeMap<String, u64> {
     let Ok(bytes) = std::fs::read(path) else { return BTreeMap::new() };
     match reader {
         "bk_eeprom" => read_bk_eeprom(&bytes),
+        "mm_flash" => read_mm_flash(&bytes),
+        "hm64_sram" => read_hm64_sram(&bytes),
         _ => BTreeMap::new(),
     }
 }
@@ -243,6 +337,7 @@ mod tests {
     fn builtin_definitions_are_valid() {
         let d = parse(BUILTIN).unwrap();
         assert!(d.games.contains_key("banjo"));
+        assert!(d.games.contains_key("mm") && d.games.contains_key("hm64"));
         assert!(parse(&BUILTIN.replace("\"jiggies\", \"at_least\": 1 }", "\"inventado\", \"at_least\": 1 }")).is_err());
     }
 
@@ -269,6 +364,47 @@ mod tests {
         assert_eq!(s["jiggies"], 10);
         assert_eq!(s["notes"], 157);
         assert_eq!(read_bk_eeprom(&[0u8; 512]).get("jiggies"), None, "sem save, nada");
+    }
+
+    #[test]
+    fn majoras_mask_flash_is_read() {
+        let mut flash = vec![0u8; 0x20000];
+        // File 1's owl save (0x8000): two remains, Sonata + Oath + Time, the notebook,
+        // 3 masks with Fierce Deity, 12 hearts, 30 Swamp tokens.
+        let s = 0x8000;
+        flash[s + 0x24..s + 0x2A].copy_from_slice(b"ZELDA3");
+        flash[s + 0x34..s + 0x36].copy_from_slice(&0xC0u16.to_be_bytes());
+        flash[s + 0x70..s + 0xA0].fill(0xFF);
+        flash[s + 0x70 + 24] = 0x32;
+        flash[s + 0x70 + 25] = 0x35;
+        flash[s + 0x70 + 30] = 0x49;
+        let quest: u32 = 0b11 | 1 << 6 | 1 << 10 | 1 << 12 | 1 << 18 | 1 << 11;
+        flash[s + 0xBC..s + 0xC0].copy_from_slice(&quest.to_be_bytes());
+        flash[s + 0xEC0..s + 0xEC4].copy_from_slice(&(30u32 << 16 | 4).to_be_bytes());
+        // File 2's new-cycle save without "ZELDA3": ignored.
+        flash[0x4000 + 0x34] = 0xFF;
+        let st = read_mm_flash(&flash);
+        assert_eq!((st["remains"], st["odolwa"], st["gyorg"]), (2, 1, 0));
+        assert_eq!(st["songs"], 3, "Saria (bit 11) is not a Majora's Mask song");
+        assert_eq!((st["masks"], st["fierce_deity"], st["notebook"]), (3, 1, 1));
+        assert_eq!((st["hearts"], st["skulltulas"]), (12, 30));
+        assert!(read_mm_flash(&[0u8; 0x20000]).is_empty());
+    }
+
+    #[test]
+    fn harvest_moon_sram_is_read() {
+        let mut sram = vec![0u8; 0x8000];
+        let s = 0x1000; // the second diary
+        sram[s..s + 16].copy_from_slice(b"PACKINSOFT FARM2");
+        sram[s + 0x10] = 2;
+        sram[s + 0x20..s + 0x24].copy_from_slice(&123_456u32.to_be_bytes());
+        sram[s + 0x54..s + 0x58].copy_from_slice(&0b10_0000_0111u32.to_be_bytes());
+        sram[s + 0x84..s + 0x88].copy_from_slice(&700u32.to_be_bytes());
+        sram[s + 0xF00..s + 0xF04].copy_from_slice(&(1u32 | 1 << 5 | 1 << 19).to_be_bytes());
+        let st = read_hm64_sram(&sram);
+        assert_eq!((st["year"], st["gold"], st["crops"], st["power_nuts"]), (2, 123_456, 700, 4));
+        assert_eq!((st["married"], st["baby"], st["horse"], st["greenhouse"]), (1, 0, 1, 1));
+        assert!(read_hm64_sram(&[0u8; 0x8000]).is_empty());
     }
 
     #[test]

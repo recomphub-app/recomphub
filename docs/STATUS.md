@@ -39,6 +39,7 @@
 - [x] **v0.35** Desinstalar apaga a pasta inteira do port com aviso (pasta, arquivos, tamanho; OK depois de 2 s), abas Steam, Epic e GOG na biblioteca
 - [x] **v0.42** Visual novo de console: preto e dourado, seções no alto (Biblioteca, Emuladores, Instalar ports, Comunidade, Estatísticas) trocadas com LB/RB, abas da biblioteca em pílulas, capas arredondadas que crescem e brilham ao escolher, relógio e perfil no canto, "Continuar jogando" mesmo sem capa de perfil; tutorial com os passos das seções e dos emuladores, Próximo/Pular depois de 2 s
 - [x] **v0.43** Conquistas do RetroAchievements no PCSX2: o jogo de PS2 é achado pelo mesmo hash do PCSX2 (ou pelo log dele, para .chd), cada conquista desbloqueada aparece na hora no aviso por cima do jogo com o emblema, a lista fica na página do jogo e o cartão do PCSX2 mostra se as conquistas estão ligadas e com qual conta
+- [x] **v0.44** Conquistas lidas do save de mais dois ports: Majora's Mask (13: os quatro chefes, máscaras, canções, corações, Skulltulas, Deus Feroz) e Harvest Moon 64 (14: colheitas, leite, ovos, peixes, dinheiro, cavalo, estufa, frutas do poder, casamento, bebê, segundo ano). Donkey Kong 64 fica para depois: o save dele é um fluxo de bits que a decompilação ainda não nomeou
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 
