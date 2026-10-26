@@ -5363,16 +5363,49 @@ $('#btn-settings').addEventListener('click', async () => {
   }
 });
 
+let appUpdating = false;
+
+// The bar on top when GitHub has a newer Black Flag. "Atualizar agora" downloads it here,
+// closes Black Flag, installs and opens it again; "Ver novidades" opens the release page.
 async function checkAppUpdate() {
+  if (appUpdating) return;
   try {
     const u = await invoke('check_app_update');
     if (!u) return;
     const bar = $('#app-update');
-    bar.innerHTML = `<span>Versão nova do Black Flag: <b>${esc(u.version)}</b></span><button class="primary">Baixar</button>`;
+    bar.innerHTML = `<span id="app-update-text">O Black Flag <b>${esc(u.version.replace(/^v/, ''))}</b> chegou.</span>
+      ${u.can_install ? '<button class="primary small" data-up="install">Atualizar agora</button>' : ''}
+      <button class="${u.can_install ? 'ghost' : 'primary'} small" data-up="page">${u.can_install ? 'Ver novidades' : 'Baixar'}</button>`;
     bar.hidden = false;
-    bar.querySelector('button').addEventListener('click', () => call('open_app_update', { url: u.url }));
+    bar.querySelector('[data-up="page"]').addEventListener('click', () => call('open_app_update', { url: u.url }));
+    const install = bar.querySelector('[data-up="install"]');
+    if (install) install.addEventListener('click', () => installAppUpdate(install));
   } catch { /* offline */ }
 }
+
+async function installAppUpdate(btn) {
+  appUpdating = true;
+  btn.disabled = true;
+  $('#app-update-text').textContent = 'Baixando a versão nova…';
+  try {
+    await invoke('install_app_update');
+    $('#app-update-text').textContent = 'Instalando. O Black Flag fecha e abre de novo sozinho.';
+  } catch (e) {
+    appUpdating = false;
+    btn.disabled = false;
+    $('#app-update-text').textContent = 'A atualização não terminou.';
+    toast(String(e), true);
+  }
+}
+
+listen('app-update-progress', (e) => {
+  const { got, total } = e.payload;
+  const el = $('#app-update-text');
+  if (el && total) el.textContent = `Baixando a versão nova… ${Math.min(100, Math.round((got / total) * 100))}%`;
+});
+
+// Black Flag stays open for days in Modo TV: GitHub is asked again every 6 hours.
+setInterval(() => { if ($('#app-update').hidden) checkAppUpdate(); }, 6 * 3600 * 1000);
 
 // Keeps "Jogando há …" current.
 setInterval(() => {

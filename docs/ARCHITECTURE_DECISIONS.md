@@ -571,3 +571,16 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     fazem vibrar, e a lista mostra cada controle do XInput com fio ou a bateria. Como cada botão
     ali é um teste, a navegação pelo controle fica parada; sai segurando Voltar (B ou ○) por 1,5 s,
     com uma barra que enche, ou com Fechar e Esc.
+
+83. **Atualizar o Black Flag pelo próprio programa.** Pedido do Gustavo em 26/10/2026: a versão
+    nova deve chegar sozinha ao programa instalado. Ele já perguntava ao GitHub na abertura, mas a
+    faixa só abria a página da release. Agora pergunta também a cada 6 horas (o Modo TV fica aberto
+    dias) e a faixa tem "Atualizar agora": o programa baixa o instalador `_x64-setup.exe` da última
+    release do repositório do projeto (só de `github.com` e dos servidores de arquivos do GitHub),
+    confere o sha256 que o GitHub dá para cada arquivo, fecha, roda o instalador em modo passivo
+    (`/P`, só a barra de progresso; `/R`, abre o programa no fim) e abre de novo. Biblioteca, saves
+    e perfis ficam no AppData, então nada se perde. Com um jogo aberto, não atualiza. Não usa o
+    plugin de atualização do Tauri: ele pede uma chave de assinatura e um `latest.json` em cada
+    release, e o instalador da release já é o que o site oferece. Instalar nunca começa sem o
+    clique: o programa não fecha sozinho no meio de uma partida. Vale a partir da 0.50.0; quem tem
+    uma versão anterior atualiza uma vez pela página, como antes.

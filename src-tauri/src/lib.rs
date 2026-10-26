@@ -1191,24 +1191,137 @@ fn set_fullscreen(app: AppHandle, on: bool) -> Result<(), String> {
 struct AppUpdate {
     version: String,
     url: String,
+    /// The release has the Windows installer: "Atualizar agora" can do it all.
+    can_install: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct AppRelease {
+    tag_name: String,
+    html_url: String,
+    #[serde(default)]
+    assets: Vec<AppAsset>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct AppAsset {
+    name: String,
+    browser_download_url: String,
+    #[serde(default)]
+    size: u64,
+    /// "sha256:…", given by GitHub for each file of a release.
+    #[serde(default)]
+    digest: Option<String>,
+}
+
+/// The newest release of Black Flag, when it is newer than this one.
+async fn newer_release() -> Option<AppRelease> {
+    let resp = github::api(&format!("https://api.github.com/repos/{APP_REPO}/releases/latest"))
+        .send()
+        .await
+        .ok()?;
+    let rel: AppRelease = resp.error_for_status().ok()?.json().await.ok()?;
+    let newer = version_tuple(&rel.tag_name)? > version_tuple(env!("CARGO_PKG_VERSION"))?;
+    (newer && release_page(&rel.html_url)).then_some(rel)
+}
+
+/// The Windows installer among a release's files ("Black.Flag_0.49.0_x64-setup.exe").
+fn setup_asset(assets: &[AppAsset]) -> Option<&AppAsset> {
+    assets.iter().find(|a| {
+        let n = a.name.to_ascii_lowercase();
+        n.ends_with("_x64-setup.exe") && a.browser_download_url.starts_with("https://github.com/")
+    })
 }
 
 /// Black Flag's own releases, as Ports Launcher checks its GitHub page. While the repository
 /// is private the API answers 404 and nothing is shown.
 #[tauri::command]
 async fn check_app_update() -> Option<AppUpdate> {
-    #[derive(serde::Deserialize)]
-    struct Rel {
-        tag_name: String,
-        html_url: String,
+    let rel = newer_release().await?;
+    let can_install = setup_asset(&rel.assets).is_some();
+    Some(AppUpdate { version: rel.tag_name, url: rel.html_url, can_install })
+}
+
+#[derive(Serialize, Clone)]
+struct UpdateProgress {
+    got: u64,
+    total: u64,
+}
+
+/// The script that waits for Black Flag to close, runs the installer without questions (/P:
+/// only its progress bar; /R: it opens Black Flag again) and opens it again if it did not.
+fn update_script(setup: &Path, exe: &Path) -> String {
+    format!(
+        "@echo off\r\ntimeout /t 2 /nobreak >nul\r\n\"{}\" /P /R\r\nstart \"\" \"{}\"\r\n",
+        setup.display(),
+        exe.display()
+    )
+}
+
+/// "Atualizar agora": downloads the new installer from the project's own release (checked
+/// against GitHub's sha256 when there is one), then closes Black Flag and installs it. The
+/// library, saves and profiles stay: they live in AppData, not where the program is installed.
+#[tauri::command]
+async fn install_app_update(app: AppHandle) -> Result<(), String> {
+    use futures_util::StreamExt;
+    use sha2::Digest;
+    if !app.state::<AppState>().sessions.lock().unwrap().running.is_empty() {
+        return Err("Feche o jogo aberto antes de atualizar o Black Flag.".into());
     }
-    let resp = github::api(&format!("https://api.github.com/repos/{APP_REPO}/releases/latest"))
+    let rel = newer_release().await.ok_or("Não achei a versão nova no GitHub. Tente de novo daqui a pouco.")?;
+    let asset = setup_asset(&rel.assets).cloned().ok_or("Esta versão não tem o instalador para Windows; use Ver novidades.")?;
+    let resp = github::client()
+        .get(&asset.browser_download_url)
         .send()
         .await
-        .ok()?;
-    let rel: Rel = resp.error_for_status().ok()?.json().await.ok()?;
-    let newer = version_tuple(&rel.tag_name)? > version_tuple(env!("CARGO_PKG_VERSION"))?;
-    (newer && release_page(&rel.html_url)).then(|| AppUpdate { version: rel.tag_name, url: rel.html_url })
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| format!("Não deu para baixar: {e}"))?;
+    // The download ends on GitHub's own file servers.
+    let host = resp.url().host_str().unwrap_or("").to_string();
+    if !(host == "github.com" || host.ends_with(".githubusercontent.com")) {
+        return Err("O download foi para um servidor desconhecido; parei por segurança.".into());
+    }
+    let total = resp.content_length().unwrap_or(asset.size);
+    let mut bytes = Vec::with_capacity(total as usize);
+    let mut stream = resp.bytes_stream();
+    let mut last = 0;
+    while let Some(chunk) = stream.next().await {
+        bytes.extend_from_slice(&chunk.map_err(|e| format!("O download parou: {e}"))?);
+        if bytes.len() as u64 > 512 * 1024 * 1024 {
+            return Err("O arquivo é grande demais para ser o instalador.".into());
+        }
+        if bytes.len() - last > 256 * 1024 {
+            last = bytes.len();
+            let _ = app.emit("app-update-progress", UpdateProgress { got: last as u64, total });
+        }
+    }
+    if let Some(want) = asset.digest.as_deref().and_then(|d| d.strip_prefix("sha256:")) {
+        let got = sha2::Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect::<String>();
+        if !got.eq_ignore_ascii_case(want) {
+            return Err("O arquivo baixado não confere com o do GitHub; não instalei.".into());
+        }
+    }
+    let dir = std::env::temp_dir().join("BlackFlag-atualizacao");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name: String = asset.name.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')).collect();
+    let setup = dir.join(name);
+    std::fs::write(&setup, &bytes).map_err(|e| e.to_string())?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let script = dir.join("atualizar.cmd");
+    std::fs::write(&script, update_script(&setup, &exe)).map_err(|e| e.to_string())?;
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("cmd")
+            .arg("/C")
+            .arg(&script)
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("Não deu para abrir o instalador: {e}"))?;
+    }
+    app.exit(0);
+    Ok(())
 }
 
 const APP_REPO: &str = "recomphub-app/recomphub";
@@ -5190,6 +5303,7 @@ pub fn run() {
             set_fullscreen,
             check_app_update,
             open_app_update,
+            install_app_update,
             take_pending_open,
             remove_game,
             open_project,
@@ -5206,6 +5320,21 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn update_takes_the_windows_installer() {
+        let a = |name: &str, url: &str| super::AppAsset { name: name.into(), browser_download_url: url.into(), size: 0, digest: None };
+        let gh = "https://github.com/recomphub-app/recomphub/releases/download/v0.50.0/";
+        let assets = vec![
+            a("latest.json", &format!("{gh}latest.json")),
+            a("Black.Flag_0.50.0_x64-setup.exe", "https://example.com/Black.Flag_0.50.0_x64-setup.exe"),
+            a("Black.Flag_0.50.0_x64-setup.exe", &format!("{gh}Black.Flag_0.50.0_x64-setup.exe")),
+        ];
+        assert_eq!(super::setup_asset(&assets).unwrap().browser_download_url, format!("{gh}Black.Flag_0.50.0_x64-setup.exe"));
+        assert!(super::setup_asset(&assets[..2]).is_none());
+        let s = super::update_script(std::path::Path::new(r"C:\T\setup.exe"), std::path::Path::new(r"C:\BF\recomphub.exe"));
+        assert!(s.contains("\"C:\\T\\setup.exe\" /P /R\r\n") && s.ends_with("start \"\" \"C:\\BF\\recomphub.exe\"\r\n"));
+    }
+
     #[test]
     fn only_game_folders_are_erased() {
         use std::path::Path;
