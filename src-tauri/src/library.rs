@@ -267,11 +267,17 @@ impl Library {
 
     /// Store games no longer installed (not found by the search and their folder gone) leave
     /// the library, keeping their play time for when they come back. Returns their names.
+    /// Steam often leaves files behind (mods, configs, crash reports): there, the game's own
+    /// appmanifest missing from its library says it is gone, folder or not.
     pub fn drop_uninstalled(&mut self, store: &str, found: &[String]) -> Vec<String> {
         let gone: Vec<String> = self
             .games
             .iter()
-            .filter(|(id, e)| e.store.as_deref() == Some(store) && !found.contains(id) && !Path::new(&e.install_dir).is_dir())
+            .filter(|(id, e)| {
+                e.store.as_deref() == Some(store)
+                    && !found.contains(id)
+                    && (!Path::new(&e.install_dir).is_dir() || steam_manifest_gone(id, Path::new(&e.install_dir)))
+            })
             .map(|(id, _)| id.clone())
             .collect();
         gone.iter()
@@ -287,6 +293,17 @@ impl Library {
     pub fn install_dir(&self, id: &str) -> Option<PathBuf> {
         self.games.get(id).map(|e| PathBuf::from(&e.install_dir))
     }
+}
+
+/// A Steam game ("steam-<app>") in `...\steamapps\common\<folder>` whose
+/// `...\steamapps\appmanifest_<app>.acf` is missing, while that steamapps folder is there (a
+/// disconnected drive is not an uninstall).
+fn steam_manifest_gone(id: &str, dir: &Path) -> bool {
+    let Some(app) = id.strip_prefix("steam-").filter(|a| !a.is_empty() && a.bytes().all(|b| b.is_ascii_digit())) else { return false };
+    let Some(steamapps) = dir.parent().filter(|c| c.file_name().is_some_and(|n| n.eq_ignore_ascii_case("common"))).and_then(Path::parent) else {
+        return false;
+    };
+    steamapps.is_dir() && !steamapps.join(format!("appmanifest_{app}.acf")).is_file()
 }
 
 /// "2026-10-19" for a Unix time (UTC), for backup file names.
@@ -352,5 +369,25 @@ mod tests {
         assert_eq!(lib.drop_uninstalled("epic", &["epic-b".into()]), vec!["A".to_string()]);
         assert!(lib.games.contains_key("epic-b") && lib.games.contains_key("gog-1"));
         assert!(lib.removed.contains_key("epic-a") && !lib.excluded.contains("epic-a"));
+    }
+
+    #[test]
+    fn steam_games_leave_even_with_files_left_behind() {
+        let steamapps = std::env::temp_dir().join("recomphub-steamapps-5c1d").join("steamapps");
+        let left = steamapps.join("common").join("Sobras");
+        let kept = steamapps.join("common").join("Instalado");
+        std::fs::create_dir_all(&left).unwrap();
+        std::fs::create_dir_all(&kept).unwrap();
+        std::fs::write(left.join("dinput8.dll"), b"mod").unwrap();
+        std::fs::write(steamapps.join("appmanifest_20.acf"), b"\"AppState\" {}").unwrap();
+        let mut lib = super::Library::default();
+        lib.upsert_store_game("steam-10", "steam", "Desinstalado", &left, None, None);
+        lib.upsert_store_game("steam-20", "steam", "Instalado", &kept, None, None);
+        // Not found by the search, but its manifest is there (an update in progress, say): stays.
+        assert_eq!(lib.drop_uninstalled("steam", &[]), vec!["Desinstalado".to_string()]);
+        assert!(lib.games.contains_key("steam-20"));
+        // A drive that is not connected: no steamapps folder, not an uninstall by this rule.
+        assert!(!super::steam_manifest_gone("steam-30", &std::env::temp_dir().join("nao-existe-77").join("steamapps").join("common").join("X")));
+        let _ = std::fs::remove_dir_all(steamapps.parent().unwrap());
     }
 }

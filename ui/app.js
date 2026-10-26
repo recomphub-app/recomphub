@@ -2911,10 +2911,7 @@ async function act(action, g, el) {
         });
         if (clear) keyResults = [{ ok: true, message: 'Chaves apagadas.' }];
         settings = await call('get_settings');
-        // Games looked up before keys existed are asked again, on their page and in the background.
-        for (const id of Object.keys(metaCache)) if (!metaCache[id].cached) delete metaCache[id];
-        coverTried.clear();
-        coversInBackground();
+        if (!clear) refreshAllCovers();
       } catch (e) {
         keyResults = [{ ok: false, message: String(e) }];
       }
@@ -5270,10 +5267,13 @@ function closeSetup() {
 }
 
 // A new SteamGridDB key: every game without a cover is looked up again, at once.
+// Games looked up before keys existed are asked again, on their page and in the background; so
+// are the Comunidade pictures taken from a README (get_community starts that search).
 function refreshAllCovers() {
   for (const id of Object.keys(metaCache)) if (!metaCache[id].cached) delete metaCache[id];
   coverTried.clear();
   coversInBackground();
+  invoke('get_community', { force: false }).then((d) => { communityData = d; }).catch(() => {});
 }
 
 async function setupAct(what, el) {

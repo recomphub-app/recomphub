@@ -4,7 +4,8 @@
 //! (usually a banner or a screenshot). Only GitHub's own servers and Imgur are accepted for
 //! README pictures; badges and donation buttons are skipped. Pictures become 360×360 JPEG
 //! thumbnails, so a list of 150 ports stays light, and a port without one is asked again after
-//! a week.
+//! a week. A picture found before the player had a key (README, or none) is looked for again
+//! as soon as there is one.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,6 +26,20 @@ pub struct Entry {
     pub checked_at: u64,
     /// "SteamGridDB", "IGDB" or "README"; None when nothing was found.
     pub source: Option<String>,
+    /// SteamGridDB or IGDB keys were there when it was looked for.
+    #[serde(default)]
+    pub keys: bool,
+}
+
+/// Whether a port's picture is looked for now.
+fn due(entry: Option<&Entry>, keys: bool, now: u64) -> bool {
+    let Some(e) = entry else { return true };
+    match e.source.as_deref() {
+        Some("SteamGridDB" | "IGDB") => false,
+        _ if keys && !e.keys => true,
+        Some(_) => false,
+        None => now.saturating_sub(e.checked_at) > RETRY_AFTER,
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -239,14 +254,8 @@ pub fn fill(app: AppHandle, dir: PathBuf, meta_dir: PathBuf, items: Vec<Item>, k
     tauri::async_runtime::spawn(async move {
         let now = crate::library::now();
         let mut index = load_index(&dir);
-        let todo: Vec<Item> = items
-            .into_iter()
-            .filter(|i| match index.entries.get(&id_for(&i.repo)) {
-                Some(e) if e.source.is_some() => false,
-                Some(e) => now.saturating_sub(e.checked_at) > RETRY_AFTER,
-                None => true,
-            })
-            .collect();
+        let with_keys = keys.any();
+        let todo: Vec<Item> = items.into_iter().filter(|i| due(index.entries.get(&id_for(&i.repo)), with_keys, now)).collect();
         let _ = std::fs::create_dir_all(&dir);
         let client = crate::github::client();
         for chunk in todo.chunks(PARALLEL) {
@@ -260,9 +269,10 @@ pub fn fill(app: AppHandle, dir: PathBuf, meta_dir: PathBuf, items: Vec<Item>, k
                         let _ = app.emit("community-art", serde_json::json!({ "id": id, "url": url, "source": source }));
                         Some(source)
                     }
-                    _ => None,
+                    // Nothing new (offline, say): the picture there was stays.
+                    _ => index.entries.get(&id).and_then(|e| e.source.clone()),
                 };
-                index.entries.insert(id, Entry { checked_at: now, source });
+                index.entries.insert(id, Entry { checked_at: now, source, keys: with_keys });
             }
             // Written beside it and swapped in, so a reader never sees half a file.
             if let Ok(text) = serde_json::to_string(&index) {
@@ -297,6 +307,23 @@ mod tests {
                 "https://github.com/user-attachments/assets/abc".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn looked_for_again_once_there_is_a_key() {
+        let e = |source: Option<&str>, keys: bool| Entry { checked_at: 1_000, source: source.map(String::from), keys };
+        let now = 2_000;
+        assert!(due(None, false, now));
+        // A README picture: kept without keys, replaced once a key is there, and only once.
+        assert!(!due(Some(&e(Some("README"), false)), false, now));
+        assert!(due(Some(&e(Some("README"), false)), true, now));
+        assert!(!due(Some(&e(Some("README"), true)), true, now));
+        // Nothing found: again with a key, or after a week.
+        assert!(due(Some(&e(None, false)), true, now));
+        assert!(!due(Some(&e(None, true)), true, now));
+        assert!(due(Some(&e(None, true)), true, 1_000 + RETRY_AFTER + 1));
+        // A real cover stays.
+        assert!(!due(Some(&e(Some("SteamGridDB"), false)), true, now));
     }
 
     #[test]
