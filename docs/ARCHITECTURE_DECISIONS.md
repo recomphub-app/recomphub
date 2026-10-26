@@ -542,3 +542,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     traço 1.75). Seleção de texto, cursor e barra de rolagem seguem a paleta; números em tempos e
     contagens ficam alinhados. Com "reduzir movimento" do Windows ou "sem animações" do perfil,
     some o deslocamento e ficam só as trocas de cor e opacidade.
+
+81. **Logo: a bandeira do programa com a caveira de controle.** Pedido do Gustavo em 26/10/2026:
+    uma caveira dentro da bandeira, com o direcional num olho e os quatro botões no outro. A
+    OpenArt (pelo conector MCP dela) gerou ideias; a escolhida foi redesenhada em vetor e, a pedido
+    dele, sem a "cara de IA" (dourado em degradê, bandeira de clip-art com mastro, caveira redonda
+    de desenho). A forma vem da marca que o programa já tinha: a bandeira dourada com o corte em V
+    na ponta. Uma cor só (`#d9b45a`); a caveira é um vazio recortado na bandeira, então funciona em
+    fundo escuro e claro; o crânio é facetado; os olhos são os controles, como ficam num controle
+    (direcional à esquerda de quem olha, botões à direita), sem letras nem símbolos de console. O
+    desenho sai de `docs/logo/logo-gen.js`; o `app-icon.png` (1024 px, transparente) gera os
+    ícones no CI.
