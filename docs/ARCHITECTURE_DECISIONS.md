@@ -528,3 +528,17 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     postas, e o "Agora não" do aviso o esconde por 3 dias (no `localStorage`, por ser só uma
     preferência deste PC). Ao salvar a chave da SteamGridDB, todos os jogos sem capa são
     buscados de novo na hora.
+
+80. **Movimento e acabamento, com as skills de design.** Pedido do Gustavo em 26/10/2026, com
+    as skills frontend-design, impeccable e taste-skill como régua. O mundo preto e dourado da
+    decisão 75 fica; muda o acabamento. Um único momento autoral: o jogo em foco na biblioteca
+    (mouse ou controle) enche o fundo com a própria arte, em duas camadas que se cruzam. A troca
+    de página usa View Transitions: a capa do jogo aberto viaja da grade até a página dele e
+    volta, e o resto troca rápido (160–260 ms, `cubic-bezier(.16,1,.3,1)`, saída mais rápida que
+    a entrada). Menus, diálogos e avisos têm entradas curtas, e só na abertura (o tutorial não
+    se anima a cada passo). Saem os "tiques" que as três skills apontam: faixas coloridas grossas
+    na lateral dos avisos (viram borda fina com um tom da cor), rótulos em maiúsculas
+    monoespaçadas acima dos títulos, símbolos Unicode e emoji como ícones (viram SVG desenhados,
+    traço 1.75). Seleção de texto, cursor e barra de rolagem seguem a paleta; números em tempos e
+    contagens ficam alinhados. Com "reduzir movimento" do Windows ou "sem animações" do perfil,
+    some o deslocamento e ficam só as trocas de cor e opacidade.

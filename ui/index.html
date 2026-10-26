@@ -8,12 +8,13 @@
 </head>
 <body>
   <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+  <div id="backdrop2" class="backdrop" aria-hidden="true"></div>
   <header class="topbar">
     <div class="sysbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Black <span>Flag</span></div>
       <div class="actions">
         <div class="menu">
-          <button class="primary" data-menu aria-haspopup="true">+ Adicionar</button>
+          <button class="primary" data-menu aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
           <div class="menu-list" hidden>
             <button id="btn-emu">Jogos de console (emuladores)</button>
             <button id="btn-discover">Instalar um port</button>
@@ -22,9 +23,9 @@
             <button id="btn-add-pc">Jogo de PC</button>
           </div>
         </div>
-        <button id="btn-tv" class="ghost pill" title="Biblioteca em tela cheia, com controle ou teclado">▶ Modo TV</button>
+        <button id="btn-tv" class="ghost pill" title="Biblioteca em tela cheia, com controle ou teclado"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8.5 20.5h7"/></svg>Modo TV</button>
         <div class="menu">
-          <button class="ghost pill" data-menu aria-haspopup="true">Mais ▾</button>
+          <button class="ghost pill" data-menu aria-haspopup="true">Mais<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></button>
           <div class="menu-list" hidden>
             <button id="btn-covers">Capas</button>
             <button id="btn-backup">Backup dos saves</button>
@@ -33,18 +34,18 @@
             <button id="btn-tour">Tutorial</button>
           </div>
         </div>
-        <button id="btn-settings" class="ghost pill icon" title="Configurações">⚙</button>
+        <button id="btn-settings" class="ghost pill icon" title="Configurações" aria-label="Configurações"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
         <span id="clock" class="clock" aria-hidden="true"></span>
         <button id="btn-profile" class="profile-chip" title="Trocar de perfil"></button>
       </div>
     </div>
     <nav class="nav" id="nav" aria-label="Seções">
       <span class="nav-key" data-pad="lb" aria-hidden="true"></span>
-      <button data-nav="library"><span class="nav-ico" aria-hidden="true">▦</span>Biblioteca</button>
-      <button data-nav="emu"><span class="nav-ico" aria-hidden="true">◉</span>Emuladores</button>
-      <button data-nav="discover"><span class="nav-ico" aria-hidden="true">⬇</span>Instalar ports</button>
-      <button data-nav="community"><span class="nav-ico" aria-hidden="true">✦</span>Comunidade</button>
-      <button data-nav="stats"><span class="nav-ico" aria-hidden="true">▤</span>Estatísticas</button>
+      <button data-nav="library"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>Biblioteca</button>
+      <button data-nav="emu"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 7.5h9.6a4 4 0 0 1 3.9 3.2l.9 4.4a2.3 2.3 0 0 1-4 1.9l-2-2.3H8.4l-2 2.3a2.3 2.3 0 0 1-4-1.9l.9-4.4a4 4 0 0 1 3.9-3.2z"/><path d="M8.5 10v3M7 11.5h3"/><path d="M15.5 11h.01M17.5 12.5h.01"/></svg>Emuladores</button>
+      <button data-nav="discover"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 16.5v1.8A1.7 1.7 0 0 0 6.2 20h11.6a1.7 1.7 0 0 0 1.7-1.7v-1.8"/></svg>Instalar ports</button>
+      <button data-nav="community"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="16.5" cy="9.5" r="2.4"/><path d="M15.8 14.3a4.6 4.6 0 0 1 4.7 4.7"/></svg>Comunidade</button>
+      <button data-nav="stats"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-6M11 20V5M17 20v-9M3 20h18"/></svg>Estatísticas</button>
       <span class="nav-key" data-pad="rb" aria-hidden="true"></span>
     </nav>
   </header>

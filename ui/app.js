@@ -52,6 +52,12 @@ function lastPlayed(unix) {
 }
 
 let toastTimer;
+// A dialog that opens plays its entrance once; later redraws of its card stay still.
+function popIn(el) {
+  el.classList.add('pop');
+  setTimeout(() => el.classList.remove('pop'), 450);
+}
+
 function toast(message, bad = false) {
   const t = $('#toast');
   t.textContent = message;
@@ -184,10 +190,10 @@ function renderLibHero() {
   el.className = 'lib-hero';
   el.innerHTML = `
     ${art ? `<div class="lib-hero-art" style="background-image:url('${art}');background-position:${p.banner ? bannerPos(p) : 'center'}"></div>` : ''}
-    <div class="lib-hero-who">${avatar(p, true)}<div><span class="k">${hello},</span><b>${esc(p.name)}</b></div></div>
+    <div class="lib-hero-who">${avatar(p, true)}<div><span class="hello">${hello},</span><b>${esc(p.name)}</b></div></div>
     ${last ? `
       <div class="lib-hero-go">
-        <span class="k">Continuar jogando</span>
+        <span class="go-label">Continuar jogando</span>
         <b>${esc(last.title)}</b>
         ${last.resume ? `<p>“${esc(last.resume.text)}”</p>` : `<p class="muted">Última vez ${lastPlayed(last.last_played)}</p>`}
         <div class="row">
@@ -241,7 +247,15 @@ function renderGrid() {
           : g.in_library ? `${playTime(g.total_seconds)} · última vez ${lastPlayed(g.last_played)}` : `Port ${esc(g.port_name)}`}</div>
       </div>
     </div>`).join('');
-  document.querySelectorAll('.card').forEach((el) => el.addEventListener('click', () => openGame(el.dataset.id)));
+  document.querySelectorAll('.card').forEach((el) => {
+    el.addEventListener('click', () => openGame(el.dataset.id));
+    const g = list.find((x) => x.id === el.dataset.id);
+    const art = g && realArt(g);
+    if (!art) return;
+    el.addEventListener('mouseenter', () => setFocusArt(art));
+    el.addEventListener('focus', () => setFocusArt(art));
+  });
+  $('#grid').onmouseleave = () => setFocusArt(null);
 }
 
 const downloadsFound = {};   // id -> 'searching' | 'none' | path found in Downloads
@@ -2494,6 +2508,7 @@ function backdropArt() {
   const art = (g) => g && (g.background || g.cover);
   const open = openId && games.find((g) => g.id === openId);
   if (open && art(open)) return art(open);
+  if (!openId && focusArt) return focusArt;
   const p = profiles && profiles.active;
   const want = (p && p.look && p.look.page_bg) || 'perfil';
   if (want === 'nenhum') return null;
@@ -2503,14 +2518,58 @@ function backdropArt() {
   return art(last) || null;
 }
 
+// Two layers, so a new picture fades in over the old one instead of replacing it.
 function renderBackdrop() {
-  const el = $('#backdrop');
-  if (!el) return;
-  const url = backdropArt();
-  if (el.dataset.url === (url || '')) return;
-  el.dataset.url = url || '';
-  el.style.backgroundImage = url ? `url('${url}')` : '';
-  el.classList.toggle('on', !!url);
+  const a = $('#backdrop');
+  const b = $('#backdrop2');
+  if (!a || !b) return;
+  const url = backdropArt() || '';
+  const front = a.classList.contains('on') ? a : b.classList.contains('on') ? b : null;
+  if ((front ? front.dataset.url : '') === url) return;
+  const next = front === a ? b : a;
+  if (front) front.classList.remove('on');
+  if (!url) return;
+  next.dataset.url = url;
+  next.style.backgroundImage = `url('${url}')`;
+  next.classList.add('on');
+}
+
+// The library's one authored moment, as on a console's home: the game under the pointer or the
+// controller lights the room with its own art. Short waits keep a pass across the grid calm.
+let focusArt = null;
+let focusTimer = null;
+const realArt = (g) => [g.background, g.cover].find((u) => u && !u.startsWith('data:image/svg')) || null;
+function setFocusArt(url) {
+  clearTimeout(focusTimer);
+  focusTimer = setTimeout(() => {
+    focusArt = url;
+    renderBackdrop();
+  }, url ? 160 : 700);
+}
+
+// Page changes as one movement: the cover of the game being opened travels to its place on the
+// game page and back (View Transitions). A plain swap where the WebView lacks them, in the TV
+// mode, or when motion is reduced.
+function coverOf(id) {
+  if (!$('#detail').hidden) return document.querySelector('#detail .detail .cover');
+  return id ? document.querySelector(`#grid .card[data-id="${CSS.escape(id)}"] .cover`) : null;
+}
+
+function moveTo(change, id) {
+  const still = document.body.classList.contains('no-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || still || tvOn) return change();
+  const from = coverOf(id);
+  if (from) from.style.viewTransitionName = 'capa';
+  const t = document.startViewTransition(() => {
+    if (from) from.style.viewTransitionName = '';
+    change();
+    const to = coverOf(id);
+    if (to) to.style.viewTransitionName = 'capa';
+  });
+  t.finished.finally(() => {
+    const to = coverOf(id);
+    if (to) to.style.viewTransitionName = '';
+  });
 }
 
 function setGame(g) {
@@ -2586,8 +2645,12 @@ function coverStatus(g) {
 
 function openGame(id) {
   if (id !== justInstalled) justInstalled = null;
-  openId = id;
-  render();
+  focusArt = null;
+  moveTo(() => {
+    openId = id;
+    render();
+    window.scrollTo(0, 0);
+  }, id);
 }
 
 async function act(action, g, el) {
@@ -2635,10 +2698,14 @@ async function act(action, g, el) {
       setGame(await call('rename_game', { id: g.id, title: $('#title-input').value }));
       toast('Nome salvo.');
       break;
-    case 'back':
-      openId = null;
-      render();
+    case 'back': {
+      const was = openId;
+      moveTo(() => {
+        openId = null;
+        render();
+      }, was);
       break;
+    }
     case 'emulators':
       await openEmulators();
       break;
@@ -4506,10 +4573,15 @@ document.querySelectorAll('.menu > [data-menu]').forEach((b) => b.addEventListen
   e.stopPropagation();
   const list = b.nextElementSibling;
   const opening = list.hidden;
-  document.querySelectorAll('.menu-list').forEach((l) => (l.hidden = true));
+  closeMenus();
   list.hidden = !opening;
+  b.setAttribute('aria-expanded', String(opening));
 }));
-document.addEventListener('click', () => document.querySelectorAll('.menu-list').forEach((l) => (l.hidden = true)));
+function closeMenus() {
+  document.querySelectorAll('.menu-list').forEach((l) => (l.hidden = true));
+  document.querySelectorAll('.menu > [data-menu]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+}
+document.addEventListener('click', closeMenus);
 $('#btn-tour').addEventListener('click', () => openTour());
 $('#btn-emu').addEventListener('click', openEmulators);
 $('#btn-discover').addEventListener('click', () => {
@@ -4534,18 +4606,20 @@ function markNav() {
 }
 
 function goNav(where) {
-  if (where === 'emu') return openEmulators();
-  if (where === 'stats') return openStats();
-  openId = null;
-  tagFilter = null;
-  if (where === 'library') {
-    const home = profiles && profiles.active.look && profiles.active.look.home;
-    tab = home && home !== 'community' ? home : 'all';
-  } else {
-    tab = where;
-  }
-  render();
-  window.scrollTo(0, 0);
+  if (where === 'emu') return moveTo(openEmulators);
+  if (where === 'stats') return moveTo(openStats);
+  moveTo(() => {
+    openId = null;
+    tagFilter = null;
+    if (where === 'library') {
+      const home = profiles && profiles.active.look && profiles.active.look.home;
+      tab = home && home !== 'community' ? home : 'all';
+    } else {
+      tab = where;
+    }
+    render();
+    window.scrollTo(0, 0);
+  });
 }
 
 document.querySelectorAll('#nav [data-nav]').forEach((b) => b.addEventListener('click', () => goNav(b.dataset.nav)));
@@ -4640,7 +4714,7 @@ function pcsx2RaLine(e) {
         do jogo é dessa conta.</p>` : ''}
       ${mine ? '' : '<p class="emu-need muted">Para ver a lista de conquistas na página do jogo, ponha o seu usuário e a chave de API em Gerenciar perfis.</p>'}`;
   }
-  return `<p class="emu-need muted">🏆 Conquistas do RetroAchievements: ${r.enabled ? 'ligadas, falta entrar com a sua conta'
+  return `<p class="emu-need muted">Conquistas do RetroAchievements: ${r.enabled ? 'ligadas, falta entrar com a sua conta'
       : 'desligadas'}. ${e.found.managed && !r.enabled ? 'Clique em Ligar as conquistas e depois' : 'No PCSX2,'} abra
       <b>Configurações > Conquistas</b> e clique em <b>Entrar</b> (login e senha ficam só no PCSX2).</p>
     <div class="row">
@@ -5071,6 +5145,7 @@ function openTour() {
   tourStep = 0;
   tourRead.clear();
   $('#tour').hidden = false;
+  popIn($('#tour'));
   tourLock();
   renderTour();
 }
@@ -5112,11 +5187,10 @@ function renderSetup() {
   const p = profiles && profiles.active;
   $('#setup').innerHTML = `
     <div class="tour-card tour-feature setup-card" role="dialog" aria-modal="true" aria-labelledby="setup-title" tabindex="-1">
-      <p class="tour-count">Passo extra · recomendado</p>
       <h2 id="setup-title">Capas e conquistas</h2>
       <p class="tour-lead">Duas chaves grátis deixam o Black Flag completo. Leva uns minutos e é feito uma vez só.</p>
       <section class="setup-part${sgdb ? ' done' : ''}">
-        <h3>🎨 Capas de todos os jogos <span class="chip family">SteamGridDB</span>${sgdb ? '<span class="ok-text">✓ Pronta</span>' : ''}</h3>
+        <h3>Capas de todos os jogos <span class="chip family">SteamGridDB</span>${sgdb ? '<span class="ok-text">✓ Pronta</span>' : ''}</h3>
         <p>Sem capa, cada jogo aparece só com o nome. Com a chave, o Black Flag busca capas e banners para a biblioteca inteira,
           na hora.</p>
         ${tourCoverSample()}
@@ -5132,7 +5206,7 @@ function renderSetup() {
         ${setupResultHtml(setupResult.sgdb)}
       </section>
       <section class="setup-part${ra ? ' done' : ''}">
-        <h3>🏆 Conquistas do RetroAchievements${ra ? '<span class="ok-text">✓ Conectado</span>' : ''}</h3>
+        <h3>Conquistas do RetroAchievements${ra ? '<span class="ok-text">✓ Conectado</span>' : ''}</h3>
         <p>Mostra as suas conquistas nos ports de N64 e nos jogos de PS2 do PCSX2, com a lista na página de cada jogo.</p>
         <ol class="tour-big">
           <li><button class="link" data-setup-link="https://retroachievements.org/settings">Abra as configurações do RetroAchievements</button>
@@ -5173,6 +5247,7 @@ function setupButtons() {
 function openSetup() {
   setupResult = { sgdb: null, ra: null };
   $('#setup').hidden = false;
+  popIn($('#setup'));
   clearInterval(setupTimer);
   setupWait = SETUP_WAIT;
   setupTimer = setInterval(() => {
@@ -5239,7 +5314,6 @@ function setupHintHtml() {
   } catch { /* shown */ }
   const missing = [!settings.has_steamgriddb && 'as capas (SteamGridDB)', !raLinked() && 'as conquistas (RetroAchievements)'].filter(Boolean);
   return `
-    <span class="setup-hint-icon" aria-hidden="true">✦</span>
     <div><b>Deixe a sua biblioteca completa</b>
       <p class="muted">Falta pôr a chave grátis para ${missing.join(' e ')}. São uns minutos, uma vez só.</p></div>
     <div class="row"><button class="primary small" data-hint="open">Configurar agora</button>

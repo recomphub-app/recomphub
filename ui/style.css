@@ -104,8 +104,12 @@ button.pill.icon { padding: 6px 10px; font-size: 16px; line-height: 1; }
 }
 .nav button:hover:not(:disabled) { color: var(--text); background: none; }
 .nav button.on { color: var(--red); border-bottom-color: var(--red); }
-.nav-ico { font-size: 14px; opacity: .8; }
-.nav button[data-nav="emu"] .nav-ico { color: var(--red); opacity: 1; }
+.ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+button .ico { margin: -2px 0; }
+.nav .ico { width: 17px; height: 17px; opacity: .85; }
+.nav button.on .ico { opacity: 1; }
+button.primary[data-menu], button.pill { display: inline-flex; align-items: center; gap: 7px; }
+button[data-menu] .ico[viewBox] { transition: transform .18s cubic-bezier(.16, 1, .3, 1); }
 .nav-key { display: none; }
 body.pad-on .nav-key {
   display: inline-block; min-width: 2.2em; padding: 0 6px; text-align: center;
@@ -873,7 +877,7 @@ button.primary.danger-fill:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--ru
 /* A narrow window (the app goes down to 900 px): the sections and the bar on top get tighter */
 @media (max-width: 1040px) {
   .nav button { padding: 9px 11px 10px; font-size: 14px; }
-  .nav-ico { display: none; }
+  .nav .ico { display: none; }
   .clock { display: none; }
 }
 
@@ -894,3 +898,99 @@ button.primary.danger-fill:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--ru
 .setup-hint p { margin: 2px 0 0; }
 .setup-hint .row { margin: 0; }
 .setup-hint-icon { font-size: 22px; color: var(--red); }
+
+/* ---- Motion and finish (decisão 80) ----
+   One authored moment: the art of the game in focus fills the room. Everything else is quick
+   feedback: 150-300 ms, exponential ease-out, exits faster than entrances. */
+:root { --ease-out: cubic-bezier(.16, 1, .3, 1); }
+
+/* The backdrop layers crossfade */
+.backdrop { transition: opacity .55s var(--ease-out), background-image 0s; }
+.backdrop.on { opacity: .34; }
+
+/* Pages: the root crossfades quickly; the opened game's cover travels to its page */
+::view-transition-old(root) { animation: vt-out .16s ease-in both; }
+::view-transition-new(root) { animation: vt-in .26s var(--ease-out) both; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
+::view-transition-group(capa) { animation-duration: .42s; animation-timing-function: var(--ease-out); }
+::view-transition-old(capa), ::view-transition-new(capa) { animation-duration: .42s; height: 100%; object-fit: cover; }
+.topbar { view-transition-name: topo; }
+::view-transition-group(topo) { animation: none; }
+
+/* Selection, the console way: the game grows and lights up; no lift */
+.card { transition: transform .22s var(--ease-out); }
+.card:hover, body.pad-on .card:focus { transform: scale(1.035); }
+.card .cover { transition: border-color .18s var(--ease-out), box-shadow .22s var(--ease-out); }
+.card .title { transition: color .18s var(--ease-out); }
+
+/* Controls answer the hand */
+button { transition: border-color .15s var(--ease-out), color .15s var(--ease-out), background-color .15s var(--ease-out), box-shadow .2s var(--ease-out), transform .1s ease-out, filter .15s var(--ease-out); }
+button:active:not(:disabled) { transform: scale(.97); }
+.tabs button { transition: background-color .18s var(--ease-out), border-color .18s var(--ease-out), color .18s var(--ease-out); }
+.nav button { transition: color .18s var(--ease-out), border-color .25s var(--ease-out); }
+.nav button:active:not(:disabled) { transform: none; }
+button[data-menu][aria-expanded="true"] .ico { transform: rotate(180deg); }
+
+/* Menus drop from their button */
+.menu-list:not([hidden]) { animation: menu-in .18s var(--ease-out); transform-origin: top right; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+
+/* Dialogs: the room dims, then the card arrives */
+.tour.pop { animation: scrim-in .22s ease-out; }
+.tour.pop > .tour-card { animation: card-in .38s var(--ease-out); }
+.ask:not([hidden]), .resume:not([hidden]) { animation: scrim-in .22s ease-out; }
+.ask:not([hidden]) > .ask-card, .resume:not([hidden]) > .resume-card { animation: card-in .38s var(--ease-out); }
+@keyframes scrim-in { from { opacity: 0; } }
+@keyframes card-in { from { opacity: 0; transform: translateY(12px) scale(.985); } }
+.tour, .ask, .resume { backdrop-filter: blur(6px); }
+
+/* Notices rise into place */
+.toast:not([hidden]) { animation: toast-in .28s var(--ease-out); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+.setup-hint:not([hidden]), .app-update:not([hidden]) { animation: scrim-in .3s ease-out; }
+
+/* Calm signals instead of thick side stripes: a quiet border and a wash of the signal's colour */
+.box.warn, .box.bad, .box.ok { border-left-width: 1px; }
+.box.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 6%, var(--panel)); }
+.box.bad { border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: color-mix(in srgb, var(--bad) 6%, var(--panel)); }
+.box.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 5%, var(--panel)); }
+.setup-hint { border: 1px solid var(--rule); background: color-mix(in srgb, var(--gold) 7%, var(--panel)); }
+.trust-warn { border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 7%, var(--panel)); }
+.toast { border: 1px solid var(--line); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); }
+.toast.bad { border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+.resume-card { border: 1px solid var(--line); }
+.resume-note { border-left: 0; padding: 10px 14px; background: var(--panel-2); border-radius: 10px; }
+.resume-note.old { background: color-mix(in srgb, var(--gold) 8%, var(--panel-2)); }
+.folder-line.fresh { border: 1px solid color-mix(in srgb, var(--ok) 50%, transparent); border-radius: var(--radius); background: color-mix(in srgb, var(--ok) 5%, var(--panel)); }
+.ask-path { border-left: 0; border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent); border-radius: 10px; }
+.tour-key { border-left: 0; border: 1px solid var(--line); border-radius: 10px; }
+
+/* Labels in the interface's own voice: sentence case, the text face, numbers that line up */
+.lib-hero .hello { display: block; font-size: 15px; color: var(--muted); margin-bottom: 2px; }
+.lib-hero .go-label { display: block; font-size: 13px; font-weight: 650; color: var(--red); }
+.stats .k, .folder-line .k, .resume-note .k { font: 500 12px "Segoe UI", system-ui, sans-serif; text-transform: none; letter-spacing: 0; }
+.card .meta { font: 12.5px/1.45 "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.chip { font: 650 11px/1.6 "Segoe UI", system-ui, sans-serif; text-transform: none; letter-spacing: .01em; padding: 0 8px; border-radius: 99px; }
+.tabs .count { font: 600 11px "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.tour-count { font: 600 12.5px "Segoe UI", system-ui, sans-serif; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.clock, .stats .v, .sessions, .ach-pts { font-variant-numeric: tabular-nums; }
+.clock { font: 650 15px var(--wide); font-stretch: 105%; }
+h1, h2, h3 { text-wrap: balance; }
+p, li { text-wrap: pretty; }
+body { letter-spacing: .003em; }
+
+/* The parts the browser draws, in the palette */
+::selection { background: color-mix(in srgb, var(--gold) 38%, transparent); color: var(--text); }
+input, textarea { caret-color: var(--red); }
+::placeholder { color: #8a867d; }
+::-webkit-scrollbar-thumb { background: #2c2c33; border: 2px solid var(--bg); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--rule); }
+
+/* Less movement when asked, by the system or by the profile; colour and fades still say what changed */
+@media (prefers-reduced-motion: reduce) {
+  .card:hover, body.pad-on .card:focus { transform: none; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .backdrop { transition: opacity .3s linear !important; }
+}
+.setup-card { border-top-width: 3px; }
