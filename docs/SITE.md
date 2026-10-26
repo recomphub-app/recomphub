@@ -12,6 +12,11 @@ o mesmo visual preto e dourado do programa. Os prints e vídeos e como gravar os
 - **Botão Baixar:** pega o `.exe` do último Release do GitHub (`releases/latest`). Sem Release,
   leva para a página de versões.
 - **Ports:** vêm do `src-tauri/catalog.json`, copiado para o site na hora de publicar.
+- **Páginas dos ports:** `tools/site-ports.mjs` gera `ports.html` e uma `port-<id>.html` para cada port do
+  catálogo, com a ficha lida do GitHub do projeto (versão, tamanho, downloads, estrelas, problemas abertos,
+  licença) e o que mudou nas últimas versões estáveis. Roda a cada publicação e todo dia às 6h17 (horário de
+  Brasília), então os números se atualizam sozinhos. Sem arte de jogos: cada port tem um quadro com o nome.
+  Para ver antes, rode `node tools/site-ports.mjs <cópia do site>` numa cópia com o `catalog.json`.
 - **Novidades:** as 5 últimas versões, com as linhas "- …" das notas de cada Release.
 
 ## Para lançar uma versão
