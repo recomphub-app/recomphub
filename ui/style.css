@@ -994,3 +994,41 @@ input, textarea { caret-color: var(--red); }
   .backdrop { transition: opacity .3s linear !important; }
 }
 .setup-card { border-top-width: 3px; }
+
+/* ---- Testar controle ---- */
+.padtest-card { width: min(680px, 100%); }
+.padtest-card h2 { margin-bottom: 4px; }
+.pt-name { margin: 0 0 10px; color: var(--muted); }
+.pt-stage { margin: 0 auto; max-width: 520px; }
+.pt-pad { display: block; width: 100%; height: auto; overflow: visible; }
+.pt-pad .pt-body { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.5; }
+.pt-pad [data-b] > rect, .pt-pad [data-b] > circle, .pt-trigger > rect:first-child { fill: var(--bg); stroke: var(--rule); stroke-width: 1.5; transition: fill 60ms linear, stroke 60ms linear; }
+.pt-pad text { fill: var(--muted); font: 700 12px var(--wide); font-stretch: 108%; text-anchor: middle; pointer-events: none; }
+.pt-trigger text { fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+.pt-pad .pt-fill { fill: var(--gold); stroke: none; }
+.pt-pad [data-b].on > rect, .pt-pad [data-b].on > circle:first-child { fill: var(--gold); stroke: var(--gold-hi); }
+.pt-pad [data-b].on > text { fill: var(--accent-ink); }
+.pt-pad .pt-stick > circle:first-child { fill: var(--bg); }
+.pt-pad .pt-stick.on > circle:first-child { fill: color-mix(in srgb, var(--gold) 22%, var(--bg)); }
+.pt-pad .pt-stick .pt-dead { fill: none; stroke: var(--line); stroke-dasharray: 2 2; }
+.pt-pad .pt-stick .pt-dot { fill: var(--gold); stroke: var(--gold-hi); stroke-width: 1; transform-box: view-box; }
+.pt-read { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 4px; }
+.pt-read div { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.pt-read span { font-size: 12.5px; }
+.pt-read b { font: 700 18px var(--mono); font-variant-numeric: tabular-nums; }
+.pt-tip { margin: 6px 0 0; font-size: 13px; }
+.pt-list { list-style: none; margin: 4px 0 8px; padding: 0; }
+.pt-list li { display: flex; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pt-list li:last-child { border-bottom: 0; }
+.pt-list li b { min-width: 92px; }
+.pt-list li span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.pt-batt { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--rule); border-radius: 3px; }
+.pt-batt i { width: 6px; height: 10px; background: var(--line); }
+.pt-batt i.on { background: var(--ok); }
+.pt-batt.low i.on { background: var(--warn); }
+.pt-exit { position: absolute; top: -1px; left: 0; right: 0; height: 2px; }
+.pt-exit span { display: block; width: 0; height: 100%; background: var(--gold); }
+.pt-pad .pt-face { font: 600 15px system-ui, sans-serif; }
+.pt-pad .pt-shape > * { fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.pt-pad [data-b].on .pt-shape > * { stroke: var(--accent-ink); }
+@media (max-width: 560px) { .pt-read div { padding: 6px 8px; } .pt-read span { font-size: 11px; } .pt-read b { font-size: 15px; } }

@@ -553,3 +553,21 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     (direcional à esquerda de quem olha, botões à direita), sem letras nem símbolos de console. O
     desenho sai de `docs/logo/logo-gen.js`; o `app-icon.png` (1024 px, transparente) gera os
     ícones no CI.
+
+82. **Estado do controle: avisos por cima do jogo e a tela "Testar controle".** Pedido do Gustavo
+    em 26/10/2026, a ideia que ficou em 1º na rodada de ideias com o Codex. A mesma linha que já
+    lia o controle pelo XInput para trazer o programa de volta (`pad.rs`) passa a lembrar o estado
+    de cada controle e a pedir a bateria a cada 30 s (`XInputGetBatteryInformation`). Avisa só
+    mudanças: controle que caiu, "conectado de novo" (só depois de ter caído; um controle ligado
+    pela primeira vez não avisa), e bateria fraca e acabando, uma vez por nível que desce (volta a
+    avisar depois de carregar). O aviso vai para a janelinha por cima do jogo (a mesma das
+    conquistas, em laranja, com um controle desenhado no lugar do troféu) só enquanto um jogo
+    aberto pelo Black Flag está rodando; com o programa na frente, vira um aviso comum. Desliga em
+    "Testar controle". Limite assumido: o XInput só vê controles de Xbox e os de PlayStation que
+    passam pelo Steam ou pelo DS4Windows; um DualSense ligado direto não informa bateria nem queda,
+    e a tela diz isso. A tela "Testar controle" (Mais > Testar controle) lê pela Gamepad API, que
+    vê todos: um controle desenhado aqui (sem arte de fabricante) acende o que é apertado, os
+    analógicos mostram a distância do centro (parado acima de 10% é folga), os gatilhos enchem e
+    fazem vibrar, e a lista mostra cada controle do XInput com fio ou a bateria. Como cada botão
+    ali é um teste, a navegação pelo controle fica parada; sai segurando Voltar (B ou ○) por 1,5 s,
+    com uma barra que enche, ou com Fechar e Esc.

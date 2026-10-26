@@ -4116,7 +4116,10 @@ function renderPadHints() {
 
 function padPoll(t) {
   const p = readPad();
-  if (p && (resumeAsk || (!tvOn && $('#who').hidden))) {
+  if (p && padtestOn) {
+    // Testar controle reads the controller itself: every press there is a test.
+    padEdges(navPad, p, t);
+  } else if (p && (resumeAsk || (!tvOn && $('#who').hidden))) {
     const e = padEdges(navPad, p, t);
     if (p.changed) renderPadHints();
     if (e.dx || e.dy) padMove(e.dx, e.dy);
@@ -5395,3 +5398,212 @@ refresh()
     }
   })
   .then(() => invoke('check_updates').then((list) => { games = list; render(); }).catch(() => {}));
+
+// ---- Testar controle: buttons, sticks and triggers live (Gamepad API), battery (XInput) ----
+
+// The controller is drawn here (no maker's art). Elements carry data-b = the button's index in
+// the standard Gamepad mapping, so pressing lights them.
+const PADTEST_LABELS = {
+  xbox: ['A', 'B', 'X', 'Y'],
+  playstation: ['✕', '○', '□', '△'],
+  nintendo: ['B', 'A', 'Y', 'X'],
+};
+const PADTEST_EXIT = 1500;          // holding Back/B this long leaves the screen
+let padtestOn = false;
+let padtestStatus = null;           // get_pad_status
+let padtestTimer = null;
+let padtestBack = 0;                // when Back started being held
+let padtestFam = null;
+let padtestRumble = 0;
+
+// LT/RT, which PAD_NAMES does not have.
+function padNameFor(fam, which) {
+  const more = { playstation: { lt: 'L2', rt: 'R2' }, nintendo: { lt: 'ZL', rt: 'ZR' }, xbox: { lt: 'LT', rt: 'RT' } };
+  return (more[fam] && more[fam][which]) || PAD_NAMES[fam || 'xbox'][which];
+}
+
+function padtestSvg(fam) {
+  const [a, b, x, y] = PADTEST_LABELS[fam] || PADTEST_LABELS.xbox;
+  // PlayStation's symbols are drawn as shapes: as text, □ and ○ come out too small.
+  const shapes = {
+    '✕': (cx, cy) => `<path d="M${cx - 5} ${cy - 5}l10 10M${cx + 5} ${cy - 5}l-10 10"/>`,
+    '○': (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="5.5"/>`,
+    '□': (cx, cy) => `<rect x="${cx - 5}" y="${cy - 5}" width="10" height="10"/>`,
+    '△': (cx, cy) => `<path d="M${cx} ${cy - 6}l6 10.5h-12z"/>`,
+  };
+  const face = (i, cx, cy, t) => `<g data-b="${i}"><circle cx="${cx}" cy="${cy}" r="13"/>${shapes[t]
+    ? `<g class="pt-shape">${shapes[t](cx, cy)}</g>` : `<text class="pt-face" x="${cx}" y="${cy + 5}">${t}</text>`}</g>`;
+  const stick = (side, cx, cy, i) => `
+    <g class="pt-stick" data-b="${i}"><circle cx="${cx}" cy="${cy}" r="30"/><circle class="pt-dead" cx="${cx}" cy="${cy}" r="4.5"/>
+      <circle class="pt-dot" id="pt-${side}" cx="${cx}" cy="${cy}" r="12"/></g>`;
+  const trigger = (side, x0) => `
+    <g class="pt-trigger"><rect x="${x0}" y="6" width="76" height="22" rx="7"/><rect class="pt-fill" id="pt-${side}" x="${x0}" y="6" width="0" height="22" rx="7"/>
+      <text x="${x0 + 38}" y="21.5">${esc(padNameFor(fam, side))}</text></g>`;
+  return `
+  <svg class="pt-pad" viewBox="0 0 480 300" role="img" aria-label="Desenho do controle; o que você aperta acende">
+    ${trigger('lt', 92)}${trigger('rt', 312)}
+    <g data-b="4"><rect x="86" y="36" width="88" height="16" rx="8"/><text x="130" y="48">${esc(padNameFor(fam, 'lb'))}</text></g>
+    <g data-b="5"><rect x="306" y="36" width="88" height="16" rx="8"/><text x="350" y="48">${esc(padNameFor(fam, 'rb'))}</text></g>
+    <path class="pt-body" d="M122 62H358c46 0 76 28 88 76l20 88c8 38-34 60-62 34l-50-46H136l-50 46c-28 26-70 4-62-34l20-88c12-48 42-76 78-76z"/>
+    ${stick('ls', 150, 122, 10)}
+    ${stick('rs', 292, 190, 11)}
+    <g data-b="12"><rect x="179" y="160" width="18" height="22" rx="3"/></g>
+    <g data-b="13"><rect x="179" y="198" width="18" height="22" rx="3"/></g>
+    <g data-b="14"><rect x="158" y="181" width="22" height="18" rx="3"/></g>
+    <g data-b="15"><rect x="196" y="181" width="22" height="18" rx="3"/></g>
+    ${face(0, 332, 148, a)}${face(1, 360, 122, b)}${face(2, 304, 122, x)}${face(3, 332, 96, y)}
+    <g data-b="8"><rect x="200" y="112" width="22" height="12" rx="6"/></g>
+    <g data-b="9"><rect x="258" y="112" width="22" height="12" rx="6"/></g>
+    <g data-b="16"><circle cx="240" cy="86" r="11"/></g>
+  </svg>`;
+}
+
+const PADTEST_FAMILY = { xbox: 'Controle de Xbox (ou compatível)', playstation: 'Controle de PlayStation', nintendo: 'Controle Nintendo' };
+const BATTERY_TEXT = ['acabando', 'fraca', 'média', 'cheia'];
+
+function padtestBattery(p) {
+  if (!p.wireless) return 'com fio';
+  if (p.battery == null) return 'sem fio (não informa a bateria)';
+  const bars = [0, 1, 2].map((i) => `<i${i < p.battery ? ' class="on"' : ''}></i>`).join('');
+  return `<span class="pt-batt${p.battery <= 1 ? ' low' : ''}" aria-hidden="true">${bars}</span>bateria ${BATTERY_TEXT[p.battery]}`;
+}
+
+function padtestPadsHtml() {
+  const s = padtestStatus;
+  if (!s) return '<p class="muted">Lendo os controles…</p>';
+  if (!s.pads.length) {
+    return `<p class="muted">O Windows não vê nenhum controle de Xbox agora. Controles de PlayStation ligados direto não informam
+      bateria nem queda; pelo Steam ou pelo DS4Windows, informam.</p>`;
+  }
+  return `<ul class="pt-list">${s.pads.map((p) => `<li><b>Controle ${p.number}</b><span>${padtestBattery(p)}</span></li>`).join('')}</ul>`;
+}
+
+function renderPadtest() {
+  const s = padtestStatus;
+  $('#padtest').innerHTML = `
+    <div class="tour-card padtest-card" role="dialog" aria-modal="true" aria-labelledby="padtest-title" tabindex="-1">
+      <h2 id="padtest-title">Testar controle</h2>
+      <p class="pt-name" id="pt-name">Aperte qualquer botão do controle.</p>
+      <div class="pt-stage" id="pt-stage">${padtestSvg(padtestFam || 'xbox')}</div>
+      <div class="pt-read">
+        <div><span class="muted">Analógico esquerdo</span><b id="pt-ls-v">0%</b></div>
+        <div><span class="muted">Analógico direito</span><b id="pt-rs-v">0%</b></div>
+        <div><span class="muted">Gatilhos</span><b id="pt-tr-v">0% e 0%</b></div>
+      </div>
+      <p class="muted pt-tip">Solte os analógicos: parados, devem ficar perto de 0%. Mais de 10% sem você tocar é folga.
+        Apertar os gatilhos faz o controle vibrar.</p>
+      <section class="setup-part">
+        <h3>Conexão e bateria</h3>
+        <div id="pt-pads">${padtestPadsHtml()}</div>
+        <label class="check"><input type="checkbox" id="pt-alerts" ${!s || s.alerts ? 'checked' : ''}>
+          Avisar por cima do jogo quando o controle cair ou a bateria ficar fraca</label>
+        <div class="row"><button class="ghost small" id="pt-sample">Ver aviso de exemplo</button></div>
+      </section>
+      <div class="tour-nav">
+        <div class="pt-exit" aria-hidden="true"><span id="pt-exit"></span></div>
+        <div class="row">
+          <span class="muted" id="pt-exit-hint">Segure <b>${esc(padName('back'))}</b> para sair</span>
+          <span class="grow"></span>
+          <button class="primary" id="pt-close">Fechar</button>
+        </div>
+      </div>
+    </div>`;
+  $('#pt-close').addEventListener('click', closePadtest);
+  $('#pt-sample').addEventListener('click', () => {
+    call('test_pad_notice').catch(() => {});
+    toast('O aviso aparece no canto da tela, por cima do jogo.');
+  });
+  $('#pt-alerts').addEventListener('change', (e) => call('set_pad_alerts', { on: e.target.checked }).catch(() => {}));
+}
+
+async function padtestRefresh() {
+  try { padtestStatus = await invoke('get_pad_status'); } catch { return; }
+  const el = $('#pt-pads');
+  if (el) el.innerHTML = padtestPadsHtml();
+  const box = $('#pt-alerts');
+  if (box) box.checked = padtestStatus.alerts;
+}
+
+function openPadtest() {
+  closeMenus();
+  padtestOn = true;
+  padtestBack = 0;
+  padtestFam = null;
+  $('#padtest').hidden = false;
+  renderPadtest();
+  popIn($('#padtest'));
+  $('#padtest .tour-card').focus();
+  padtestRefresh();
+  clearInterval(padtestTimer);
+  padtestTimer = setInterval(padtestRefresh, 2000);
+  requestAnimationFrame(padtestFrame);
+}
+
+function closePadtest() {
+  padtestOn = false;
+  clearInterval(padtestTimer);
+  $('#padtest').hidden = true;
+  // The press that closed it must not count on the page below.
+  navPad.held = { back: true, ok: true };
+}
+
+// The controller moved last (each one has its own timestamp).
+function padtestPad() {
+  const pads = [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean);
+  return pads.sort((p, q) => q.timestamp - p.timestamp)[0] || null;
+}
+
+function padtestFrame(t) {
+  if (!padtestOn) return;
+  requestAnimationFrame(padtestFrame);
+  const pad = padtestPad();
+  if (!pad) return;
+  const fam = padFamily(pad);
+  if (fam !== padtestFam) {
+    padtestFam = fam;
+    padKind = fam;
+    $('#pt-stage').innerHTML = padtestSvg(fam);
+    $('#pt-exit-hint').innerHTML = `Segure <b>${esc(padName('back'))}</b> para sair`;
+    const many = navigator.getGamepads().filter(Boolean).length > 1;
+    $('#pt-name').textContent = PADTEST_FAMILY[fam] + (many ? ', o último que você mexeu' : '');
+  }
+  const pressed = (i) => !!(pad.buttons[i] && (pad.buttons[i].pressed || pad.buttons[i].value > 0.1));
+  $('#pt-stage').querySelectorAll('[data-b]').forEach((g) => g.classList.toggle('on', pressed(Number(g.dataset.b))));
+  const stick = (side, x, y) => {
+    $(`#pt-${side}`).style.transform = `translate(${(x * 20).toFixed(1)}px, ${(y * 20).toFixed(1)}px)`;
+    const off = Math.min(100, Math.round(Math.hypot(x, y) * 100));
+    const v = $(`#pt-${side}-v`);
+    v.textContent = `${off}%`;
+  };
+  stick('ls', pad.axes[0] || 0, pad.axes[1] || 0);
+  stick('rs', pad.axes[2] || 0, pad.axes[3] || 0);
+  const lt = pad.buttons[6] ? pad.buttons[6].value : 0;
+  const rt = pad.buttons[7] ? pad.buttons[7].value : 0;
+  $('#pt-lt').setAttribute('width', (76 * lt).toFixed(1));
+  $('#pt-rt').setAttribute('width', (76 * rt).toFixed(1));
+  $('#pt-tr-v').textContent = `${Math.round(lt * 100)}% e ${Math.round(rt * 100)}%`;
+  if ((lt > 0.05 || rt > 0.05) && t >= padtestRumble) {
+    padtestRumble = t + 110;
+    try {
+      if (pad.vibrationActuator) pad.vibrationActuator.playEffect('dual-rumble', { duration: 140, strongMagnitude: lt, weakMagnitude: rt });
+    } catch { /* no rumble */ }
+  }
+  // Leaving with the controller: hold Back, as every press here is a test.
+  const back = pressed(fam === 'nintendo' ? 0 : 1);
+  if (!back) padtestBack = 0;
+  else if (!padtestBack) padtestBack = t;
+  const held = padtestBack ? Math.min(1, (t - padtestBack) / PADTEST_EXIT) : 0;
+  $('#pt-exit').style.width = `${held * 100}%`;
+  if (held >= 1) closePadtest();
+}
+
+$('#btn-padtest').addEventListener('click', openPadtest);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && padtestOn) closePadtest();
+});
+
+// A controller that dropped or is low, told while Black Flag is on screen too.
+listen('pad-alert', (e) => {
+  toast(`${e.payload.title}. ${e.payload.description}`, e.payload.kind === 'pad');
+  if (padtestOn) padtestRefresh();
+});

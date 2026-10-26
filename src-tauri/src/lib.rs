@@ -2874,6 +2874,74 @@ fn test_achievement_notice(app: AppHandle) {
     });
 }
 
+// ---- Controller state (pad.rs) ----
+
+#[derive(Serialize, Clone)]
+struct PadAlertEvent {
+    kind: &'static str,
+    title: String,
+    description: String,
+}
+
+/// The words of a controller alert: (kind, title, description).
+fn pad_alert_text(alert: pad::Alert) -> (&'static str, String, String) {
+    match alert {
+        pad::Alert::Lost(n) => ("pad", format!("Controle {n} desconectado"), "Ligue o controle de novo ou ponha o cabo. O jogo continua aberto.".into()),
+        pad::Alert::Back(n) => ("pad-ok", format!("Controle {n} conectado de novo"), "Pode voltar a jogar.".into()),
+        pad::Alert::Low(n) => ("pad", format!("Bateria fraca no controle {n}"), "Ponha para carregar ou troque as pilhas quando der.".into()),
+        pad::Alert::Empty(n) => ("pad", format!("Bateria acabando no controle {n}"), "O controle vai desligar logo. Ponha o cabo ou troque as pilhas.".into()),
+    }
+}
+
+/// Over the game when one runs; the page shows the same as a toast.
+pub(crate) fn pad_alert(app: &AppHandle, alert: pad::Alert) {
+    let state = app.state::<AppState>();
+    let settings = state.settings.lock().unwrap().clone();
+    if !settings.pad_alerts {
+        return;
+    }
+    let (kind, title, description) = pad_alert_text(alert);
+    let _ = app.emit("pad-alert", PadAlertEvent { kind, title: title.clone(), description: description.clone() });
+    let playing = !state.sessions.lock().unwrap().running.is_empty();
+    if playing {
+        show_overlay(
+            app,
+            vec![Notice { kind, game: String::new(), title, description, badge: String::new(), points: 0, sound: settings.achievement_sound, picture: None }],
+        );
+    }
+}
+
+#[derive(Serialize)]
+struct PadStatus {
+    alerts: bool,
+    pads: Vec<pad::PadInfo>,
+}
+
+#[tauri::command]
+fn get_pad_status(app: AppHandle) -> PadStatus {
+    let alerts = app.state::<AppState>().settings.lock().unwrap().pad_alerts;
+    PadStatus { alerts, pads: pad::status() }
+}
+
+#[tauri::command]
+fn set_pad_alerts(app: AppHandle, on: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let mut s = state.settings.lock().unwrap();
+    s.pad_alerts = on;
+    s.save(&state.settings_path)
+}
+
+/// "Ver aviso de exemplo" on the controller screen.
+#[tauri::command]
+fn test_pad_notice(app: AppHandle) {
+    let sound = app.state::<AppState>().settings.lock().unwrap().achievement_sound;
+    let (kind, title, description) = pad_alert_text(pad::Alert::Low(1));
+    let app2 = app.clone();
+    std::thread::spawn(move || {
+        show_overlay(&app2, vec![Notice { kind, game: String::new(), title, description, badge: String::new(), points: 0, sound, picture: None }])
+    });
+}
+
 // ---- RetroAchievements (só leitura) ----
 
 /// The active profile's RetroAchievements account. An empty field keeps what is saved;
@@ -5022,6 +5090,9 @@ pub fn run() {
             get_achievement_summary,
             get_achievement_settings,
             set_achievement_settings,
+            get_pad_status,
+            set_pad_alerts,
+            test_pad_notice,
             test_achievement_notice,
             set_ra_account,
             get_ra,

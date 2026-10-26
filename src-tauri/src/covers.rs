@@ -54,6 +54,9 @@ pub struct Settings {
     pub achievement_overlay: bool,
     #[serde(default = "yes")]
     pub achievement_sound: bool,
+    /// Controller dropped or low on battery, over the game (pad.rs).
+    #[serde(default = "yes")]
+    pub pad_alerts: bool,
     /// The player's GitHub personal access token, for more API requests per hour.
     #[serde(default)]
     pub github_token: String,
@@ -91,6 +94,7 @@ impl Default for Settings {
             ludusavi_auto: false,
             achievement_overlay: true,
             achievement_sound: true,
+            pad_alerts: true,
             github_token: String::new(),
             fps_overlay: false,
             fps_permission_granted: false,
