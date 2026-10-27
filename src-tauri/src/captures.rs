@@ -46,11 +46,6 @@ pub fn videos_dir() -> Option<PathBuf> {
         .or_else(|| std::env::var_os("USERPROFILE").map(|u| PathBuf::from(u).join("Videos")).filter(|p| p.is_dir()))
 }
 
-/// Letters and digits only, lowercase: names written differently still meet.
-pub fn plain(s: &str) -> String {
-    s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
-}
-
 /// The game's part of a Game Bar file name: "God of War III 2026-10-26 19-00-00" and the older
 /// "Donkey Kong 64 10_26_2026 7_00_00 PM" both lose their date and time.
 pub fn gamebar_title(stem: &str) -> String {
@@ -65,13 +60,33 @@ pub fn gamebar_title(stem: &str) -> String {
     words.join(" ")
 }
 
-/// A capture's name (or folder) belongs to the game titled `title`.
+/// Lowercase words, apostrophes dropped ("Majora's" and "Majoras" meet).
+fn words(s: &str) -> Vec<String> {
+    s.replace(['\'', '\u{2019}'], "")
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(|w| w.to_lowercase())
+        .collect()
+}
+
+/// "II", "3", "IV": the next game of a series, not the same one with a subtitle.
+fn sequel(word: &str) -> bool {
+    word.chars().all(|c| c.is_ascii_digit()) || word.chars().all(|c| matches!(c, 'i' | 'v' | 'x'))
+}
+
+/// A capture's name (or folder) belongs to the game titled `title`: the same words, or one name
+/// with a subtitle more ("Banjo-Kazooie" and "Banjo-Kazooie: Recompiled"), never a sequel
+/// ("Hades" and "Hades II").
 pub fn same_game(title: &str, name: &str) -> bool {
-    let (a, b) = (plain(title), plain(name));
+    let (a, b) = (words(title), words(name));
     if a.is_empty() || b.is_empty() {
         return false;
     }
-    a == b || (a.len().min(b.len()) >= 5 && (a.starts_with(&b) || b.starts_with(&a)))
+    if a == b {
+        return true;
+    }
+    let (short, long) = if a.len() <= b.len() { (&a, &b) } else { (&b, &a) };
+    long.starts_with(short) && short.concat().len() >= 5 && !sequel(&long[short.len()])
 }
 
 fn kind(path: &Path) -> Option<bool> {
@@ -190,6 +205,8 @@ mod tests {
         assert!(same_game("The Legend of Zelda: Majora's Mask", "The Legend of Zelda  Majoras Mask"));
         assert!(same_game("Banjo-Kazooie", "Banjo-Kazooie: Recompiled"));
         assert!(!same_game("Hades", "Hades II"));
+        assert!(!same_game("God of War", "God of War III Remastered"));
+        assert!(same_game("God of War III", "God of War III Remastered"));
         assert!(!same_game("Ori", "Origin"));
         assert!(!same_game("", "x"));
     }
