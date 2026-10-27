@@ -1,5 +1,6 @@
 mod achievements;
 mod autosave;
+mod captures;
 mod catalog;
 mod catalog_sync;
 mod community;
@@ -1436,6 +1437,67 @@ fn facts_page(state: &AppState, url: &str) -> bool {
     let repo = format!("{owner}/{name}");
     community::valid_repo(&repo)
         && (catalog::games().iter().any(|g| g.repo.eq_ignore_ascii_case(&repo)) || known_community_repo(state, &repo))
+}
+
+// ---- Capturas (captures.rs): the screenshots and clips already on the PC ----
+
+#[derive(Serialize)]
+struct CaptureView {
+    #[serde(flatten)]
+    capture: captures::Capture,
+    /// A small JPEG of a picture, as a data URL; None for clips.
+    thumb: Option<String>,
+}
+
+#[tauri::command]
+async fn game_captures(app: AppHandle, id: String) -> Result<Vec<CaptureView>, String> {
+    let title = view_any(&app.state::<AppState>(), &id)?.title;
+    let cache = app.state::<AppState>().community_path.with_file_name("capturas-miniaturas");
+    tauri::async_runtime::spawn_blocking(move || {
+        use base64::Engine;
+        captures::list(&title, steam_ach::app_of(&id))
+            .into_iter()
+            .map(|c| {
+                let thumb = (!c.video)
+                    .then(|| captures::thumbnail(&cache, Path::new(&c.path)))
+                    .flatten()
+                    .map(|b| format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(b)));
+                CaptureView { capture: c, thumb }
+            })
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// A capture in full, for the viewer.
+#[tauri::command]
+async fn capture_picture(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = PathBuf::from(&path);
+        if !captures::allowed(&p) {
+            return Err("Arquivo fora das pastas de capturas.".to_string());
+        }
+        let bytes = captures::picture_bytes(&p).ok_or("Não deu para abrir a imagem.")?;
+        let mime = if path.to_ascii_lowercase().ends_with(".png") { "image/png" } else if path.to_ascii_lowercase().ends_with(".webp") { "image/webp" } else { "image/jpeg" };
+        use base64::Engine;
+        Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// A clip in the player Windows uses for videos, or a capture's folder in the Explorer.
+#[tauri::command]
+fn open_capture(app: AppHandle, path: String, folder: bool) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    if !captures::allowed(&p) {
+        return Err("Arquivo fora das pastas de capturas.".into());
+    }
+    if folder {
+        return app.opener().reveal_item_in_dir(&p).map_err(|e| e.to_string());
+    }
+    app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
 }
 
 fn facts_dir(state: &AppState) -> PathBuf {
@@ -5344,6 +5406,9 @@ pub fn run() {
             install_app_update,
             port_facts,
             saved_port_facts,
+            game_captures,
+            capture_picture,
+            open_capture,
             take_pending_open,
             remove_game,
             open_project,

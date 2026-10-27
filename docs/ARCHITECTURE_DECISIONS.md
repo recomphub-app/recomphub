@@ -623,3 +623,19 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     guardada como segredo do repositório (`SGDB_KEY`), posta pelo próprio Gustavo; sem ela, ficam os
     quadros com o nome. As imagens são as versões menores da SteamGridDB (as originais chegam a 4 MB),
     baixadas na publicação, e não entram no git.
+
+87. **Cinco ideias do Selene: capturas, retomar, buscar pelo controle, surpreenda-me e filtros.** Pedido
+    do Gustavo em 27/10/2026, o Top 5 que Claude e Codex fecharam lendo o guia do Selene (tema de tela
+    cheia do Playnite, MIT). Capturas: a página de cada jogo ganha a aba Capturas com os prints e
+    vídeos que já estão no PC (Steam por app id; Xbox Game Bar em Videos\Captures pelo nome da janela
+    sem a data; NVIDIA em Videos\NVIDIA\<jogo> e Videos\<jogo>), com miniaturas em cache e um
+    visualizador que anda pelo controle. O Black Flag só lê, e só arquivos dessas pastas. Vídeos abrem
+    no player do Windows: tocar dentro do programa exigiria abrir o protocolo de arquivos do WebView
+    para essas pastas. Isso substitui a ideia antiga de capturar a tela nós mesmos. Retomar e Ainda
+    esperando: jogos com 1 hora ou mais parados há 45 dias, e jogos nunca abertos, na Estatística e
+    como filtros do Modo TV. Filtros do Modo TV: LT/RT (Z/C no teclado) passam por Todos, Favoritos,
+    Recentes (30 dias), Para retomar e Nunca jogados, em Jogos, Ports e Emulados. Surpreenda-me (X,
+    ou Sistema): as capas passam desacelerando por uns 3 s e param num jogo pronto do filtro atual,
+    com Jogar, Detalhes e Sortear de novo; sem animação com "reduzir movimento". Buscar pelo
+    controle: segurar View (ou apertar o analógico esquerdo, ou / no teclado) abre um teclado na
+    tela; os jogos aparecem enquanto digita, LB/RB escolhem e Menu leva o jogo para a fileira.

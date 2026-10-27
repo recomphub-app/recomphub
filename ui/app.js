@@ -533,6 +533,7 @@ function renderPcDetail(g) {
           ['geral', 'Visão geral', ''],
           ['saves', 'Saves', ''],
           ['conquistas', 'Conquistas', ''],
+          ['capturas', 'Capturas', capturesBox(g)],
           ['ajustes', 'Ajustes', `
             ${artBox(g)}
             <div class="box">
@@ -1784,6 +1785,7 @@ function renderStats() {
           </li>`).join('')}</ul>` : '<p class="muted">Ainda não há sessões registradas. Jogue algo pelo Black Flag!</p>'}
         ${s.longest ? `<p class="muted">Maior sessão: ${shortTime(s.longest.seconds)} de ${esc(title(s.longest.id))}, em ${sessionDate(s.longest.start)}.</p>` : ''}
       </div>
+      ${pickUpHtml()}
       <div class="box">
         <h3>Estado dos ${s.library_games} jogo(s) da biblioteca</h3>
         <div class="tags-edit">${COMPLETION.filter(([k]) => s.completion[k]).map(([k, label]) =>
@@ -1801,6 +1803,39 @@ function renderStats() {
     </div>`;
   document.querySelectorAll('#detail [data-act]').forEach((el) =>
     el.addEventListener('click', () => act(el.dataset.act, null, el)));
+  document.querySelectorAll('#detail [data-pick]').forEach((el) => el.addEventListener('click', async () => {
+    const id = el.dataset.id;
+    if (el.dataset.pick === 'open') return openGame(id);
+    try {
+      await invoke('play', { id });
+      setGame(await invoke('get_game', { id }));
+    } catch (e) {
+      toast(String(e), true);
+    }
+  }));
+}
+
+// "Para retomar" (an hour or more, untouched for 45 days) and "Ainda esperando" (never opened).
+function pickUpHtml() {
+  const mine = games.filter((g) => g.in_library && !g.hidden && !['not_installed', 'missing'].includes(g.status));
+  const resume = mine.filter(isResume).sort((a, b) => (b.total_seconds || 0) - (a.total_seconds || 0)).slice(0, 8);
+  const waiting = mine.filter(isWaiting).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')).slice(0, 8);
+  const row = (g, note) => `
+    <li>${g.cover ? `<img src="${g.cover}" alt="">` : '<span class="pick-blank"></span>'}
+      <span class="name">${esc(g.title)}<span class="muted">${note}</span></span>
+      <button class="primary small" data-pick="play" data-id="${esc(g.id)}" ${g.status === 'ready' ? '' : 'disabled'}>Jogar</button>
+      <button class="ghost small" data-pick="open" data-id="${esc(g.id)}">Ver</button></li>`;
+  const box = (title, intro, list, note, none) => `
+    <div class="box">
+      <h3>${title}</h3>
+      <p class="muted">${intro}</p>
+      ${list.length ? `<ul class="pick-list">${list.map((g) => row(g, note(g))).join('')}</ul>` : `<p class="muted">${none}</p>`}
+    </div>`;
+  return `<div class="pick-up">
+    ${box('Para retomar', 'Jogos em que você passou de 1 hora e que estão parados há mais de 45 dias.', resume,
+      (g) => `${playTime(g.total_seconds)} · última vez ${daysAgo(g.last_played)}`, 'Nenhum jogo parado há tanto tempo.')}
+    ${box('Ainda esperando', 'Jogos que estão na biblioteca e que você nunca abriu.', waiting, () => 'nunca jogado', 'Você já abriu todos os jogos da biblioteca.')}
+  </div>`;
 }
 
 // Banner above the page and "Sobre o jogo" under the play time, for games in the library.
@@ -2470,6 +2505,7 @@ function renderPortDetail(g) {
       ...(g.has_mods ? [['mods', 'Mods', modsBox(g)]] : []),
       ['saves', 'Saves', ''],
       ['conquistas', 'Conquistas', ''],
+      ['capturas', 'Capturas', capturesBox(g)],
       ...(notesBox(g.repo) ? [['novidades', 'Atualizações', notesBox(g.repo)]] : []),
       ['ajustes', 'Ajustes', pcCheckBox(g, 'warn') + artBox(g) + (filesOk ? filesBox(g) : '') + gfxBox(g) + shaderBox(g) + versionBox(g)
         + shortcutsRow(g) + launchBox(g) + tagsBox(g) + crashScan(g)
@@ -3884,6 +3920,7 @@ function renderCommunityDetail(g) {
           ['geral', 'Visão geral', '<p class="muted">Port não verificado pelo Black Flag: os arquivos do jogo seguem o README do projeto.</p>'],
           ['saves', 'Saves', ''],
           ['conquistas', 'Conquistas', ''],
+          ['capturas', 'Capturas', capturesBox(g)],
           ['ajustes', 'Ajustes', `
             ${pcCheckBox(g, 'warn')}
             ${artBox(g)}
@@ -3904,9 +3941,9 @@ function renderCommunityDetail(g) {
 // Standard mapping: 0 bottom, 1 right, 2 left, 3 top, 4/5 shoulders, 8 View/Share, 9 Menu/Options,
 // 12-15 d-pad; left stick on axes 0/1. Nintendo confirms with the right button (A).
 const PAD_NAMES = {
-  playstation: { ok: '✕', back: '○', y: '△', lb: 'L1', rb: 'R1', menu: 'Options' },
-  xbox: { ok: 'A', back: 'B', y: 'Y', lb: 'LB', rb: 'RB', menu: 'Menu' },
-  nintendo: { ok: 'A', back: 'B', y: 'X', lb: 'L', rb: 'R', menu: '+' },
+  playstation: { ok: '✕', back: '○', y: '△', x: '□', lb: 'L1', rb: 'R1', lt: 'L2', rt: 'R2', menu: 'Options', view: 'Create' },
+  xbox: { ok: 'A', back: 'B', y: 'Y', x: 'X', lb: 'LB', rb: 'RB', lt: 'LT', rt: 'RT', menu: 'Menu', view: 'View' },
+  nintendo: { ok: 'A', back: 'B', y: 'X', x: 'Y', lb: 'L', rb: 'R', lt: 'ZL', rt: 'ZR', menu: '+', view: '−' },
 };
 let padKind = null;   // family of the controller last used; null before any
 
@@ -3936,7 +3973,9 @@ function readPad() {
   const ay = pad.axes[1] || 0;
   return {
     changed,
-    ok: b(swap ? 1 : 0), back: b(swap ? 0 : 1), y: b(3), lb: b(4), rb: b(5), menu: b(9),
+    ok: b(swap ? 1 : 0), back: b(swap ? 0 : 1), y: b(3), x: b(2), lb: b(4), rb: b(5), menu: b(9),
+    lt: b(6) || (pad.buttons[6] && pad.buttons[6].value > 0.5), rt: b(7) || (pad.buttons[7] && pad.buttons[7].value > 0.5),
+    view: b(8), l3: b(10),
     left: b(14) || ax < -0.5, right: b(15) || ax > 0.5, up: b(12) || ay < -0.5, down: b(13) || ay > 0.5,
   };
 }
@@ -3948,7 +3987,7 @@ function padEdges(state, p, t, delays = [380, 120]) {
     state.held[name] = p[name];
     return p[name] && !was;
   };
-  const out = { ok: press('ok'), back: press('back'), y: press('y'), lb: press('lb'), rb: press('rb'), menu: press('menu'), dx: 0, dy: 0 };
+  const out = { ok: press('ok'), back: press('back'), y: press('y'), x: press('x'), lb: press('lb'), rb: press('rb'), lt: press('lt'), rt: press('rt'), menu: press('menu'), view: press('view'), l3: press('l3'), dx: 0, dy: 0 };
   const any = p.left || p.right || p.up || p.down;
   if (any && (!state.held.dir || t >= state.nextAt)) {
     out.dx = p.right - p.left;
@@ -4126,6 +4165,12 @@ function padPoll(t) {
   if (p && padtestOn) {
     // Testar controle reads the controller itself: every press there is a test.
     padEdges(navPad, p, t);
+  } else if (p && shotView) {
+    // A capture shown big: left / right go through them, back closes.
+    const e = padEdges(navPad, p, t);
+    if (e.dx) shotAct(e.dx > 0 ? 'next' : 'prev');
+    if (e.back || e.ok) shotAct('close');
+    if (e.y) shotAct('folder');
   } else if (p && (resumeAsk || (!tvOn && $('#who').hidden))) {
     const e = padEdges(navPad, p, t);
     if (p.changed) renderPadHints();
@@ -4238,6 +4283,8 @@ function tvSystemItems() {
   return [
     { id: 'perfil', title: 'Trocar perfil', icon: '☺', text: `Quem está jogando: ${profiles && profiles.active ? profiles.active.name : '—'}.` },
     { id: 'som', title: `Som: ${tvSoundOn() ? 'ligado' : 'desligado'}`, icon: '♪', text: 'Sons curtos ao navegar e vibração do controle ao escolher.' },
+    { id: 'surpresa', title: 'Surpreenda-me', icon: '✦', text: 'Sorteia um jogo da biblioteca para jogar agora.' },
+    { id: 'buscar', title: 'Buscar um jogo', icon: '⌕', text: 'Um teclado na tela: os jogos aparecem enquanto você digita.' },
     { id: 'estatisticas', title: 'Estatísticas', icon: '▤', text: 'Tempo de jogo por semana e os jogos mais jogados.' },
     { id: 'config', title: 'Configurações', icon: '⚙', text: 'Sai do Modo TV e abre as Configurações.' },
     { id: 'sair', title: 'Sair do Modo TV', icon: '⏻', text: 'Volta para a biblioteca na janela normal.' },
@@ -4247,9 +4294,9 @@ function tvSystemItems() {
 // What the row shows in the section open now: [{ key, title, cover, game?, item? }].
 function tvItems() {
   const s = TV_SECTIONS[tvSection][0];
-  if (s === 'jogos') return tvGames().map((g) => ({ key: g.id, game: g }));
-  if (s === 'ports') return tvGames().filter(tvIsPort).map((g) => ({ key: g.id, game: g }));
-  if (s === 'emulados') return tvGames().filter((g) => g.kind === 'emulated').map((g) => ({ key: g.id, game: g }));
+  if (s === 'jogos') return tvFiltered(tvGames()).map((g) => ({ key: g.id, game: g }));
+  if (s === 'ports') return tvFiltered(tvGames().filter(tvIsPort)).map((g) => ({ key: g.id, game: g }));
+  if (s === 'emulados') return tvFiltered(tvGames().filter((g) => g.kind === 'emulated')).map((g) => ({ key: g.id, game: g }));
   if (s === 'conquistas') {
     if (!achSummary) return [];
     return achSummary.games.filter(([, , , total]) => total > 0).map(([id, , done, total]) => ({ key: id, game: games.find((g) => g.id === id), done, total }))
@@ -4273,6 +4320,11 @@ function tvMeta(pairs) {
 
 // The text above the row: what is chosen and the facts that matter for it.
 function tvInfo(x) {
+  if (!x && tvFilter && TV_PLAYABLE.includes(TV_SECTIONS[tvSection][0])) {
+    const why = { favoritos: 'Marque favoritos na página de cada jogo.', recentes: 'Nada jogado nos últimos 30 dias.',
+      retomar: 'Aparecem aqui os jogos com 1 hora ou mais que ficaram parados há mais de 45 dias.', esperando: 'Você já abriu todos os jogos daqui.' };
+    return `<h1>Nenhum jogo em ${esc(TV_FILTERS[tvFilter][1])}</h1><p class="tv-sub">${why[TV_FILTERS[tvFilter][0]] || ''}</p>`;
+  }
   if (!x) {
     const empty = {
       jogos: ['Nenhum jogo instalado', 'Saia do Modo TV e use Adicionar para trazer os seus jogos.'],
@@ -4324,6 +4376,10 @@ function tvTray(x) {
   const parts = [];
   if (main) parts.push(`<span class="tv-main" data-tv="ok">${key('ok', 'Enter')} ${esc(main)}</span>`);
   if (x && x.game) parts.push(`<span data-tv="details">${key('y', 'I')} Detalhes</span>`);
+  if (TV_PLAYABLE.includes(s)) {
+    parts.push(`<span data-tv="surprise">${key('x', 'R')} Surpreenda-me</span>`);
+    parts.push(`<span data-tv="search">${pad ? `Segure ${key('view', '/')}` : key('view', '/')} Buscar</span>`);
+  }
   parts.push(`<span data-tv="back">${key('back', 'Esc')} Sair</span>`);
   parts.push(`<span data-tv="guide">${key('menu', 'G')} Guia</span>`);
   return parts.join('');
@@ -4365,6 +4421,7 @@ function renderTv() {
       <div class="tv-clock">${tvClockText()}</div>
     </header>
     <section class="tv-stage${tvSlide ? ` slide-${tvSlide}` : ''}">
+      ${tvFiltersHtml()}
       <div class="tv-info">${tvInfo(x)}</div>
       <div class="tv-row" style="--sel:${sel}">${list.map((y, i) => tvTile(y, i, sel)).join('')}</div>
     </section>
@@ -4374,8 +4431,12 @@ function renderTv() {
         <div class="tv-guide-who">${p ? avatar(p, true) : ''}<div><h3>${p ? esc(p.name) : ''}</h3>
           <p class="muted">${achSummary ? `${achSummary.unlocked} conquistas · ${achSummary.points} pontos` : ''}</p></div></div>
         <ul>${tvGuideItems().map(([k, label], i) => `<li class="${i === tvGuide ? 'on' : ''}" data-g="${i}">${esc(label)}</li>`).join('')}</ul>
-      </aside>`}`;
+      </aside>`}
+    ${tvOverlayHtml()}`;
   tvSlide = '';
+  tvSearchPaint();
+  tvSurprisePaint();
+  document.querySelectorAll('#tv [data-filter]').forEach((el) => el.addEventListener('click', () => tvFilterStep(Number(el.dataset.filter) - tvFilter)));
   document.querySelectorAll('#tv .tv-tile').forEach((el) => el.addEventListener('click', () => {
     const i = Number(el.dataset.i);
     if (i === tvSel[TV_SECTIONS[tvSection][0]]) tvOk();
@@ -4391,6 +4452,8 @@ function tvAction(what) {
   else if (what === 'details') tvDetails();
   else if (what === 'back') tvBack();
   else if (what === 'guide') tvToggleGuide();
+  else if (what === 'surprise') tvSurpriseOpen();
+  else if (what === 'search') tvSearchOpen();
 }
 
 function tvMove(step) {
@@ -4469,7 +4532,9 @@ function tvSystem(id) {
     invoke('set_profile_look', { id: p.id, accent: p.accent, look: { ...p.look, sounds: !tvSoundOn() } })
       .then((v) => { profiles = v; tvSound('ok'); renderTv(); })
       .catch((e) => toast(String(e), true));
-  } else if (id === 'estatisticas') tvLeaveTo(openStats);
+  } else if (id === 'surpresa') tvSurpriseOpen();
+  else if (id === 'buscar') tvSearchOpen();
+  else if (id === 'estatisticas') tvLeaveTo(openStats);
   else if (id === 'config') tvLeaveTo(() => $('#btn-settings').click());
   else if (id === 'sair') tvClose();
 }
@@ -4533,6 +4598,10 @@ function tvPoll(t) {
     }
     // The bar shows the buttons of the controller in use (✕ ○ on PlayStation).
     if (p.changed) renderTv();
+    if (tvGuide === null && tvOverlayPad(e, p, t)) {
+      requestAnimationFrame(tvPoll);
+      return;
+    }
     if (tvGuide !== null) {
       if (e.dy) {
         tvGuide = Math.max(0, Math.min(tvGuideItems().length - 1, tvGuide + e.dy));
@@ -4545,6 +4614,9 @@ function tvPoll(t) {
       if (e.dx) tvMove(e.dx);
       if (e.lb) tvGoSection(-1);
       if (e.rb) tvGoSection(1);
+      if (e.lt) tvFilterStep(-1);
+      if (e.rt) tvFilterStep(1);
+      if (e.x && TV_PLAYABLE.includes(TV_SECTIONS[tvSection][0])) tvSurpriseOpen();
       if (e.ok) tvOk();
       if (e.y) tvDetails();
       if (e.menu) tvToggleGuide();
@@ -4556,6 +4628,10 @@ function tvPoll(t) {
 
 document.addEventListener('keydown', (e) => {
   if (!tvOn || !$('#who').hidden || resumeAsk) return;
+  if (tvGuide === null && tvOverlayKey(e)) {
+    e.preventDefault();
+    return;
+  }
   const k = e.key.toLowerCase();
   let done = true;
   if (tvGuide !== null) {
@@ -4570,6 +4646,10 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'e' || k === 'pagedown') tvGoSection(1);
   else if (k === 'enter') tvOk();
   else if (k === 'i') tvDetails();
+  else if (k === 'z') tvFilterStep(-1);
+  else if (k === 'c') tvFilterStep(1);
+  else if (k === 'r' && TV_PLAYABLE.includes(TV_SECTIONS[tvSection][0])) tvSurpriseOpen();
+  else if (k === '/') tvSearchOpen();
   else if (k === 'g') tvToggleGuide();
   else if (k === 'escape') tvBack();
   else done = false;
@@ -5912,4 +5992,416 @@ $('#detail').addEventListener('click', (e) => {
   const repo = el.dataset.repo;
   const url = { page: `https://github.com/${repo}`, releases: `https://github.com/${repo}/releases`, issue: `https://github.com/${repo}/issues` }[el.dataset.fact];
   if (url) call('open_link', { url });
+});
+
+// ---- Modo TV: quick filters, Surpreenda-me and finding a game with the controller ----
+
+const DAY = 86400;
+// Played an hour or more, then left for 45 days: worth picking up again.
+const isResume = (g) => (g.total_seconds || 0) >= 3600 && g.last_played && Date.now() / 1000 - g.last_played > 45 * DAY;
+// In the library and never opened.
+const isWaiting = (g) => !g.last_played && !(g.total_seconds > 0);
+
+// LT / RT go through these in Jogos, Ports and Emulados.
+const TV_FILTERS = [
+  ['todos', 'Todos', () => true],
+  ['favoritos', 'Favoritos', (g) => g.favorite],
+  ['recentes', 'Recentes', (g) => g.last_played && Date.now() / 1000 - g.last_played < 30 * DAY],
+  ['retomar', 'Para retomar', isResume],
+  ['esperando', 'Nunca jogados', isWaiting],
+];
+let tvFilter = 0;
+
+function tvFiltered(list) {
+  const [key, , keep] = TV_FILTERS[tvFilter];
+  const out = list.filter(keep);
+  if (key === 'recentes') out.sort((a, b) => (b.last_played || 0) - (a.last_played || 0));
+  if (key === 'retomar') out.sort((a, b) => (b.total_seconds || 0) - (a.total_seconds || 0));
+  return out;
+}
+
+function tvFiltersHtml() {
+  if (!TV_PLAYABLE.includes(TV_SECTIONS[tvSection][0])) return '';
+  const k = (p, kb) => `<span class="tv-key">${padKind !== null ? padName(p) : kb}</span>`;
+  return `<nav class="tv-filters" aria-label="Filtros">${k('lt', 'Z')}${TV_FILTERS.map(([key, label], i) =>
+    `<span class="tv-filter${i === tvFilter ? ' on' : ''}" data-filter="${i}">${label}</span>`).join('')}${k('rt', 'C')}</nav>`;
+}
+
+function tvFilterStep(step) {
+  const s = TV_SECTIONS[tvSection][0];
+  if (!TV_PLAYABLE.includes(s)) return;
+  tvFilter = (tvFilter + step + TV_FILTERS.length) % TV_FILTERS.length;
+  TV_PLAYABLE.forEach((k) => { tvSel[k] = 0; });
+  tvSound('section');
+  renderTv();
+}
+
+// ---- Surpreenda-me: covers flick past and stop on a game ----
+
+let tvSurprise = null;   // { pool, at, rolling, timer }
+
+function tvSurprisePool() {
+  const s = TV_SECTIONS[tvSection][0];
+  const games = TV_PLAYABLE.includes(s) ? tvItems().map((x) => x.game) : tvGames();
+  return games.filter((g) => g && g.status === 'ready');
+}
+
+function tvSurpriseOpen() {
+  const pool = tvSurprisePool();
+  if (!pool.length) {
+    toast('Nenhum jogo pronto para jogar neste filtro.', true);
+    return;
+  }
+  clearTimeout(tvSurprise && tvSurprise.timer);
+  tvSurprise = { pool, at: Math.floor(Math.random() * pool.length), rolling: true, timer: null };
+  renderTv();
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches || pool.length === 1;
+  const steps = still ? 0 : 18 + Math.floor(Math.random() * 6);
+  let n = 0;
+  const tick = () => {
+    if (!tvSurprise) return;
+    if (n >= steps) {
+      tvSurprise.rolling = false;
+      tvSound('ok');
+      tvRumble();
+      tvSurprisePaint();
+      return;
+    }
+    n += 1;
+    tvSurprise.at = (tvSurprise.at + 1 + Math.floor(Math.random() * Math.max(1, pool.length - 1))) % pool.length;
+    tvSound('move');
+    tvSurprisePaint();
+    // Slows down to a stop, like a wheel.
+    tvSurprise.timer = setTimeout(tick, 40 + n * n * 0.45);
+  };
+  tick();
+}
+
+function tvSurprisePaint() {
+  const el = $('#tv-surprise');
+  if (!el || !tvSurprise) return;
+  const g = tvSurprise.pool[tvSurprise.at];
+  const k = (p, kb) => `<b>${padKind !== null ? padName(p) : kb}</b>`;
+  el.className = `tv-surprise${tvSurprise.rolling ? ' rolling' : ' landed'}`;
+  el.innerHTML = `
+    <div class="tv-surprise-card">
+      <p class="tv-fam">${tvSurprise.rolling ? 'Sorteando…' : 'Que tal jogar'}</p>
+      <div class="tv-surprise-cover">${g.cover ? `<img src="${g.cover}" alt="">` : `<span class="tv-name">${esc(g.title)}</span>`}</div>
+      <h2>${esc(g.title)}</h2>
+      <p class="tv-sub">${tvSurprise.rolling ? '' : g.last_played ? `${playTime(g.total_seconds)} jogados · última vez ${daysAgo(g.last_played)}` : 'Você ainda não jogou este.'}</p>
+      ${tvSurprise.rolling ? '' : `<div class="tv-surprise-keys">
+        <span data-sp="ok">${k('ok', 'Enter')} Jogar</span><span data-sp="details">${k('y', 'I')} Detalhes</span>
+        <span data-sp="again">${k('x', 'R')} Sortear de novo</span><span data-sp="back">${k('back', 'Esc')} Voltar</span></div>`}
+    </div>`;
+  el.querySelectorAll('[data-sp]').forEach((b) => b.addEventListener('click', () => tvSurpriseAct(b.dataset.sp)));
+}
+
+function tvSurpriseAct(what) {
+  if (!tvSurprise || tvSurprise.rolling) return;
+  const g = tvSurprise.pool[tvSurprise.at];
+  if (what === 'again') return tvSurpriseOpen();
+  tvSurprise = null;
+  if (what === 'ok') {
+    tvSound('ok');
+    invoke('play', { id: g.id }).then(async () => setGame(await invoke('get_game', { id: g.id }))).catch((e) => toast(String(e), true));
+    renderTv();
+  } else if (what === 'details') {
+    tvLeaveTo(() => openGame(g.id));
+  } else {
+    tvSound('back');
+    renderTv();
+  }
+}
+
+// ---- Buscar um jogo: a keyboard on the screen, results as you type ----
+
+const TV_KEYS = [
+  'abcdefghij'.split(''),
+  'klmnopqrst'.split(''),
+  'uvwxyz0123'.split(''),
+  ['4', '5', '6', '7', '8', '9', ':', '-', "'", '&'],
+  ['espaço', 'apagar', 'limpar', 'ir'],
+];
+let tvSearch = null;     // { text, row, col, pick }
+let tvViewSince = 0;     // when View started being held
+
+function tvSearchResults() {
+  if (!tvSearch) return [];
+  const words = plainText(tvSearch.text).split(/\s+/).filter(Boolean);
+  const all = tvGames();
+  if (!words.length) return all.slice(0, 6);
+  return all.filter((g) => {
+    const hay = plainText(`${g.title} ${g.port_name || ''} ${g.family || ''}`);
+    return words.every((w) => hay.includes(w));
+  }).slice(0, 6);
+}
+
+function plainText(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function tvSearchOpen() {
+  if (tvSearch) return;
+  tvSearch = { text: '', row: 0, col: 0, pick: 0 };
+  tvSound('section');
+  renderTv();
+}
+
+function tvSearchPaint() {
+  const el = $('#tv-search');
+  if (!el || !tvSearch) return;
+  const res = tvSearchResults();
+  tvSearch.pick = Math.max(0, Math.min(tvSearch.pick, res.length - 1));
+  const k = (p, kb) => `<b>${padKind !== null ? padName(p) : kb}</b>`;
+  el.innerHTML = `
+    <div class="tv-search-box">
+      <div class="tv-search-field">${esc(tvSearch.text) || '<span class="muted">Digite o nome do jogo</span>'}<span class="tv-caret"></span></div>
+      <div class="tv-search-body">
+        <div class="tv-keys">${TV_KEYS.map((row, r) => `<div class="tv-keyrow${r === TV_KEYS.length - 1 ? ' wide' : ''}">${row.map((key, c) =>
+          `<span class="tv-k${r === tvSearch.row && c === tvSearch.col ? ' on' : ''}" data-k="${r}:${c}">${esc(key)}</span>`).join('')}</div>`).join('')}</div>
+        <ol class="tv-results">${res.length ? res.map((g, i) => `
+          <li class="${i === tvSearch.pick ? 'on' : ''}" data-r="${i}">
+            ${g.cover ? `<img src="${g.cover}" alt="">` : '<span class="tv-results-blank"></span>'}<span>${esc(g.title)}</span></li>`).join('')
+          : '<li class="none">Nenhum jogo com esse nome.</li>'}</ol>
+      </div>
+      <div class="tv-search-keys">
+        <span>${padKind !== null ? `${k('ok', '')} Tecla` : 'Digite no teclado'}</span><span>${k('back', 'Backspace')} Apagar</span>
+        <span>${k('lb', '↑')} ${k('rb', '↓')} Escolher jogo</span><span>${k('menu', 'Enter')} Ir para o jogo</span><span>${k('view', 'Esc')} Fechar</span>
+      </div>
+    </div>`;
+  el.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => {
+    const [r, c] = b.dataset.k.split(':').map(Number);
+    tvSearch.row = r; tvSearch.col = c;
+    tvSearchKey();
+  }));
+  el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { tvSearch.pick = Number(b.dataset.r); tvSearchGo(); }));
+}
+
+function tvSearchType(ch) {
+  if (tvSearch.text.length >= 40) return;
+  tvSearch.text += ch;
+  tvSearch.pick = 0;
+  tvSearchPaint();
+}
+
+function tvSearchBack() {
+  if (!tvSearch.text) return tvSearchClose();
+  tvSearch.text = tvSearch.text.slice(0, -1);
+  tvSearch.pick = 0;
+  tvSearchPaint();
+}
+
+function tvSearchKey() {
+  const key = TV_KEYS[tvSearch.row][tvSearch.col];
+  tvSound('move');
+  if (key === 'espaço') tvSearchType(' ');
+  else if (key === 'apagar') tvSearchBack();
+  else if (key === 'limpar') { tvSearch.text = ''; tvSearchPaint(); }
+  else if (key === 'ir') tvSearchGo();
+  else tvSearchType(key);
+}
+
+function tvSearchMove(dx, dy) {
+  const rows = TV_KEYS.length;
+  if (dy) {
+    const from = TV_KEYS[tvSearch.row].length;
+    tvSearch.row = (tvSearch.row + dy + rows) % rows;
+    const to = TV_KEYS[tvSearch.row].length;
+    tvSearch.col = Math.min(to - 1, Math.round((tvSearch.col / Math.max(1, from - 1)) * (to - 1)));
+  }
+  if (dx) {
+    const n = TV_KEYS[tvSearch.row].length;
+    tvSearch.col = (tvSearch.col + dx + n) % n;
+  }
+  tvSound('move');
+  tvSearchPaint();
+}
+
+function tvSearchPick(step) {
+  const n = tvSearchResults().length;
+  if (!n) return;
+  tvSearch.pick = (tvSearch.pick + step + n) % n;
+  tvSound('move');
+  tvSearchPaint();
+}
+
+// The game chosen lands on the row of Jogos, chosen, with the filter set back to Todos.
+function tvSearchGo() {
+  const g = tvSearchResults()[tvSearch.pick];
+  if (!g) return;
+  tvSearch = null;
+  tvFilter = 0;
+  tvSection = 0;
+  const i = tvItems().findIndex((x) => x.game && x.game.id === g.id);
+  tvSel.jogos = Math.max(0, i);
+  tvSound('ok');
+  renderTv();
+}
+
+function tvSearchClose() {
+  tvSearch = null;
+  tvSound('back');
+  renderTv();
+}
+
+function tvOverlayHtml() {
+  if (tvSearch) return '<div class="tv-search" id="tv-search" role="dialog" aria-label="Buscar um jogo"></div>';
+  if (tvSurprise) return '<div class="tv-surprise" id="tv-surprise" role="dialog" aria-label="Surpreenda-me"></div>';
+  return '';
+}
+
+// The controller while a layer is open on the TV; true when the press was theirs.
+function tvOverlayPad(e, p, t) {
+  if (tvSearch) {
+    if (e.dx || e.dy) tvSearchMove(e.dx, e.dy);
+    if (e.ok) tvSearchKey();
+    if (e.back) tvSearchBack();
+    if (e.x) tvSearchType(' ');
+    if (e.lb) tvSearchPick(-1);
+    if (e.rb) tvSearchPick(1);
+    if (e.menu) tvSearchGo();
+    if (e.view || e.l3) tvSearchClose();
+    return true;
+  }
+  if (tvSurprise) {
+    if (e.ok) tvSurpriseAct('ok');
+    if (e.y) tvSurpriseAct('details');
+    if (e.x) tvSurpriseAct('again');
+    if (e.back) tvSurpriseAct('back');
+    return true;
+  }
+  // View held for a moment, or the left stick pressed, opens the search.
+  if (p.view) {
+    if (!tvViewSince) tvViewSince = t;
+    else if (t - tvViewSince > 450) { tvViewSince = Infinity; tvSearchOpen(); return true; }
+  } else tvViewSince = 0;
+  if (e.l3) { tvSearchOpen(); return true; }
+  return false;
+}
+
+function tvOverlayKey(e) {
+  const k = e.key;
+  if (tvSearch) {
+    if (k === 'Escape') tvSearchClose();
+    else if (k === 'Enter') tvSearchGo();
+    else if (k === 'Backspace') tvSearchBack();
+    else if (k === 'ArrowUp') tvSearchPick(-1);
+    else if (k === 'ArrowDown') tvSearchPick(1);
+    else if (k.length === 1) tvSearchType(k.toLowerCase());
+    else return false;
+    return true;
+  }
+  if (tvSurprise) {
+    const map = { Enter: 'ok', i: 'details', r: 'again', Escape: 'back' };
+    if (map[k]) tvSurpriseAct(map[k]);
+    return true;
+  }
+  return false;
+}
+
+// ---- Capturas: the game's screenshots and clips already on the PC (captures.rs) ----
+
+const capturesCache = {};    // id -> 'loading' | [capture]
+let shotView = null;         // { id, i, url } while a picture is shown big
+
+function capturesBox(g) {
+  const list = capturesCache[g.id];
+  if (list === undefined) {
+    capturesCache[g.id] = 'loading';
+    invoke('game_captures', { id: g.id })
+      .then((l) => { capturesCache[g.id] = l; })
+      .catch(() => { capturesCache[g.id] = []; })
+      .finally(() => { if (openId === g.id) render(); });
+  }
+  const intro = `<p class="muted">Os prints e vídeos que já estão no PC: da Steam, do Xbox Game Bar (Win + Alt + PrtScn) e do app
+    da NVIDIA. O Black Flag só lê, não grava nada.</p>`;
+  if (!Array.isArray(list)) return `<div class="box"><h3>Capturas</h3>${intro}<p class="muted">Procurando…</p></div>`;
+  if (!list.length) {
+    return `<div class="box"><h3>Capturas</h3>${intro}
+      <p>Nenhuma captura deste jogo ainda. Durante o jogo, aperte <b>F12</b> na Steam ou <b>Win + Alt + PrtScn</b> no Windows.</p></div>`;
+  }
+  const photos = list.filter((c) => !c.video).length;
+  return `
+    <div class="box">
+      <h3>Capturas <span class="muted">${photos} foto(s) · ${list.length - photos} vídeo(s)</span></h3>
+      ${intro}
+      <div class="shots">${list.map((c, i) => `
+        <button class="shot${c.video ? ' clip' : ''}" data-shot="${i}" title="${esc(c.source)} · ${esc(new Date(c.taken * 1000).toLocaleString('pt-BR'))}">
+          ${c.thumb ? `<img src="${c.thumb}" alt="" loading="lazy">` : '<span class="shot-play" aria-hidden="true"></span>'}
+          <span class="shot-meta">${c.video ? 'Vídeo · ' : ''}${esc(new Date(c.taken * 1000).toLocaleDateString('pt-BR'))}</span>
+        </button>`).join('')}</div>
+      <p class="muted">Os vídeos abrem no player do Windows.</p>
+    </div>`;
+}
+
+async function shotOpen(id, i) {
+  const list = capturesCache[id];
+  const c = Array.isArray(list) && list[i];
+  if (!c) return;
+  if (c.video) {
+    call('open_capture', { path: c.path, folder: false }).catch(() => {});
+    return;
+  }
+  shotView = { id, i, url: c.thumb };
+  shotPaint();
+  try {
+    const url = await invoke('capture_picture', { path: c.path });
+    if (shotView && shotView.id === id && shotView.i === i) { shotView.url = url; shotPaint(); }
+  } catch (e) {
+    toast(String(e), true);
+  }
+}
+
+function shotPaint() {
+  let el = $('#shot-view');
+  if (!shotView) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'shot-view';
+    el.className = 'shot-view';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Captura');
+    document.body.appendChild(el);
+  }
+  const list = capturesCache[shotView.id];
+  const c = list[shotView.i];
+  el.innerHTML = `
+    <img src="${shotView.url}" alt="">
+    <div class="shot-bar">
+      <span>${shotView.i + 1} de ${list.length} · ${esc(c.source)} · ${esc(new Date(c.taken * 1000).toLocaleString('pt-BR'))}</span>
+      <span class="grow"></span>
+      <button class="ghost small" data-sv="prev">Anterior</button>
+      <button class="ghost small" data-sv="next">Próxima</button>
+      <button class="ghost small" data-sv="folder">Mostrar na pasta</button>
+      <button class="primary small" data-sv="close">Fechar</button>
+    </div>`;
+  el.querySelectorAll('[data-sv]').forEach((b) => b.addEventListener('click', (ev) => { ev.stopPropagation(); shotAct(b.dataset.sv); }));
+  el.onclick = (ev) => { if (ev.target === el) shotAct('close'); };
+}
+
+function shotAct(what) {
+  if (!shotView) return;
+  const list = capturesCache[shotView.id];
+  if (what === 'close') { shotView = null; shotPaint(); return; }
+  if (what === 'folder') { call('open_capture', { path: list[shotView.i].path, folder: true }).catch(() => {}); return; }
+  // Next / previous picture; clips are skipped (they open outside).
+  const step = what === 'next' ? 1 : -1;
+  let i = shotView.i;
+  for (let n = 0; n < list.length; n++) {
+    i = (i + step + list.length) % list.length;
+    if (!list[i].video) return shotOpen(shotView.id, i);
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('#detail [data-shot]');
+  if (b && openId) shotOpen(openId, Number(b.dataset.shot));
+});
+document.addEventListener('keydown', (e) => {
+  if (!shotView) return;
+  if (e.key === 'Escape') shotAct('close');
+  else if (e.key === 'ArrowRight') shotAct('next');
+  else if (e.key === 'ArrowLeft') shotAct('prev');
+  else return;
+  e.preventDefault();
 });
