@@ -43,6 +43,10 @@ pub fn set_token(token: &str) {
     *TOKEN.write().unwrap() = token.to_string();
 }
 
+pub fn has_token() -> bool {
+    !TOKEN.read().unwrap().is_empty()
+}
+
 /// Classic tokens are "ghp_" plus 36 characters, fine-grained ones "github_pat_" plus about 80.
 pub fn valid_token(token: &str) -> bool {
     (20..=255).contains(&token.len()) && token.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')

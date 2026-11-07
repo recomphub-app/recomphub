@@ -164,6 +164,7 @@ h1 { margin: 0 0 18px; font-size: 30px; }
 .chip.needs_files, .chip.update { color: var(--warn); }
 .chip.not_installed { color: var(--muted); }
 .chip.running, .chip.installing, .chip.starting { color: var(--info); }
+.chip.new { color: var(--gold-hi); }
 
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .tabs button {

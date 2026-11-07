@@ -4,9 +4,12 @@
 //! - the curated list Sebastrion/awesome-unofficial-pc-ports (MIT), read from its README;
 //! - GitHub topic searches (`pc-port`, `native-port`, `game-port`, the recompilers' topics...).
 //!
-//! The result is kept for 12 hours (GitHub allows 10 searches a minute and 60 API calls an
-//! hour without login). Nothing here is checked by Black Flag: installing one of these ports
-//! is experimental, and the page says so.
+//! Each topic is searched two ways: by stars (the popular ones, every 3 days) and by last update
+//! (new ports and new versions, every 6 hours). A topic has hundreds of projects, so neither
+//! search sees them all at once: the list keeps what earlier searches found and drops a port
+//! only after 90 days unseen. GitHub allows 10 searches a minute without a token, so without
+//! one a refresh does one of the two kinds; with a token, both. Nothing here is checked by
+//! Black Flag: installing one of these ports is experimental, and the page says so.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -33,7 +36,11 @@ const SEARCHES: &[(&str, u32)] = &[
 /// A fork is listed only when people use it as a project of its own (SpartanPort is a fork of
 /// shadPS4), not a personal copy.
 const MIN_FORK_STARS: u64 = 20;
-const MAX_AGE_SECS: u64 = 12 * 3600;
+const MAX_AGE_SECS: u64 = 6 * 3600;
+/// How often the searches by stars run again.
+const POPULAR_AGE_SECS: u64 = 3 * 86400;
+/// A port no search or list has shown for this long leaves the list.
+const KEEP_UNSEEN_SECS: u64 = 90 * 86400;
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Item {
@@ -53,6 +60,12 @@ pub struct Item {
     /// Unix time of the last push, when known.
     #[serde(default)]
     pub pushed: Option<u64>,
+    /// Unix time the repository was created, when known.
+    #[serde(default)]
+    pub created: Option<u64>,
+    /// Unix time a search or the list last showed it.
+    #[serde(default)]
+    pub seen: u64,
     /// Marked ⭐ ("most user-friendly version") in the awesome list.
     #[serde(default)]
     pub recommended: bool,
@@ -71,10 +84,13 @@ pub struct Cache {
     /// Which set of searches made it: a list from an older set is searched again at once.
     #[serde(default)]
     pub searches: u32,
+    /// When the searches by stars last ran to the end.
+    #[serde(default)]
+    pub popular_at: u64,
 }
 
-/// Bumped when SEARCHES changes (2: forks and more topics, in 0.33).
-const SEARCHES_VERSION: u32 = 2;
+/// Bumped when SEARCHES changes (2: forks and more topics, in 0.33; 3: searches by last update).
+const SEARCHES_VERSION: u32 = 3;
 
 pub fn valid_repo(repo: &str) -> bool {
     let mut parts = repo.split('/');
@@ -180,6 +196,8 @@ struct SearchRepo {
     #[serde(default)]
     pushed_at: Option<String>,
     #[serde(default)]
+    created_at: Option<String>,
+    #[serde(default)]
     topics: Vec<String>,
     #[serde(default)]
     archived: bool,
@@ -284,9 +302,10 @@ struct SearchError {
 }
 
 /// The ports found and whether GitHub had a full page (so there may be another).
-async fn search_topic(topic: &str, page: u32) -> Result<(Vec<Item>, bool), SearchError> {
+/// `sort`: "stars" or "updated".
+async fn search_topic(topic: &str, sort: &str, page: u32) -> Result<(Vec<Item>, bool), SearchError> {
     let url = format!(
-        "https://api.github.com/search/repositories?q=topic:{topic}+fork:true+archived:false&sort=stars&order=desc&per_page=100&page={page}"
+        "https://api.github.com/search/repositories?q=topic:{topic}+fork:true+archived:false&sort={sort}&order=desc&per_page=100&page={page}"
     );
     let resp = github::api(&url).send().await.map_err(|e| SearchError { text: e.to_string(), limit: false })?;
     if !resp.status().is_success() {
@@ -309,6 +328,7 @@ async fn search_topic(topic: &str, page: u32) -> Result<(Vec<Item>, bool), Searc
             description: i.description.unwrap_or_default(),
             stars: Some(i.stargazers_count),
             pushed: i.pushed_at.as_deref().and_then(github::parse_time),
+            created: i.created_at.as_deref().and_then(github::parse_time),
             sources: vec!["tópico".into()],
             ..Default::default()
         })
@@ -329,6 +349,7 @@ pub fn merge(list: Vec<Item>, found: Vec<Item>) -> Vec<Item> {
                 }
                 o.stars = o.stars.or(item.stars);
                 o.pushed = o.pushed.or(item.pushed);
+                o.created = o.created.or(item.created);
                 o.recommended |= item.recommended;
                 if o.description.is_empty() {
                     o.description = item.description;
@@ -356,13 +377,63 @@ pub fn load(path: &Path) -> Cache {
     cache
 }
 
-/// The cached list, refreshed from GitHub when older than 12 hours (or `force`).
-/// A source that fails keeps its items from the previous refresh.
+/// Puts what a refresh found into the saved list: known ports get the new numbers, new ones
+/// come in, and those unseen for 90 days leave. `list_read`: the awesome list was read, so a
+/// port only it had, and that it no longer has, leaves at once.
+pub fn absorb(old: Vec<Item>, fresh: Vec<Item>, now: u64, list_read: bool) -> Vec<Item> {
+    let mut out = old;
+    for f in fresh {
+        match out.iter_mut().find(|o| o.repo.eq_ignore_ascii_case(&f.repo)) {
+            Some(o) => {
+                let from_list = f.sources.iter().any(|s| s == "lista");
+                for s in &f.sources {
+                    if !o.sources.contains(s) {
+                        o.sources.push(s.clone());
+                    }
+                }
+                o.stars = f.stars.or(o.stars);
+                o.pushed = o.pushed.max(f.pushed);
+                o.created = f.created.or(o.created);
+                if from_list {
+                    o.recommended = f.recommended;
+                }
+                if !f.description.is_empty() {
+                    o.description = f.description;
+                }
+                // The list's game and console names win over the guesses from a description.
+                if !f.console.is_empty() && (o.console.is_empty() || from_list) {
+                    o.console = f.console;
+                }
+                if !f.game.is_empty() && (o.game.is_empty() || from_list) {
+                    o.game = f.game;
+                }
+                o.seen = now;
+            }
+            None => out.push(Item { seen: now, ..f }),
+        }
+    }
+    out.retain(|o| {
+        let only_list = o.sources.iter().all(|s| s == "lista");
+        !(list_read && only_list && o.seen < now) && now.saturating_sub(o.seen) < KEEP_UNSEEN_SECS
+    });
+    out
+}
+
+/// The cached list, refreshed from GitHub when older than 6 hours (or `force`).
 pub async fn refresh(path: &Path, force: bool) -> Cache {
-    let old = load(path);
+    let mut old = load(path);
     let now = crate::library::now();
     if !force && !old.items.is_empty() && old.searches == SEARCHES_VERSION && now.saturating_sub(old.fetched_at) < MAX_AGE_SECS {
         return old;
+    }
+    // Lists saved before 0.53 came from the searches by stars and had no dates of their own.
+    if old.searches < 3 {
+        if !old.items.is_empty() {
+            old.popular_at = old.fetched_at;
+        }
+        for i in old.items.iter_mut() {
+            i.seen = old.fetched_at;
+        }
     }
     let mut errors = Vec::new();
     let list = match github::client().get(LIST_URL).send().await {
@@ -376,38 +447,56 @@ pub async fn refresh(path: &Path, force: bool) -> Cache {
             Vec::new()
         }
     };
+    let list_read = !list.is_empty();
+    // Without a token only one kind of search fits in GitHub's minute: the popular ones every
+    // 3 days, the recent ones the rest of the time.
+    let popular_due = old.items.is_empty() || now.saturating_sub(old.popular_at) >= POPULAR_AGE_SECS;
+    let mut kinds: Vec<&str> = Vec::new();
+    if popular_due {
+        kinds.push("stars");
+    }
+    if !popular_due || github::has_token() {
+        kinds.push("updated");
+    }
     let mut found = Vec::new();
-    'searches: for (t, pages) in SEARCHES {
-        for page in 1..=*pages {
-            match search_topic(t, page).await {
-                Ok((items, full)) => {
-                    found.extend(items);
-                    if !full {
+    let mut popular_done = false;
+    'searches: for sort in kinds {
+        let mut all_read = true;
+        for (t, pages) in SEARCHES {
+            let pages = if sort == "stars" { *pages } else { 1 };
+            for page in 1..=pages {
+                match search_topic(t, sort, page).await {
+                    Ok((items, full)) => {
+                        found.extend(items);
+                        if !full {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        errors.push(format!("tópico {t}: {}", e.text));
+                        all_read = false;
+                        if e.limit {
+                            break 'searches;
+                        }
                         break;
                     }
                 }
-                Err(e) => {
-                    errors.push(format!("tópico {t}: {}", e.text));
-                    if e.limit {
-                        break 'searches;
-                    }
-                    break;
-                }
             }
         }
+        popular_done |= sort == "stars" && all_read;
     }
-    let mut items = merge(list, found);
-    if items.is_empty() {
+    let fresh = merge(list, found);
+    if fresh.is_empty() {
         // Offline or rate-limited: keep what we had.
         return Cache { errors, ..old };
     }
-    // Sources that failed now keep their old entries.
-    for o in old.items {
-        if !items.iter().any(|i| i.repo.eq_ignore_ascii_case(&o.repo)) && !errors.is_empty() {
-            items.push(o);
-        }
-    }
-    let cache = Cache { fetched_at: now, items, errors, searches: SEARCHES_VERSION };
+    let cache = Cache {
+        fetched_at: now,
+        items: absorb(old.items, fresh, now, list_read),
+        errors,
+        searches: SEARCHES_VERSION,
+        popular_at: if popular_done { now } else { old.popular_at },
+    };
     if let Ok(text) = serde_json::to_string(&cache) {
         let _ = std::fs::write(path, text);
     }
@@ -646,6 +735,29 @@ mod tests {
         assert_eq!(merged.len(), 2);
         assert_eq!(merged[0].stars, Some(2000));
         assert_eq!(merged[0].sources, vec!["lista", "tópico"]);
+    }
+
+    #[test]
+    fn new_ports_join_and_old_ones_stay() {
+        let day = 86400;
+        let now = 200 * day;
+        let item = |repo: &str, seen: u64, src: &str| Item { repo: repo.into(), seen, sources: vec![src.into()], ..Default::default() };
+        let old = vec![
+            Item { stars: Some(500), ..item("a/popular", now - 2 * day, "tópico") },
+            item("a/quiet", now - 30 * day, "tópico"),
+            item("a/gone", now - 91 * day, "tópico"),
+            item("a/off-list", now - day, "lista"),
+        ];
+        let fresh = vec![
+            Item { stars: Some(510), pushed: Some(now), ..item("A/Popular", 0, "tópico") },
+            Item { created: Some(now - day), ..item("b/brand-new", 0, "tópico") },
+        ];
+        let out = absorb(old, fresh, now, true);
+        let repos: Vec<&str> = out.iter().map(|i| i.repo.as_str()).collect();
+        assert_eq!(repos, vec!["a/popular", "a/quiet", "b/brand-new"]);
+        assert_eq!(out[0].stars, Some(510));
+        assert_eq!(out[0].pushed, Some(now));
+        assert_eq!(out[2].seen, now);
     }
 
     #[test]

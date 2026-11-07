@@ -3662,9 +3662,12 @@ const COMMUNITY_SORTS = [
   ['recommended', 'Recomendados'],
   ['trending', 'Em alta'],
   ['stars', 'Mais estrelas'],
+  ['new', 'Novos no GitHub'],
   ['updated', 'Atualizados há pouco'],
   ['name', 'Nome (A–Z)'],
 ];
+// Created on GitHub in the last two weeks.
+const isNewPort = (i) => !!i.created && Date.now() / 1000 - i.created < 14 * 86400;
 const byName = (a, b) => (a.game || a.name).localeCompare(b.game || b.name, 'pt-BR');
 // "Em alta": stars that keep counting while the project is alive. A project pushed today keeps
 // all of them; one untouched for a month, half; for a year, about a twelfth.
@@ -3676,6 +3679,7 @@ const COMMUNITY_ORDER = {
   recommended: (a, b) => (b.recommended - a.recommended) || ((b.stars || 0) - (a.stars || 0)) || byName(a, b),
   trending: (a, b) => trending(b) - trending(a) || byName(a, b),
   stars: (a, b) => ((b.stars || 0) - (a.stars || 0)) || byName(a, b),
+  new: (a, b) => ((b.created || 0) - (a.created || 0)) || byName(a, b),
   updated: (a, b) => ((b.pushed || 0) - (a.pushed || 0)) || byName(a, b),
   name: byName,
 };
@@ -3715,8 +3719,9 @@ function renderCommunityGrid() {
         <p class="muted">Da lista <button class="link" data-clink="${esc(data.list_page || '')}">awesome-unofficial-pc-ports</button>
           e dos projetos do GitHub com os tópicos <code>pc-port</code>, <code>native-port</code>, <code>game-port</code>,
           <code>pc-ports</code>, <code>unofficial-port</code>, <code>n64recomp</code>, <code>xenonrecomp</code>, <code>rexglue</code>,
-          <code>ps3recomp</code> e <code>ps2recomp</code>. Forks entram quando têm 20 estrelas ou mais. Sem token do GitHub, a
-          última busca pode passar do limite por minuto; com token, todas entram.</p>
+          <code>ps3recomp</code> e <code>ps2recomp</code>. Forks entram quando têm 20 estrelas ou mais. A cada 6 horas o
+          Black Flag procura os projetos novos e os que mudaram, e a cada 3 dias os mais populares. Um port sai da lista
+          depois de 90 dias sem aparecer em nenhuma busca. Com um token do GitHub em Configurações, as duas buscas rodam juntas.</p>
       </details>
     </div>
     ${data.errors.length ? `<p class="muted">Não consegui ler: ${data.errors.map(esc).join('; ')}.</p>` : ''}`;
@@ -3744,6 +3749,7 @@ function renderCommunityGrid() {
         <div class="title">${esc(i.game || i.name)}</div>
         <div>
           ${i.console ? `<span class="chip family">${esc(i.console)}</span>` : ''}
+          ${isNewPort(i) ? '<span class="chip new">Novo</span>' : ''}
           ${i.recommended ? '<span class="chip fav">⭐ Recomendado</span>' : ''}
           ${i.catalog_id ? '<span class="chip ready">No catálogo</span>' : ''}
           ${i.installed_id ? '<span class="chip running">Na biblioteca</span>' : ''}
@@ -5854,6 +5860,7 @@ function renderShowcase() {
   const popular = items.filter((i) => i.stars).sort((a, b) => b.stars - a.stars).slice(0, 10);
   const picked = items.filter((i) => i.recommended).slice(0, 12);
   const fresh = items.filter((i) => i.pushed).sort((a, b) => b.pushed - a.pushed).slice(0, 12);
+  const born = items.filter(isNewPort).sort((a, b) => b.created - a.created).slice(0, 12);
   const all = items.length ? `<button class="link" data-sc="community">Ver os ${items.length} da Comunidade</button>` : '';
   box.innerHTML = `
     ${showcaseHero(ports)}
@@ -5864,6 +5871,7 @@ function renderShowcase() {
     ${shelf('Mais populares na Comunidade', 'Pelas estrelas no GitHub. Ports da Comunidade não são verificados pelo Black Flag.',
       popular.map((i, n) => shelfCard({ item: i }, n + 1)), all)}
     ${shelf('Recomendados pela lista', 'Os mais fáceis de usar, segundo a lista awesome-unofficial-pc-ports.', picked.map((i) => shelfCard({ item: i })))}
+    ${shelf('Novos na Comunidade', 'Criados no GitHub nas últimas duas semanas. Muitos ainda estão no começo.', born.map((i) => shelfCard({ item: i })))}
     ${shelf('Atualizados há pouco', '', fresh.map((i) => shelfCard({ item: i })))}
     ${!items.length && communityLoading ? '<p class="muted">Buscando os ports da Comunidade no GitHub…</p>' : ''}`;
   box.querySelectorAll('[data-sc]').forEach((el) => el.addEventListener('click', () => showcaseAct(el)));

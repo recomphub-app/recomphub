@@ -639,3 +639,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     com Jogar, Detalhes e Sortear de novo; sem animação com "reduzir movimento". Buscar pelo
     controle: segurar View (ou apertar o analógico esquerdo, ou / no teclado) abre um teclado na
     tela; os jogos aparecem enquanto digita, LB/RB escolhem e Menu leva o jogo para a fileira.
+
+88. **A aba Comunidade acompanha ports novos e versões novas.** Pedido do Gustavo em 07/11/2026:
+    a aba não mostrava os lançamentos. A busca por tópico pegava só os 100 ou 200 projetos com mais
+    estrelas de cada tópico, e os tópicos já passam de 800 projetos (game-port sozinho tem 351); 352
+    ficavam de fora, quase todos criados nas últimas semanas e com 0 estrelas. Agora cada tópico é
+    buscado de dois jeitos: por última atualização (a cada 6 horas, pega ports novos e versões novas)
+    e por estrelas (a cada 3 dias). A lista guarda o que as buscas anteriores acharam e só tira um
+    port depois de 90 dias sem aparecer em nenhuma; um port que saiu da lista awesome sai na hora.
+    Sem token, o GitHub deixa 10 buscas por minuto, então cada atualização faz um dos dois tipos; com
+    token, os dois. Na tela: selo Novo (criado há até 14 dias), ordem "Novos no GitHub" e a
+    prateleira "Novos na Comunidade" na vitrine.
