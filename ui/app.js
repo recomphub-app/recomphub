@@ -242,17 +242,8 @@ function renderGrid() {
       : tab === 'discover' ? 'Você já tem todos os ports do catálogo na biblioteca.'
       : 'Sua biblioteca está vazia. Use Adicionar para instalar um port, trazer os jogos da Steam, Epic e GOG ou escolher um jogo de PC.';
   }
-  $('#grid').innerHTML = list.map((g) => `
-    <div class="card" data-id="${g.id}" tabindex="0">
-      ${coverHtml(g)}
-      <div class="body">
-        <div class="title">${esc(g.title)}</div>
-        <div>${chips(g)}</div>
-        <div class="meta">${g.status === 'running' ? `Jogando há ${sessionLength(g)}`
-          : g.in_library ? `${playTime(g.total_seconds)} · última vez ${lastPlayed(g.last_played)}` : `Port ${esc(g.port_name)}`}</div>
-      </div>
-    </div>`).join('');
-  document.querySelectorAll('.card').forEach((el) => {
+  $('#grid').innerHTML = list.map(gameCardHtml).join('');
+  document.querySelectorAll('#grid .card').forEach((el) => {
     el.addEventListener('click', () => openGame(el.dataset.id));
     const g = list.find((x) => x.id === el.dataset.id);
     const art = g && realArt(g);
@@ -511,7 +502,7 @@ function renderPcDetail(g) {
       <p>O Black Flag não achou mais ${esc(g.install_dir)}. Se você moveu o jogo, ${g.kind === 'emulated' ? 'use Procurar jogos em Emuladores' : 'remova-o da biblioteca e adicione de novo'}.</p>
     </div>` : '';
   $('#detail').innerHTML = `
-    <button class="ghost back" data-act="back">← Biblioteca</button>
+    <button class="ghost back" data-act="back">${emuReturn === g.id ? `← ${esc(emuShort(emuById(emuTab) || { name: "Emuladores" }))}` : "← Biblioteca"}</button>
     <div class="detail">
       <div>${coverColumn(g)}</div>
       <div>
@@ -2516,7 +2507,8 @@ function renderPortDetail(g) {
   }
 
   $('#detail').innerHTML = `
-    <button class="ghost back" data-act="back">${g.in_library ? '← Biblioteca' : '← Instalar ports'}</button>
+    <button class="ghost back" data-act="back">${emuReturn === g.id ? `← ${esc(emuShort(emuById(emuTab) || { name: 'Emuladores' }))}`
+      : g.in_library ? '← Biblioteca' : '← Instalar ports'}</button>
     <div class="detail">
       <div>${coverColumn(g)}${factsHtml(g.repo, g.in_library ? '' : g.needs)}</div>
       <div>
@@ -2743,6 +2735,13 @@ async function act(action, g, el) {
       break;
     case 'back': {
       const was = openId;
+      // A game opened from an emulator's tab goes back to that tab.
+      if (emuReturn && emuReturn === was) {
+        emuReturn = null;
+        await openEmulators();
+        break;
+      }
+      emuReturn = null;
       moveTo(() => {
         openId = null;
         render();
@@ -4833,9 +4832,12 @@ function consoleCard(s) {
   const choose = s.choices.length > 1 ? `
     <label class="inline-field">Emulador
       <select data-emu-choose="${s.id}">${s.choices.map(([id, name]) => `<option value="${id}" ${id === s.emulator ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select></label>` : '';
+  const mine = e && e.found && !e.installing;
   return `
-    <div class="emu-card ${state}">
+    <div class="emu-card ${state}" style="${emuVars(s.emulator)}">
+      ${emuMotif(s.emulator)}
       <div class="emu-head"><b>${esc(s.name)}</b><span class="chip family">${s.games} jogo${s.games === 1 ? '' : 's'}</span></div>
+      ${mine ? `<button class="link emu-go" data-emu-tab="${e.id}">Ver a aba do ${esc(emuShort(e))}</button>` : ''}
       ${choose}
       ${emuStatusLine(e)}
       ${needsLine(s.needs)}
@@ -4860,10 +4862,152 @@ function unknownBox(d) {
     </div>`;
 }
 
+// ---- Each emulator's look: its project's colour and a drawing of ours that recalls it ----
+// Drawn here, no logos: a duck for DuckStation, a disc for PCSX2, waves for Dolphin...
+
+const EMU_LOOK = {
+  duckstation: { color: '#f2b544', motif: 'duck' },
+  pcsx2: { color: '#4f86ff', motif: 'disc' },
+  rpcs3: { color: '#5bb6ea', motif: 'chip' },
+  shadps4: { color: '#8b93ff', motif: 'layers' },
+  ppsspp: { color: '#ff8a3d', motif: 'handheld' },
+  dolphin: { color: '#2ec4b6', motif: 'waves' },
+  cemu: { color: '#6cb8ff', motif: 'tablet' },
+  ryujinx: { color: '#ff5a6e', motif: 'split' },
+  xemu: { color: '#8fdc5a', motif: 'orb' },
+  xenia: { color: '#ffd84d', motif: 'bird' },
+  rmg: { color: '#f2625c', motif: 'cart' },
+  ares: { color: '#c3c8d9', motif: 'cart' },
+  mgba: { color: '#b07cff', motif: 'pixels' },
+  melonds: { color: '#ff7eb3', motif: 'melon' },
+  azahar: { color: '#ffc58a', motif: 'blossom' },
+  flycast: { color: '#4fd1a5', motif: 'wind' },
+};
+const emuLook = (id) => EMU_LOOK[id] || { color: '#d9b45a', motif: 'disc' };
+
+const EMU_MOTIFS = {
+  duck: '<circle cx="76" cy="36" r="15"/><path d="M90 38h16l-9 7h-9"/><circle cx="80" cy="32" r="1.6" class="fill"/><path d="M64 50C36 44 14 56 14 78c0 18 18 28 44 28 28 0 44-10 46-34-12 7-26 6-34-2"/><path d="M34 78c8 6 22 7 32 2"/>',
+  disc: '<circle cx="60" cy="60" r="48"/><circle cx="60" cy="60" r="17"/><circle cx="60" cy="60" r="6"/><path d="M60 22a38 38 0 0 1 36 26"/><path d="M60 32a28 28 0 0 1 25 17"/>',
+  chip: '<rect x="26" y="26" width="68" height="68" rx="8"/><rect x="38" y="38" width="44" height="44" rx="3"/><path d="M38 52h44M38 67h44M52 38v44M67 38v44"/><path d="M40 14v12M60 14v12M80 14v12M40 94v12M60 94v12M80 94v12M14 40h12M14 60h12M14 80h12M94 40h12M94 60h12M94 80h12"/>',
+  layers: '<rect x="14" y="40" width="58" height="58" rx="10"/><rect x="32" y="28" width="58" height="58" rx="10"/><rect x="50" y="16" width="58" height="58" rx="10"/>',
+  handheld: '<rect x="6" y="34" width="108" height="52" rx="24"/><rect x="34" y="42" width="52" height="36" rx="3"/><path d="M20 54v12M14 60h12"/><circle cx="100" cy="54" r="3"/><circle cx="100" cy="66" r="3"/><circle cx="94" cy="60" r="3"/><circle cx="106" cy="60" r="3"/>',
+  waves: '<path d="M6 46c12-10 24-10 36 0s24 10 36 0 24-10 36 0"/><path d="M6 64c12-10 24-10 36 0s24 10 36 0 24-10 36 0"/><path d="M6 82c12-10 24-10 36 0s24 10 36 0 24-10 36 0"/><path d="M58 30c8-14 22-18 34-12-10 0-16 6-18 14"/>',
+  tablet: '<rect x="6" y="28" width="108" height="64" rx="18"/><rect x="34" y="38" width="52" height="40" rx="3"/><circle cx="20" cy="48" r="6"/><circle cx="100" cy="48" r="6"/><path d="M18 72v10M13 77h10"/><circle cx="100" cy="74" r="3"/>',
+  split: '<rect x="18" y="14" width="38" height="92" rx="19"/><rect x="64" y="14" width="38" height="92" rx="19"/><circle cx="37" cy="40" r="7"/><circle cx="83" cy="74" r="7"/><path d="M37 72v12M31 78h12"/><circle cx="83" cy="38" r="2.5"/>',
+  orb: '<circle cx="60" cy="60" r="46"/><ellipse cx="60" cy="60" rx="46" ry="16"/><ellipse cx="60" cy="60" rx="18" ry="46"/><path d="M26 30c20 10 48 10 68 0M26 90c20-10 48-10 68 0"/>',
+  bird: '<path d="M22 78c8-30 34-46 62-40 10 2 18 8 22 16l12 4-12 4c-4 18-22 30-44 30-16 0-30-6-40-14z"/><circle cx="92" cy="50" r="2" class="fill"/><path d="M40 74c14-2 30-12 38-26"/><path d="M48 104l-6 10M60 104l-2 10"/>',
+  cart: '<path d="M18 14h84v70l-10 10v12H28V94L18 84z"/><rect x="30" y="24" width="60" height="44" rx="4"/><path d="M40 106V96M52 106V96M64 106V96M76 106V96"/>',
+  pixels: '<rect x="12" y="12" width="96" height="96" rx="6"/>'
+    + [[2, 1], [3, 1], [5, 1], [6, 1], [1, 2], [4, 2], [7, 2], [1, 3], [7, 3], [2, 4], [6, 4], [3, 5], [5, 5], [4, 6]]
+      .map(([x, y]) => `<rect x="${12 + x * 11}" y="${16 + y * 11}" width="10" height="10" class="fill"/>`).join(''),
+  melon: '<path d="M8 44a52 52 0 0 0 104 0z"/><path d="M18 44a42 42 0 0 0 84 0"/>'
+    + [[40, 58], [60, 64], [80, 58], [50, 74], [70, 74]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2.4" ry="4" class="fill"/>`).join(''),
+  blossom: [0, 72, 144, 216, 288].map((a) => {
+    const r = (a - 90) * Math.PI / 180;
+    return `<circle cx="${(60 + Math.cos(r) * 26).toFixed(1)}" cy="${(60 + Math.sin(r) * 26).toFixed(1)}" r="20"/>`;
+  }).join('') + '<circle cx="60" cy="60" r="9"/>',
+  wind: '<path d="M10 40h62a14 14 0 1 0-14-14"/><path d="M10 62h88a14 14 0 1 1-14 14"/><path d="M10 84h44a10 10 0 1 1-10 10"/>',
+};
+
+function emuMotif(id, cls = 'emu-motif') {
+  return `<svg class="${cls}" viewBox="0 0 120 120" aria-hidden="true">${EMU_MOTIFS[emuLook(id).motif]}</svg>`;
+}
+
+// The CSS colours of an emulator: its own and a darker one for the backdrop.
+function emuVars(id) {
+  return `--emu:${emuLook(id).color}`;
+}
+
+// "Rosalie's Mupen GUI (RMG)" is RMG on a tab.
+const emuShort = (e) => (/\(([^)]+)\)$/.exec(e.name) || [, e.name])[1];
+
+// Tabs of the Emuladores page: Visão geral, then one per emulator on this PC.
+let emuTab = 'all';
+let emuReturn = null;      // the game opened from an emulator's tab, whose ← goes back there
+
+// The emulator a game opens with: its own choice, or its console's.
+function gameEmuId(g) {
+  const s = emuData && emuData.systems.find((x) => x.id === g.system);
+  if (!s) return null;
+  return (s.choices.find(([, name]) => name === g.emulator) || [s.emulator])[0];
+}
+
+const emuGames = (id) => games.filter((g) => g.kind === 'emulated' && g.in_library && gameEmuId(g) === id)
+  .sort(libraryOrder);
+
+function emuTabsHtml(d) {
+  const mine = d.emulators.filter((e) => e.found);
+  if (!mine.length) return '';
+  const tabBtn = (id, label, n, extra = '') => `
+    <button role="tab" class="emu-tab${emuTab === id ? ' on' : ''}" data-emu-tab="${id}" aria-selected="${emuTab === id}" ${extra}>
+      ${label}${n === null ? '' : `<span class="count">${n}</span>`}</button>`;
+  return `<nav class="emu-tabs" role="tablist" aria-label="Emuladores">
+    ${tabBtn('all', 'Visão geral', null)}
+    ${mine.map((e) => tabBtn(e.id, `${emuMotif(e.id, 'emu-tab-ico')}${esc(emuShort(e))}`, emuGames(e.id).length,
+      `style="${emuVars(e.id)}"`)).join('')}
+  </nav>`;
+}
+
+function gameCardHtml(g) {
+  return `
+    <div class="card" data-id="${g.id}" tabindex="0">
+      ${coverHtml(g)}
+      <div class="body">
+        <div class="title">${esc(g.title)}</div>
+        <div>${chips(g)}</div>
+        <div class="meta">${g.status === 'running' ? `Jogando há ${sessionLength(g)}`
+          : g.in_library ? `${playTime(g.total_seconds)} · última vez ${lastPlayed(g.last_played)}` : `Port ${esc(g.port_name)}`}</div>
+      </div>
+    </div>`;
+}
+
+// One emulator's own page: its colour over the whole page, what it runs and its games.
+function emuTabHtml(e, d) {
+  const systems = d.systems.filter((s) => s.emulator === e.id || s.choices.some(([id]) => id === e.id));
+  const list = emuGames(e.id);
+  const played = list.reduce((n, g) => n + (g.total_seconds || 0), 0);
+  const last = list.filter((g) => g.last_played).sort((a, b) => b.last_played - a.last_played)[0];
+  return `
+    <section class="emu-hero">
+      ${emuMotif(e.id, 'emu-hero-art')}
+      <div class="emu-hero-text">
+        <h2>${esc(e.name)}</h2>
+        <p class="emu-hero-for">${systems.map((s) => esc(s.name)).join(' · ')}</p>
+        ${emuStatusLine(e)}
+        <dl class="emu-facts">
+          <div><dt>Jogos</dt><dd>${list.length}</dd></div>
+          <div><dt>Tempo jogado</dt><dd>${playTime(played)}</dd></div>
+          ${last ? `<div><dt>Último</dt><dd>${esc(last.title)}</dd></div>` : ''}
+          ${e.found && e.found.version ? `<div><dt>Versão</dt><dd>${esc(e.found.version)}</dd></div>` : ''}
+        </dl>
+        ${emuButtons(e, null)}
+      </div>
+    </section>
+    ${systems.map((s) => (s.needs.asks || s.needs.folder ? `
+      <div class="box emu-sys">
+        <h3>${esc(s.name)}</h3>
+        ${needsLine(s.needs)}
+        <div class="row">
+          ${s.needs.action === 'install-firmware' ? '<button class="primary small" data-emu="firmware">Instalar o firmware</button>' : ''}
+          ${s.needs.folder ? `<button class="ghost small" data-emu="open" data-what="bios" data-id="${s.id}">Pasta da BIOS</button>` : ''}
+          <button class="ghost small" data-emu="open" data-what="games" data-id="${s.id}">Pasta de jogos</button>
+        </div>
+      </div>` : '')).join('')}
+    ${pcsx2RaLine(e) ? `<div class="box emu-sys"><h3>Conquistas</h3>${pcsx2RaLine(e)}</div>` : ''}
+    <h3 class="emu-title">Jogos no ${esc(emuShort(e))}</h3>
+    ${list.length ? `<div class="grid emu-games">${list.map(gameCardHtml).join('')}</div>`
+      : `<p class="muted">Nenhum jogo ainda. Coloque os jogos na pasta do console e clique em Procurar jogos na Visão geral.</p>
+         <div class="row">${systems.map((s) => `<button class="ghost small" data-emu="open" data-what="games" data-id="${s.id}">Pasta de jogos: ${esc(s.name)}</button>`).join('')}</div>`}`;
+}
+
 function renderEmulators() {
   const d = emuData;
   let body = '<p class="muted">Procurando os emuladores neste PC…</p>';
-  if (d) {
+  const open = d && emuTab !== 'all' && d.emulators.find((e) => e.id === emuTab && e.found);
+  if (d && !open) emuTab = 'all';
+  if (open) {
+    body = emuTabHtml(open, d);
+  } else if (d) {
     const scan = emuScanResult ? `<p class="${emuScanResult.added ? 'ok-text' : 'muted'}">${emuScanResult.total} jogo${emuScanResult.total === 1 ? '' : 's'} nas pastas · ${emuScanResult.added} novo${emuScanResult.added === 1 ? '' : 's'} na biblioteca${emuScanResult.unknown ? ` · ${emuScanResult.unknown} para você escolher o console` : ''}.</p>` : '';
     body = `
       <div class="box">
@@ -4895,12 +5039,22 @@ function renderEmulators() {
   }
   $('#detail').innerHTML = `
     <button class="ghost back" data-act="back">← Biblioteca</button>
-    <div class="emu-page">
-      <h2>Emuladores</h2>
-      <p class="muted">Jogos de console no PC: o Black Flag instala o emulador certo, prepara o controle e abre o jogo em tela cheia.</p>
-      ${body}
+    <div class="emu-page${open ? ' themed' : ''}" ${open ? `style="${emuVars(open.id)}"` : ''}>
+      ${open ? '' : `<h2>Emuladores</h2>
+      <p class="muted">Jogos de console no PC: o Black Flag instala o emulador certo, prepara o controle e abre o jogo em tela cheia.</p>`}
+      ${d ? emuTabsHtml(d) : ''}
+      <div class="emu-body" data-for="${emuTab}">${body}</div>
     </div>`;
   document.querySelectorAll('#detail [data-act]').forEach((el) => el.addEventListener('click', () => act(el.dataset.act, null, el)));
+  document.querySelectorAll('#detail [data-emu-tab]').forEach((el) => el.addEventListener('click', () => {
+    emuTab = el.dataset.emuTab;
+    renderEmulators();
+    $('#detail').scrollIntoView({ block: 'start', behavior: 'instant' });
+  }));
+  document.querySelectorAll('#detail .emu-games .card').forEach((el) => el.addEventListener('click', () => {
+    emuReturn = el.dataset.id;
+    openGame(el.dataset.id);
+  }));
   document.querySelectorAll('#detail [data-emu]').forEach((el) => el.addEventListener('click', () => emuAct(el.dataset.emu, el)));
   document.querySelectorAll('#detail [data-emu-choose]').forEach((el) => el.addEventListener('change', async () => {
     await call('emu_choose', { system: el.dataset.emuChoose, emulator: el.value });

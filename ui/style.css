@@ -1189,3 +1189,71 @@ input, textarea { caret-color: var(--red); }
 .shot-view img { width: 100%; height: 100%; min-height: 0; object-fit: contain; padding: 24px 24px 8px; }
 .shot-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 24px 18px; color: var(--muted); font-size: 13.5px; }
 .shot-bar .grow { flex: 1; }
+
+/* Emuladores: each emulator in its project's colour (--emu) with a drawing of ours that recalls it,
+   on the console cards and, once installed, on a tab of its own that takes that colour. */
+.emu-card { position: relative; overflow: hidden; isolation: isolate; border-top-color: color-mix(in srgb, var(--emu, var(--line)) 55%, var(--line));
+  background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--emu, transparent) 13%, transparent), transparent 60%), var(--panel); }
+.emu-card.on { border-top-color: var(--emu, var(--ok)); }
+.emu-card.warn { border-top-color: var(--warn); }
+.emu-card .emu-motif { position: absolute; z-index: -1; right: -18px; top: -14px; width: 132px; height: 132px; color: var(--emu, var(--muted));
+  fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; opacity: .28;
+  transition: opacity .25s cubic-bezier(.16, 1, .3, 1), transform .3s cubic-bezier(.16, 1, .3, 1); }
+.emu-card.off .emu-motif { opacity: .14; filter: saturate(.4); }
+.emu-card:hover .emu-motif { opacity: .45; transform: translate(-4px, 4px) rotate(-4deg); }
+.emu-card.off:hover .emu-motif { opacity: .18; }
+.emu-card:hover { border-color: color-mix(in srgb, var(--emu, var(--rule)) 45%, var(--line)); }
+.emu-motif .fill, .emu-hero-art .fill, .emu-tab-ico .fill { fill: currentColor; stroke: none; }
+.emu-card .emu-head .chip { background: rgba(8, 8, 10, .55); }
+.emu-card[style*="--emu"] { --red: var(--emu); }
+.emu-card .emu-go { display: inline-block; margin: 0 0 4px; font-size: 13px; color: var(--emu); }
+
+.emu-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 20px; }
+.emu-tab { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 10px; border-radius: 999px; background: var(--panel);
+  color: var(--muted); font-weight: 600; }
+.emu-tab:first-child { padding-left: 14px; }
+.emu-tab .count { font-size: 12px; color: var(--muted); }
+.emu-tab-ico { width: 20px; height: 20px; color: var(--emu, var(--muted)); fill: none; stroke: currentColor; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.emu-tab:hover:not(:disabled) { color: var(--text); border-color: var(--emu, var(--red)); }
+.emu-tab.on { color: var(--text); border-color: var(--emu, var(--red)); background: color-mix(in srgb, var(--emu, var(--red)) 16%, var(--panel)); }
+
+.emu-body { animation: emu-in .28s cubic-bezier(.16, 1, .3, 1); }
+@keyframes emu-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* An emulator's own tab: the accent becomes its colour, a glow of it behind the page. */
+.emu-page.themed { --red: var(--emu); --glow: 0 0 0 2px var(--emu), 0 10px 34px color-mix(in srgb, var(--emu) 30%, transparent); }
+.emu-page.themed::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(70% 55% at 85% 0%, color-mix(in srgb, var(--emu) 20%, transparent), transparent 70%),
+    radial-gradient(50% 40% at 0% 100%, color-mix(in srgb, var(--emu) 8%, transparent), transparent 70%);
+  animation: emu-glow .5s ease-out; }
+@keyframes emu-glow { from { opacity: 0; } }
+.emu-page.themed button.primary { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 4px 16px color-mix(in srgb, var(--emu) 25%, transparent); }
+.emu-page.themed .box { border-color: color-mix(in srgb, var(--emu) 22%, var(--line)); }
+
+.emu-hero { position: relative; overflow: hidden; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 24px;
+  align-items: center; padding: 30px 32px; margin-bottom: 16px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--emu) 35%, var(--line));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--emu) 18%, var(--panel)) 0%, var(--panel) 70%); }
+.emu-hero-text { grid-column: 1; grid-row: 1; }
+.emu-hero h2 { margin: 0 0 4px; font-size: clamp(34px, 5vw, 54px); font-stretch: 122%; letter-spacing: -.02em; }
+.emu-hero-for { margin: 0 0 10px; color: var(--emu); font-weight: 600; }
+.emu-hero-art { grid-column: 2; grid-row: 1; width: 220px; height: 220px; color: var(--emu); fill: none; stroke: currentColor; stroke-width: 1.75;
+  stroke-linecap: round; stroke-linejoin: round; opacity: .9; filter: drop-shadow(0 0 22px color-mix(in srgb, var(--emu) 45%, transparent));
+  animation: emu-art .6s cubic-bezier(.16, 1, .3, 1); }
+@keyframes emu-art { from { opacity: 0; transform: scale(.92) rotate(-6deg); } }
+.emu-facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 14px 0 4px; }
+.emu-facts div { min-width: 0; }
+.emu-facts dt { color: var(--muted); font-size: 12px; }
+.emu-facts dd { margin: 0; font: 800 18px var(--wide); font-stretch: 110%; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emu-hero .row { margin-top: 14px; }
+.emu-sys h3 { margin-top: 0; }
+.emu-games { margin-top: 8px; }
+
+@media (max-width: 720px) {
+  .emu-hero { grid-template-columns: 1fr; padding: 22px; }
+  .emu-hero-art { position: absolute; right: -30px; top: -30px; width: 160px; height: 160px; opacity: .25; z-index: -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emu-body, .emu-hero-art, .emu-page.themed::before { animation: none; }
+  .emu-card .emu-motif { transition: none; }
+  .emu-card:hover .emu-motif { transform: none; }
+}

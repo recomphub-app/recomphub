@@ -650,3 +650,12 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     Sem token, o GitHub deixa 10 buscas por minuto, então cada atualização faz um dos dois tipos; com
     token, os dois. Na tela: selo Novo (criado há até 14 dias), ordem "Novos no GitHub" e a
     prateleira "Novos na Comunidade" na vitrine.
+
+89. **Cada emulador com a sua cor, o seu desenho e uma aba própria.** Pedido do Gustavo em 07/11/2026.
+    Na tela Emuladores, cada cartão de console usa a cor do projeto do emulador (borda de cima, brilho
+    no canto e botões) e um desenho nosso que lembra ele: pato no DuckStation, disco no PCSX2, chip no
+    RPCS3, ondas no Dolphin, melancia no melonDS, flor no Azahar e assim por diante. São traços
+    feitos aqui, sem logos de projeto nem de console. Quando um emulador está no PC, aparece uma aba
+    dele ao lado de Visão geral: a página inteira troca o dourado pela cor dele, com o desenho grande,
+    versão, tempo jogado, o que falta (BIOS, firmware), conquistas do PCSX2 e os jogos que abrem nele.
+    Um jogo aberto dessa aba volta para ela no ←. As cores ficam em EMU_LOOK (app.js).
