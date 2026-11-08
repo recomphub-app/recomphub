@@ -67,6 +67,9 @@ pub struct Look {
     /// Open straight in the Modo TV.
     #[serde(default)]
     pub start_tv: bool,
+    /// Covers as the console's own game case (box, spine, band); off shows the plain picture.
+    #[serde(default = "yes")]
+    pub boxes: bool,
     /// Which part of the wide profile picture shows when it is cut: "top", "center" or "bottom".
     #[serde(default = "center")]
     pub banner_pos: String,
@@ -97,7 +100,7 @@ fn all_tab() -> String {
 
 impl Default for Look {
     fn default() -> Self {
-        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false, banner_pos: center(), banner_home: true, page_bg: profile_bg() }
+        Self { cards: medium(), big_text: false, list: false, home: all_tab(), hidden_tabs: Vec::new(), sounds: true, motion: true, start_tv: false, boxes: true, banner_pos: center(), banner_home: true, page_bg: profile_bg() }
     }
 }
 

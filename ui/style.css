@@ -1257,3 +1257,148 @@ input, textarea { caret-color: var(--red); }
   .emu-card .emu-motif { transition: none; }
   .emu-card:hover .emu-motif { transform: none; }
 }
+
+/* ---- Game cases (decisão 90) ----
+   The front is flat and cheap for a grid of hundreds; the case turns to show its spine only for
+   the game in focus. Boxes stand on a shared shelf line, so a row reads as a shelf. */
+.card.boxed { transition: transform .22s var(--ease-out); }
+.card.boxed:hover, body.pad-on .card.boxed:focus { transform: none; }
+.shelf-slot {
+  position: relative; display: flex; align-items: flex-end; justify-content: center;
+  aspect-ratio: .62; padding: 0 4% 0; perspective: 700px;
+}
+.shelf-slot::after {
+  /* the ledge: a plank that runs on under the gaps between cards */
+  content: ""; position: absolute; left: -12px; right: -12px; bottom: -9px; height: 9px; z-index: -1;
+  background: linear-gradient(#2a2418, #120f0a 70%);
+  border-top: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, .55);
+}
+.card.boxed .gbox { width: 100%; max-height: 100%; }
+.card.boxed .gbox[style*="--ratio:1.37"] { width: 100%; }
+.card.boxed .body { padding-top: 18px; }
+
+.gbox {
+  --rim: 3.2%;
+  position: relative; aspect-ratio: var(--ratio); width: 100%;
+  container-type: inline-size;
+  transform-style: preserve-3d;
+  transition: transform .3s var(--ease-out);
+}
+.gbox-front, .gbox-back {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  border-radius: 1.6cqw; overflow: hidden; backface-visibility: hidden;
+  background: var(--side); padding: var(--rim);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 14px 26px rgba(0, 0, 0, .55), 0 3px 6px rgba(0, 0, 0, .4);
+  transition: box-shadow .22s var(--ease-out);
+}
+/* the clear plastic over the insert */
+.gbox-front::after, .gbox-back::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(112deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .03) 26%, transparent 46%, transparent 78%, rgba(255, 255, 255, .06));
+}
+.gbox.pack-card .gbox-front, .gbox.pack-pc .gbox-front { --rim: 0px; border-radius: .8cqw; }
+.gbox.pack-jewel .gbox-front { --rim: 1.4%; border-radius: .6cqw; }
+.gbox.pack-jewel .gbox-front::after { background: linear-gradient(125deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .04) 30%, transparent 50%, rgba(255, 255, 255, .08) 96%); }
+.gbox-band {
+  flex: 0 0 auto; height: 8.6cqw; display: flex; align-items: center; padding: 0 5cqw;
+  background: var(--bb); color: var(--bf);
+  font: 850 4.6cqw/1 var(--wide); font-stretch: 112%; letter-spacing: .02em; white-space: nowrap;
+}
+.gbox-art { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: .6cqw; background: #0c0c0e; }
+.gbox-img, .gbox-img-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gbox-art.loose .gbox-img { object-fit: contain; }
+.gbox-img-bg { filter: blur(14px) brightness(.55) saturate(1.2); transform: scale(1.15); }
+.gbox-spine {
+  position: absolute; top: 0; left: 0; height: 100%; width: 9cqw;
+  transform-origin: left center; transform: rotateY(90deg);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--side) 75%, #000), var(--side) 40%, color-mix(in srgb, var(--side) 85%, #fff));
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  border-radius: .6cqw 0 0 .6cqw;
+}
+.gbox-spine span {
+  writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-height: 88%; font: 750 4.4cqw/1 var(--wide); color: rgba(255, 255, 255, .78);
+}
+.gbox.pack-card .gbox-spine, .gbox.pack-pc .gbox-spine { width: 11cqw; }
+.gbox.pack-jewel .gbox-spine { width: 6cqw; }
+
+/* chosen: the case turns a little toward you, the spine shows, the gold light comes on */
+.card.boxed:hover .gbox, .card.boxed:focus-visible .gbox, body.pad-on .card.boxed:focus .gbox {
+  transform: rotateY(28deg) translateZ(10px);
+}
+.card.boxed:hover .gbox-front, .card.boxed:focus-visible .gbox-front, body.pad-on .card.boxed:focus .gbox-front {
+  box-shadow: 0 0 0 2px var(--red), 0 18px 38px rgba(0, 0, 0, .6), 0 0 34px color-mix(in srgb, var(--red) 30%, transparent);
+}
+.card.boxed .cover { display: none; }
+
+/* No picture: a cover of its own */
+.gen-cover {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 2cqw;
+  padding: 8cqw 7cqw; overflow: hidden;
+  background: radial-gradient(120% 90% at var(--x) 0%, #2a2214 0%, #121010 55%, #09090a 100%);
+}
+.gen-cover::before {
+  content: ""; position: absolute; inset: -20%; opacity: .5; pointer-events: none;
+}
+.gen-cover.m0::before { background: repeating-linear-gradient(var(--a), transparent 0 7cqw, color-mix(in srgb, var(--gold) 22%, transparent) 7cqw 7.6cqw); }
+.gen-cover.m1::before { background: repeating-radial-gradient(circle at var(--x) 30%, transparent 0 6cqw, color-mix(in srgb, var(--gold) 20%, transparent) 6cqw 6.5cqw); }
+.gen-cover.m2::before { background: radial-gradient(color-mix(in srgb, var(--gold) 35%, transparent) 1.1cqw, transparent 1.3cqw) 0 0 / 7cqw 7cqw; opacity: .35; }
+.gen-cover.m3::before { background: repeating-conic-gradient(from var(--a) at var(--x) 25%, color-mix(in srgb, var(--gold) 16%, transparent) 0 6deg, transparent 6deg 18deg); }
+.gen-logo { position: relative; width: 34cqw; height: 34cqw; object-fit: contain; margin: 0 auto auto; opacity: .92; }
+.gen-title {
+  position: relative; font: 850 11cqw/1.02 var(--wide); font-stretch: 118%; color: var(--gold-hi);
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; text-wrap: balance;
+}
+.gen-sys { position: relative; font: 600 4.6cqw/1.2 "Segoe UI", system-ui, sans-serif; color: rgba(244, 241, 233, .6); }
+
+/* The game page: a bigger case that turns over */
+.box-stage { perspective: 1300px; padding: 4px 6% 0; }
+.box-stage .gbox { margin: 0 auto; width: 100%; }
+.box-stage .gbox:not(.flipped):hover { transform: rotateY(14deg); }
+.gbox.flipped { transform: rotateY(180deg); }
+.gbox-back { transform: rotateY(180deg); --rim: 3.2%; }
+.gbox-back-body {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 3cqw;
+  padding: 6cqw 6cqw 5cqw; border-radius: .6cqw; overflow: hidden;
+  background: linear-gradient(170deg, #17150f, #0c0c0d 60%);
+  font-size: 4.8cqw; line-height: 1.4;
+}
+.gbox-back-title { font: 850 7cqw/1.05 var(--wide); font-stretch: 112%; color: var(--gold-hi); }
+.gbox-back-body p { margin: 0; color: rgba(244, 241, 233, .78); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; }
+.gbox-back-body dl { margin: auto 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2.4cqw 4cqw; }
+.gbox-back-body dt { color: var(--muted); font-size: 4cqw; }
+.gbox-back-body dd { margin: 0; font: 750 5cqw/1.2 var(--wide); font-variant-numeric: tabular-nums; }
+.gbox-back-foot { border-top: 1px solid var(--rule); padding-top: 2.6cqw; color: var(--muted); font-size: 3.6cqw; }
+.box-stage + .cover-actions { justify-content: center; margin-top: 14px; }
+
+/* Calm screens: the cases stay square to the viewer */
+body.no-motion .gbox, body.no-motion .card.boxed:hover .gbox, body.no-motion .card.boxed:focus .gbox { transform: none !important; }
+body.no-motion .gbox.flipped .gbox-front { visibility: hidden; }
+body.no-motion .gbox.flipped .gbox-back { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .card.boxed:hover .gbox, .card.boxed:focus-visible .gbox, body.pad-on .card.boxed:focus .gbox, .box-stage .gbox:not(.flipped):hover { transform: none; }
+  .gbox.flipped { transform: none; }
+  .gbox.flipped .gbox-front { visibility: hidden; }
+  .gbox.flipped .gbox-back { transform: none; }
+}
+body.cards-pequeno .card.boxed .body { padding-top: 14px; }
+
+/* Shapes on the shelf: a tall case (PSP, Switch) fills the height, a landscape box the width */
+.card.boxed .gbox.tall { width: auto; height: 100%; }
+
+/* Modo TV: the row is a shelf; the chosen case turns a little and shows its reflection */
+.tv-tile.tv-boxed {
+  background: none; border: 0; outline: 0; box-shadow: none; overflow: visible;
+  place-items: end center; perspective: 1100px;
+}
+.tv-tile.tv-boxed .gbox { width: auto; height: 100%; }
+.tv-tile.tv-boxed .gbox.wide { width: 100%; height: auto; }
+.tv-tile.tv-boxed.sel { outline: 0; box-shadow: none; -webkit-box-reflect: below 1.2vh linear-gradient(transparent 72%, rgba(255, 255, 255, .16)); }
+.tv-tile.tv-boxed.sel .gbox { transform: rotateY(16deg); }
+.tv-tile.tv-boxed.sel .gbox-front {
+  box-shadow: 0 0 0 3px var(--red), 0 2.4vh 5vh rgba(0, 0, 0, .65), 0 0 6vh color-mix(in srgb, var(--red) 32%, transparent);
+}
+.tv-tile.tv-boxed .tv-live { z-index: 2; }
+body.no-motion .tv-tile.tv-boxed.sel .gbox { transform: none; }
+@media (prefers-reduced-motion: reduce) { .tv-tile.tv-boxed.sel .gbox { transform: none; } }

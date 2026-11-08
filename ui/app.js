@@ -76,6 +76,142 @@ async function call(cmd, args) {
   }
 }
 
+// ---- Game cases (decisão 90): each console's own box around the cover, the way it sits on a shelf ----
+// Our own table and drawing; the idea comes from Boxshelf (GPL), no code of it is used.
+// ratio = width / height of the front; side = the plastic seen on the spine; band = the strip the
+// real covers print on top. pack: keep (moulded case), jewel (CD case), card (cardboard box), pc.
+const CASES = {
+  ps1:    { ratio: 1, pack: 'jewel', side: '#0b0b0e', band: null },
+  ps2:    { ratio: .705, pack: 'keep', side: '#06070b', band: ['#10121a', '#e9ecf5', 'PS2'] },
+  ps3:    { ratio: .787, pack: 'keep', side: '#101b2e', band: ['#0b0c0f', '#ffffff', 'PS3'] },
+  ps4:    { ratio: .787, pack: 'keep', side: '#163ca3', band: ['#1e4fd6', '#ffffff', 'PS4'] },
+  psp:    { ratio: .58, pack: 'keep', side: '#07070a', band: ['#0a0a0d', '#ffffff', 'PSP'] },
+  gc:     { ratio: .712, pack: 'keep', side: '#0d0d11', band: ['#2a2a33', '#cfd0dc', 'GAMECUBE'] },
+  wii:    { ratio: .711, pack: 'keep', side: '#d6d8dd', band: ['#ffffff', '#8b919c', 'Wii'] },
+  wiiu:   { ratio: .711, pack: 'keep', side: '#156fa3', band: ['#1d8fd1', '#ffffff', 'Wii U'] },
+  switch: { ratio: .62, pack: 'keep', side: '#a30b17', band: ['#d8101f', '#ffffff', 'SWITCH'] },
+  xbox:   { ratio: .711, pack: 'keep', side: '#0a0a0a', band: ['#121212', '#7ac142', 'XBOX'] },
+  x360:   { ratio: .711, pack: 'keep', side: '#11591a', band: ['#107c10', '#ffffff', 'XBOX 360'] },
+  n64:    { ratio: 1.37, pack: 'card', side: '#1c1c20', band: null },
+  nes:    { ratio: .72, pack: 'card', side: '#1c1c20', band: null },
+  snes:   { ratio: 1.37, pack: 'card', side: '#1c1c20', band: null },
+  gb:     { ratio: .9, pack: 'card', side: '#1c1c20', band: null },
+  gbc:    { ratio: .9, pack: 'card', side: '#1c1c20', band: null },
+  gba:    { ratio: .92, pack: 'card', side: '#1c1c20', band: null },
+  nds:    { ratio: .9, pack: 'keep', side: '#1b1c20', band: ['#ffffff', '#2b2b2b', 'NINTENDO DS'] },
+  '3ds':  { ratio: .9, pack: 'keep', side: '#dcdde2', band: ['#ffffff', '#d40f2a', 'NINTENDO 3DS'] },
+  md:     { ratio: .71, pack: 'keep', side: '#060606', band: null },
+  sms:    { ratio: .71, pack: 'keep', side: '#060606', band: null },
+  gg:     { ratio: .8, pack: 'card', side: '#1c1c20', band: null },
+  pce:    { ratio: .85, pack: 'keep', side: '#0b0b0e', band: null },
+  dc:     { ratio: 1, pack: 'jewel', side: '#d9d9de', band: null },
+  pc:     { ratio: .667, pack: 'pc', side: '#0b0b0e', band: null },
+};
+// The real box scans already carry the console's strip; a second one would be drawn over it.
+const PRINTED = ['downloaded', 'own_files', 'custom', 'profile'];
+
+const caseOf = (g) => (g.kind === 'emulated' && g.system && CASES[g.system]) || CASES.pc;
+const boxesOn = () => {
+  const l = (profiles && profiles.active && profiles.active.look) || {};
+  return l.boxes !== false && !l.list;
+};
+
+function seedOf(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+// A game with no picture still gets a cover of its own: black and gold, one of four patterns
+// picked by its name, the name set large. HTML, so the text stays sharp at any size.
+function genCover(g, sys, logo) {
+  const h = seedOf(g.title || g.id);
+  return `
+    <div class="gen-cover m${h % 4}" style="--a:${h % 160 + 10}deg;--x:${h % 70 + 15}%">
+      ${logo ? `<img class="gen-logo" src="${esc(logo)}" alt="">` : ''}
+      <span class="gen-title">${esc(g.title)}</span>
+      <span class="gen-sys">${esc(sys)}</span>
+    </div>`;
+}
+
+// The case. `face` adds the back (the game page turns it over).
+function boxHtml(g, { back = '' } = {}) {
+  const c = caseOf(g);
+  const svg = g.cover && g.cover.startsWith('data:image/svg');
+  const art = g.cover && !svg;
+  const band = c.band && !(art && PRINTED.includes(g.cover_source)) ? c.band : null;
+  const sys = g.kind === 'emulated' ? g.family : g.kind === 'port' ? `Port de ${g.family}` : g.kind === 'community' ? 'Port da comunidade' : g.family || 'PC';
+  const inner = art
+    ? `<img class="gbox-img" src="${esc(g.cover)}" alt="" decoding="async">`
+    : genCover(g, sys, svg ? g.cover : g.icon);
+  return `
+    <div class="gbox pack-${c.pack}${c.ratio >= 1 ? ' wide' : ''}${c.ratio < .62 ? ' tall' : ''}${back ? ' two-sided' : ''}${back && boxFlipped[g.id] ? ' flipped' : ''}" style="--ratio:${c.ratio};--side:${c.side}${band ? `;--bb:${band[0]};--bf:${band[1]}` : ''}">
+      <div class="gbox-front">
+        ${band ? `<div class="gbox-band"><span>${esc(band[2])}</span></div>` : ''}
+        <div class="gbox-art">${inner}</div>
+      </div>
+      <div class="gbox-spine"><span>${esc(g.title)}</span></div>
+      ${back}
+    </div>`;
+}
+
+// The art sits in a case of another shape (a square picture in a DVD case): shown whole over a
+// blurred copy of itself instead of cut.
+function fitArt(img) {
+  const box = img.closest('.gbox-art');
+  if (!box || !img.naturalWidth) return;
+  const want = box.clientWidth / Math.max(1, box.clientHeight);
+  const have = img.naturalWidth / img.naturalHeight;
+  const loose = Math.abs(have - want) / want > 0.2;
+  box.classList.toggle('loose', loose);
+  if (loose && !box.querySelector('.gbox-img-bg')) {
+    const bg = img.cloneNode();
+    bg.className = 'gbox-img-bg';
+    box.prepend(bg);
+  }
+}
+document.addEventListener('load', (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains('gbox-img')) fitArt(e.target);
+}, true);
+
+// The back of the case on the game page: what the player and the game have done, set like the
+// back of a real box.
+function boxBackHtml(g) {
+  const m = metaCache[g.id];
+  const blurb = m && m.summary ? m.summary : g.description || '';
+  const c = caseOf(g);
+  const origin = g.kind === 'emulated' ? `Emulado: ${g.family}` : g.kind === 'port' ? `Port ${g.port_name}`
+    : g.kind === 'community' ? `Port da comunidade ${g.port_name}` : g.store || 'Jogo de PC';
+  return `
+    <div class="gbox-back"${c.band ? ` style="--bb:${c.band[0]};--bf:${c.band[1]}"` : ''}>
+      ${c.band ? `<div class="gbox-band"><span>${esc(c.band[2])}</span></div>` : ''}
+      <div class="gbox-back-body">
+        <b class="gbox-back-title">${esc(g.title)}</b>
+        ${blurb ? `<p>${esc(blurb.length > 320 ? `${blurb.slice(0, 317).trimEnd()}…` : blurb)}</p>` : ''}
+        <dl>
+          <div><dt>Tempo de jogo</dt><dd>${playTime(g.total_seconds)}</dd></div>
+          <div><dt>Vezes jogado</dt><dd>${g.play_count || 0}</dd></div>
+          <div><dt>Última vez</dt><dd>${lastPlayed(g.last_played)}</dd></div>
+          <div><dt>Estado</dt><dd>${esc(completionLabel(completionOf(g)))}</dd></div>
+        </dl>
+        <span class="gbox-back-foot">${esc(origin)}</span>
+      </div>
+    </div>`;
+}
+
+// Which game pages show the back; the page is drawn again as its parts arrive.
+const boxFlipped = {};
+
+function flipBox() {
+  const b = document.querySelector('#detail .gbox.two-sided');
+  if (!b || !openId) return false;
+  boxFlipped[openId] = !boxFlipped[openId];
+  b.classList.toggle('flipped', boxFlipped[openId]);
+  const btn = document.querySelector('#detail [data-act="box-flip"]');
+  if (btn) btn.textContent = b.classList.contains('flipped') ? 'Ver a frente' : 'Virar a caixa';
+  return true;
+}
+
 function coverHtml(g) {
   if (!g.cover && g.icon) {
     return `<div class="cover"><div class="iconcover"><img src="${g.icon}" alt=""><span>${esc(g.title)}</span></div></div>`;
@@ -995,6 +1131,7 @@ function applyLook() {
   body.toggle('big-text', !!l.big_text);
   body.toggle('list-view', !!l.list);
   body.toggle('no-motion', l.motion === false);
+  body.toggle('boxes', l.boxes !== false && !l.list);
   const hidden = l.hidden_tabs || [];
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => (b.hidden = hidden.includes(b.dataset.tab)));
   if (hidden.includes(tab)) tab = 'all';
@@ -1117,6 +1254,7 @@ function profileLookHtml(x) {
       <label>Fundo do programa <select id="look-page-bg">${opt('perfil', 'A capa do perfil', l.page_bg || 'perfil')}${opt('jogo', 'O último jogo jogado', l.page_bg)}${opt('nenhum', 'Preto, sem imagem', l.page_bg)}</select></label>
       <label>Abrir na aba <select id="look-home">${Object.entries(TAB_NAMES).map(([k, v]) => opt(k, v, l.home)).join('')}</select></label>
     </div>
+    <label class="check"><input type="checkbox" id="look-boxes" ${l.boxes !== false ? 'checked' : ''}> Capas como caixas de jogo, cada console com a sua.</label>
     <label class="check"><input type="checkbox" id="look-list" ${l.list ? 'checked' : ''}> Biblioteca em lista, em vez de capas.</label>
     <label class="check"><input type="checkbox" id="look-big" ${l.big_text ? 'checked' : ''}> Letras maiores.</label>
     <label class="check"><input type="checkbox" id="look-motion" ${l.motion !== false ? 'checked' : ''}> Animações (capas que crescem, telas que deslizam).</label>
@@ -1137,6 +1275,7 @@ function lookFromForm() {
     motion: $('#look-motion').checked,
     sounds: $('#look-sounds').checked,
     start_tv: $('#look-tv').checked,
+    boxes: $('#look-boxes').checked,
     hidden_tabs: [...document.querySelectorAll('.look-tab')].filter((c) => !c.checked).map((c) => c.value),
     banner_pos: $('#look-banner-pos') ? $('#look-banner-pos').value : 'center',
     banner_home: $('#look-banner-home').checked,
@@ -1848,6 +1987,19 @@ function decorateMeta(g) {
 }
 
 function coverColumn(g) {
+  if (!boxesOn()) return coverColumnFlat(g);
+  return `
+    <div class="box-stage">${boxHtml(g, { back: g.in_library ? boxBackHtml(g) : '' })}</div>
+    ${g.in_library ? `
+      <div class="cover-actions">
+        <button data-act="box-flip">${boxFlipped[g.id] ? 'Ver a frente' : 'Virar a caixa'}</button>
+        <button class="ghost" data-act="cover-choose">Escolher capa</button>
+        ${['custom', 'downloaded'].includes(g.cover_source) ? '<button class="ghost" data-act="cover-clear">Restaurar</button>' : ''}
+      </div>
+      ${g.cover_source ? `<p class="muted small-text">${COVER_SOURCE[g.cover_source]}</p>` : ''}` : ''}`;
+}
+
+function coverColumnFlat(g) {
   if (!g.in_library) return coverHtml(g);
   return `
     ${coverHtml(g)}
@@ -2586,8 +2738,8 @@ function setFocusArt(url) {
 // game page and back (View Transitions). A plain swap where the WebView lacks them, in the TV
 // mode, or when motion is reduced.
 function coverOf(id) {
-  if (!$('#detail').hidden) return document.querySelector('#detail .detail .cover');
-  return id ? document.querySelector(`#grid .card[data-id="${CSS.escape(id)}"] .cover`) : null;
+  if (!$('#detail').hidden) return document.querySelector('#detail .detail .gbox-front, #detail .detail .cover');
+  return id ? document.querySelector(`#grid .card[data-id="${CSS.escape(id)}"] .gbox-front, #grid .card[data-id="${CSS.escape(id)}"] .cover`) : null;
 }
 
 function moveTo(change, id) {
@@ -2666,6 +2818,8 @@ async function coversInBackground() {
 // Only the card changes, so the page does not jump while the covers arrive.
 function coverPaint(g) {
   if (!g.cover) return;
+  const slot = document.querySelector(`#grid .card[data-id="${CSS.escape(g.id)}"] .shelf-slot`);
+  if (slot) slot.innerHTML = boxHtml(g);
   const c = document.querySelector(`#grid .card[data-id="${CSS.escape(g.id)}"] .cover`);
   if (c) c.outerHTML = coverHtml(g);
   if (tvOn) renderTv();
@@ -2696,6 +2850,9 @@ async function act(action, g, el) {
     case 'steam-ach-locked':
       steamAchShowLocked = !steamAchShowLocked;
       render();
+      break;
+    case 'box-flip':
+      flipBox();
       break;
     case 'cover-choose': {
       const updated = await call('choose_cover', { id: g.id });
@@ -4184,6 +4341,7 @@ function padPoll(t) {
     if (e.back) padBack();
     if (e.lb) padTab(-1);
     if (e.rb) padTab(1);
+    if (e.y && openId && !$('#detail').hidden) flipBox();
     if (e.menu) tvOpen();
   } else if (p) {
     // TV and "Quem vai jogar?" read the controller themselves; these presses are theirs.
@@ -4314,9 +4472,10 @@ function tvTile(x, i, sel) {
   const cls = `tv-tile${i === sel ? ' sel' : ''}${i < sel ? ' past' : ''}`;
   if (x.item) return `<div class="${cls} tv-fn" data-i="${i}"><span class="tv-icon">${x.item.icon}</span><span>${esc(x.item.title)}</span></div>`;
   const g = x.game;
-  const art = g.cover ? `<img src="${g.cover}" alt="">` : `<span class="tv-name">${esc(g.title)}</span>`;
+  const boxed = boxesOn();
+  const art = boxed ? boxHtml(g) : g.cover ? `<img src="${g.cover}" alt="">` : `<span class="tv-name">${esc(g.title)}</span>`;
   const bar = x.total ? `<span class="tv-progress"><span style="width:${Math.round((x.done / x.total) * 100)}%"></span></span>` : '';
-  return `<div class="${cls}" data-i="${i}">${art}${g.status === 'running' ? '<span class="tv-live">jogando</span>' : ''}${bar}</div>`;
+  return `<div class="${cls}${boxed ? ' tv-boxed' : ''}" data-i="${i}">${art}${g.status === 'running' ? '<span class="tv-live">jogando</span>' : ''}${bar}</div>`;
 }
 
 function tvMeta(pairs) {
@@ -4949,9 +5108,10 @@ function emuTabsHtml(d) {
 }
 
 function gameCardHtml(g) {
+  const boxed = boxesOn();
   return `
-    <div class="card" data-id="${g.id}" tabindex="0">
-      ${coverHtml(g)}
+    <div class="card${boxed ? ' boxed' : ''}" data-id="${g.id}" tabindex="0">
+      ${boxed ? `<div class="shelf-slot">${boxHtml(g)}</div>` : coverHtml(g)}
       <div class="body">
         <div class="title">${esc(g.title)}</div>
         <div>${chips(g)}</div>

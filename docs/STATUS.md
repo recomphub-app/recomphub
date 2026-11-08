@@ -50,6 +50,7 @@
 - [x] **v0.52** Ideias do Selene: aba Capturas em cada jogo (prints e vídeos da Steam, Xbox Game Bar e NVIDIA, com visualizador), Para retomar e Ainda esperando na Estatística, filtros no Modo TV (LT/RT), Surpreenda-me (X) e buscar pelo controle com teclado na tela (segurar View)
 - [x] **v0.53** Comunidade acompanha os lançamentos: busca por última atualização a cada 6 h além das mais estreladas, a lista guarda o que já achou (sai só após 90 dias sem aparecer), selo Novo, ordem "Novos no GitHub" e prateleira "Novos na Comunidade"
 - [x] **v0.54** Emuladores com a cor e um desenho de cada projeto nos cartões, e uma aba própria para cada emulador instalado (página na cor dele, com versão, tempo jogado, BIOS e firmware, e os jogos dele)
+- [x] **v0.55** Capas como caixas de jogo (a caixa de cada console, com faixa, lombada e brilho), de pé numa estante; capa gerada para jogo sem imagem; verso da caixa na página do jogo; Modo TV como estante com reflexo
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 

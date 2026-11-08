@@ -659,3 +659,16 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     dele ao lado de Visão geral: a página inteira troca o dourado pela cor dele, com o desenho grande,
     versão, tempo jogado, o que falta (BIOS, firmware), conquistas do PCSX2 e os jogos que abrem nele.
     Um jogo aberto dessa aba volta para ela no ←. As cores ficam em EMU_LOOK (app.js).
+90. **Capas como caixas de jogo, numa estante.** Pedido do Gustavo em 08/11/2026, a partir do Boxshelf
+    (GPL-3.0): só as ideias, nenhum código dele (o Black Flag é MIT). Cada console tem a sua caixa,
+    com a proporção, a cor do plástico e a faixa de cima das caixas de verdade (CASES em app.js);
+    jogos de PC, ports e lojas usam uma caixa de PC sem faixa. A faixa não é desenhada sobre capas
+    escaneadas (baixadas, dos arquivos do jogo ou escolhidas), que já trazem a sua. Arte com outra
+    proporção aparece inteira sobre uma cópia desfocada, em vez de cortada. Jogo sem imagem ganha
+    uma capa gerada em HTML (preto e dourado, um de quatro padrões escolhido pelo nome). As caixas
+    ficam de pé numa prateleira contínua; a frente é plana e leve, e só o jogo em foco gira e mostra
+    a lombada. Na página do jogo a caixa vira (botão ou Y do controle) e mostra o verso com tempo de
+    jogo, vezes jogado, última vez, estado e a descrição. O Modo TV vira uma estante, com reflexo na
+    caixa escolhida. Sem animação (perfil ou Windows), nada gira; o verso aparece no lugar da frente.
+    Desliga em Perfil > Aparência > "Capas como caixas de jogo". Ideias deixadas para depois, em
+    consenso com o Codex: Museu 3D, prévias em vídeo e o disco saindo da caixa.
