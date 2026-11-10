@@ -1576,3 +1576,15 @@ body.no-motion .palette, body.no-motion .pal-card { animation: none; }
   font-size: 4.6cqw; color: rgba(244, 241, 233, .82);
 }
 .gbox-back-strip b { font: 850 6cqw/1.1 var(--wide); color: var(--gold-hi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- v0.60: saves em outros PCs ---- */
+.sync-banner {
+  display: flex; align-items: center; gap: 14px 20px; flex-wrap: wrap; margin: 14px 0 6px; padding: 16px 20px;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line)); border-left: 5px solid var(--gold); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--gold) 9%, var(--panel));
+}
+.sync-banner.conflict { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); }
+.sync-banner > div:first-child { flex: 1 1 340px; }
+.sync-banner b { font: 800 17px var(--wide); font-stretch: 112%; }
+.sync-banner p { margin: 4px 0 0; color: var(--muted); }
+.sync-box p { margin: 6px 0 12px; }

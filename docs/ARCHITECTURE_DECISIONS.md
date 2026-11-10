@@ -718,3 +718,19 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     de fora também ordenar a Comunidade por downloads: pede uma chamada ao GitHub por projeto, e
     "Em alta" e "Mais estrelas" já respondem a pergunta. A linha "Pasta do jogo" continua sob o
     Jogar, como decidido antes (é o que o jogador procura logo depois de instalar).
+96. **Saves que seguem o jogador de um PC para outro.** Pedido do Gustavo em 09/11/2026. O
+    jogador escolhe uma pasta que já sincroniza entre os PCs (OneDrive, Google Drive, Dropbox,
+    pendrive); não há servidor nem conta nossos. Ao fechar um jogo, o backup mais novo dos saves
+    (autosave.rs) é copiado para `Black Flag saves/<jogo>/<este PC>.zip`, gravado primeiro com
+    outro nome para o programa de sincronização nunca ver meio arquivo. Ao abrir a página do
+    jogo, o Black Flag compara a impressão digital dos saves deste PC com a cópia mais nova dos
+    outros (sync.rs, `status`): iguais, nada a fazer; o deste PC é o mais novo, nada a fazer; o
+    outro é mais novo e este PC não mudou nada desde o que enviou (ou não tem save), aviso
+    "Trazer o save"; mudou dos dois lados, aviso de conflito com as duas datas e três saídas
+    (usar o do outro, manter o deste, decidir depois). Trazer o save faz antes um backup "antes
+    de trazer o save de outro PC" e troca a pasta inteira pelo mesmo caminho do Restaurar. Nada
+    é trocado sem perguntar e nada é apagado. O Jogar avisa uma vez quando há save mais novo
+    esperando. Vale para ports e ports da comunidade, que são os jogos de que o Black Flag sabe
+    a pasta de saves; emulados e jogos de PC ficam de fora por enquanto. Limite conhecido: as
+    datas vêm do relógio de cada PC, então relógios muito errados podem inverter "mais novo".
+    A pasta fica em sync.json, ao lado das configurações.

@@ -55,6 +55,7 @@
 - [x] **v0.57** Capas pequenas em cache para as listas (antes iam inteiras em base64), controle lido só com controle ligado, estante refeita só quando muda, cards com nome para leitor de tela, Modo TV com as caixas de lado, som ao virar a caixa
 - [x] **v0.58** Busca geral com Ctrl+K (jogos, páginas, ações), Retrospectiva do ano em Estatísticas, relatório de problema em .zip
 - [x] **v0.59** Prateleiras do jogador (cada etiqueta vira um botão ao lado das abas) e verso da caixa com foto escolhida pelo jogador
+- [x] **v0.60** Saves em outros PCs: uma pasta que o jogador já sincroniza leva o save de um PC para o outro, com aviso de save mais novo e escolha em caso de conflito (ports e ports da comunidade)
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 

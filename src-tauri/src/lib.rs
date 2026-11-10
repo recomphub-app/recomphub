@@ -29,6 +29,7 @@ mod roms;
 mod saves;
 mod shortcut;
 mod steam;
+mod sync;
 mod steam_ach;
 mod stores;
 mod tray;
@@ -2304,6 +2305,14 @@ pub(crate) fn backup_after_session(app: AppHandle, id: String) {
                 Ok(_) => {}
                 Err(e) => emit("error", format!("{title}: {e}")),
             }
+            // And the copy for the player's other PCs, when a shared folder is chosen.
+            if let Some(shared) = sync_config(&state).folder() {
+                match sync::push(&shared, &state.auto_root, &id, &sync::pc_name()) {
+                    Ok(true) => emit("synced", format!("Save de {title} enviado para os seus outros PCs.")),
+                    Ok(false) => {}
+                    Err(e) => emit("error", format!("{title}: {e}")),
+                }
+            }
         }
         if settings.ludusavi_auto && view.kind == "pc_game" {
             if let Some(exe) = ludusavi::locate(&settings.ludusavi_path) {
@@ -2371,6 +2380,126 @@ async fn get_backups(app: AppHandle, id: String) -> Result<GameBackups, String> 
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+// ---- Saves em outros PCs (sync.rs) ----
+
+fn sync_path(state: &AppState) -> PathBuf {
+    state.settings_path.with_file_name("sync.json")
+}
+
+fn sync_config(state: &AppState) -> sync::Config {
+    sync::Config::load(&sync_path(state))
+}
+
+#[derive(Serialize)]
+struct SyncView {
+    /// The shared folder, or empty.
+    dir: String,
+    /// False when the folder is chosen but not there now (a pen drive out, a drive offline).
+    reachable: bool,
+    /// This PC as the others see it.
+    pc: String,
+}
+
+fn sync_view(state: &AppState) -> SyncView {
+    let c = sync_config(state);
+    SyncView { reachable: c.folder().is_some(), dir: c.dir, pc: sync::pc_name() }
+}
+
+#[tauri::command]
+fn get_sync(app: AppHandle) -> SyncView {
+    sync_view(&app.state::<AppState>())
+}
+
+/// "Escolher pasta": a folder the player already keeps in sync between their PCs.
+#[tauri::command]
+async fn choose_sync_dir(app: AppHandle) -> Result<Option<SyncView>, String> {
+    let Some(dir) = pick_folder(&app, "Escolha uma pasta que você já sincroniza (OneDrive, Google Drive, Dropbox)") else {
+        return Ok(None);
+    };
+    let state = app.state::<AppState>();
+    sync::Config { dir: dir.display().to_string() }.save(&sync_path(&state))?;
+    Ok(Some(sync_view(&state)))
+}
+
+/// "Parar de sincronizar": forgets the folder; what is in it stays there.
+#[tauri::command]
+fn clear_sync_dir(app: AppHandle) -> Result<SyncView, String> {
+    let state = app.state::<AppState>();
+    sync::Config::default().save(&sync_path(&state))?;
+    Ok(sync_view(&state))
+}
+
+/// How this PC's saves of one game stand against the other PCs'. None: no folder chosen, the
+/// folder is away, or Black Flag does not know where this game keeps its saves.
+#[tauri::command]
+async fn sync_status(app: AppHandle, id: String) -> Result<Option<sync::Status>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let shared = sync_config(&state).folder()?;
+        let sources = save_sources(&state, &id);
+        if sources.is_empty() {
+            return None;
+        }
+        let local = autosave::fingerprint_now(&sources);
+        Some(sync::status(&shared, &id, &sync::pc_name(), local.as_deref()))
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// "Trazer o save": the other PC's saves take the place of this PC's, which are backed up first.
+#[tauri::command]
+async fn sync_pull(app: AppHandle, id: String, pc: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        not_running(&state, &id)?;
+        let shared = sync_config(&state).folder().ok_or("A pasta de sincronização não está disponível agora.")?;
+        let sources = save_sources(&state, &id);
+        if sources.is_empty() {
+            return Err("O Black Flag não sabe onde este jogo guarda os saves.".to_string());
+        }
+        let keep = state.settings.lock().unwrap().backup_keep as usize;
+        // What this PC has now is kept, and nothing is trimmed until the swap is done.
+        autosave::make(&state.auto_root, &id, &sources, "antes de trazer o save de outro PC", usize::MAX, library::now())?;
+        let file = sync::fetch(&shared, &state.auto_root, &id, &pc)?;
+        let n = autosave::restore(&state.auto_root, &id, &file, &sources)?;
+        autosave::trim(&state.auto_root, &id, keep);
+        Ok(format!("Save de {pc} no lugar ({n} arquivo(s)). O que estava neste PC ficou num backup."))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// "Enviar o deste PC": backs up the saves as they are and sends that copy, so this PC's
+/// becomes the newest one.
+#[tauri::command]
+async fn sync_push(app: AppHandle, id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let shared = sync_config(&state).folder().ok_or("A pasta de sincronização não está disponível agora.")?;
+        let sources = save_sources(&state, &id);
+        if sources.is_empty() {
+            return Err("O Black Flag não sabe onde este jogo guarda os saves.".to_string());
+        }
+        let keep = state.settings.lock().unwrap().backup_keep as usize;
+        if let autosave::Made::Empty = autosave::make(&state.auto_root, &id, &sources, "para enviar aos outros PCs", keep, library::now())? {
+            return Err("Ainda não há saves deste jogo neste PC.".to_string());
+        }
+        // The newest backup may be older than another PC's copy (same saves, backed up before):
+        // a fresh one makes this PC's the one the others are offered.
+        let pc = sync::pc_name();
+        let behind = sync::status(&shared, &id, &pc, None).other.map(|o| o.created).unwrap_or(0);
+        let newest = autosave::list(&state.auto_root, &id).first().map(|b| b.created).unwrap_or(0);
+        if newest <= behind {
+            autosave::make_again(&state.auto_root, &id, &sources, "para enviar aos outros PCs", keep, library::now())?;
+        }
+        sync::push(&shared, &state.auto_root, &id, &pc)?;
+        Ok("Save deste PC enviado. Os outros PCs vão oferecer este.".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn not_running(state: &AppState, id: &str) -> Result<(), String> {
@@ -5394,6 +5523,12 @@ pub fn run() {
             game_back,
             choose_back,
             clear_back,
+            get_sync,
+            choose_sync_dir,
+            clear_sync_dir,
+            sync_status,
+            sync_pull,
+            sync_push,
             get_game,
             check_updates,
             add_existing,

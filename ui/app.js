@@ -1107,6 +1107,110 @@ function decorateBackups(g) {
   if (pane) pane.insertAdjacentHTML('beforeend', backupsBoxHtml(g));
 }
 
+// ---- Saves em outros PCs: a folder the player already syncs carries the saves between PCs ----
+
+let syncInfo;               // undefined (not asked) | 'loading' | { dir, reachable, pc }
+const syncCache = {};       // id -> 'loading' | null (nothing to say) | { state, other, mine }
+const syncLater = {};       // id -> the player said "Agora não" in this visit
+const syncWarned = {};      // id -> Jogar already warned once
+const syncable = (g) => g.in_library && (g.kind === 'port' || g.kind === 'community');
+const syncNews = (g) => {
+  const s = syncCache[g.id];
+  return s && typeof s === 'object' && (s.state === 'newer' || s.state === 'conflict') ? s : null;
+};
+
+function syncBannerHtml(g) {
+  const s = syncNews(g);
+  if (!s || syncLater[g.id] || g.status === 'running' || g.status === 'starting') return '';
+  const pc = esc(s.other.pc);
+  const there = sessionDate(s.other.created);
+  if (s.state === 'newer') {
+    return `
+      <div class="sync-banner">
+        <div><b>Há um save mais novo em outro PC</b>
+          <p>Feito em ${pc}, em ${there}. Quer continuar de onde você parou lá? O save deste PC fica guardado num backup.</p></div>
+        <div class="row">
+          <button class="primary" data-act="sync-pull" data-pc="${pc}">Trazer o save de ${pc}</button>
+          <button class="ghost" data-act="sync-later">Agora não</button>
+        </div>
+      </div>`;
+  }
+  const b = backupCache[g.id];
+  const here = b && b !== 'loading' && b.last_change ? sessionDate(b.last_change) : null;
+  return `
+    <div class="sync-banner conflict">
+      <div><b>Os saves mudaram neste PC e em outro</b>
+        <p>${here ? `Neste PC, a última mudança foi em ${here}. ` : ''}Em ${pc}, em ${there}.
+          Escolha qual continua: o outro fica guardado num backup, nada é apagado.</p></div>
+      <div class="row">
+        <button class="primary" data-act="sync-pull" data-pc="${pc}">Usar o de ${pc}</button>
+        <button data-act="sync-keep">Manter o deste PC</button>
+        <button class="ghost" data-act="sync-later">Decidir depois</button>
+      </div>
+    </div>`;
+}
+
+function syncBoxHtml(g) {
+  const i = syncInfo;
+  if (!i || i === 'loading') return '';
+  if (!i.dir) {
+    return `
+      <div class="box sync-box">
+        <h3>Saves em outros PCs</h3>
+        <p class="muted">Jogue num PC e continue em outro. Escolha uma pasta que você já sincroniza entre os seus PCs
+          (OneDrive, Google Drive, Dropbox ou um pendrive). Ao fechar um jogo, o Black Flag põe o save lá; no outro PC,
+          ele avisa que há um save mais novo e pergunta se você quer trazer. Não há conta nem servidor: a nuvem é a sua.</p>
+        <p class="muted">Vale para ports e ports da comunidade. Nada é trocado sem perguntar.</p>
+        <div class="row"><button class="primary" data-act="sync-choose">Escolher pasta</button></div>
+      </div>`;
+  }
+  const s = syncCache[g.id];
+  const line = !i.reachable ? '<span class="bad-text">A pasta não está disponível agora (pendrive fora ou unidade desligada).</span>'
+    : s === 'loading' || s === undefined ? 'Conferindo…'
+    : !s ? 'O Black Flag não sabe onde este jogo guarda os saves.'
+    : s.state === 'none' ? (s.mine ? 'O save deste PC está na pasta. Nenhum outro PC enviou ainda.' : 'Nenhum PC enviou saves deste jogo ainda. O deste PC vai quando você fechar o jogo.')
+    : s.state === 'synced' ? `Igual ao de ${esc(s.other.pc)}. Tudo em dia.`
+    : s.state === 'ahead' ? `O save deste PC é o mais novo. ${esc(s.other.pc)} vai oferecer este.`
+    : s.state === 'newer' ? `${esc(s.other.pc)} tem um save mais novo, de ${sessionDate(s.other.created)}.`
+    : `Os saves mudaram neste PC e em ${esc(s.other.pc)}. Escolha no aviso no alto da página.`;
+  return `
+    <div class="box sync-box">
+      <h3>Saves em outros PCs</h3>
+      <p>${line}</p>
+      <div class="row">
+        ${i.reachable && syncNews(g) ? `<button class="primary" data-act="sync-pull" data-pc="${esc(s.other.pc)}">Trazer o save de ${esc(s.other.pc)}</button>` : ''}
+        ${i.reachable && s && s !== 'loading' ? '<button data-act="sync-keep">Enviar o deste PC agora</button>' : ''}
+        <button class="ghost" data-act="sync-check">Conferir de novo</button>
+        <button class="ghost" data-act="sync-choose">Trocar a pasta</button>
+        <button class="ghost" data-act="sync-off">Parar de sincronizar</button>
+      </div>
+      <p class="muted small-text">Pasta: ${esc(i.dir)} · este PC aparece para os outros como ${esc(i.pc)}.</p>
+    </div>`;
+}
+
+// Asked for when a game page opens; drawn into the page as the answers arrive.
+function decorateSync(g) {
+  if (!syncable(g)) return;
+  if (syncInfo === undefined) {
+    syncInfo = 'loading';
+    invoke('get_sync').then((v) => { syncInfo = v || { dir: '', reachable: false, pc: '' }; if (openId === g.id) render(); })
+      .catch(() => { syncInfo = { dir: '', reachable: false, pc: '' }; });
+    return;
+  }
+  if (syncInfo === 'loading') return;
+  if (syncInfo.dir && syncInfo.reachable && syncCache[g.id] === undefined) {
+    syncCache[g.id] = 'loading';
+    invoke('sync_status', { id: g.id })
+      .then((s) => { syncCache[g.id] = s || null; if (openId === g.id) render(); })
+      .catch(() => { syncCache[g.id] = null; });
+  }
+  const banner = syncBannerHtml(g);
+  const back = document.querySelector('#detail .back');
+  if (banner && back) back.insertAdjacentHTML('afterend', banner);
+  const pane = document.querySelector('#pane-saves');
+  if (pane) pane.insertAdjacentHTML('beforeend', syncBoxHtml(g));
+}
+
 async function reloadBackups(id) {
   try {
     backupCache[id] = await invoke('get_backups', { id });
@@ -2787,6 +2891,7 @@ function renderDetail() {
   decorateMeta(g);
   decorateProgress(g);
   decorateBackups(g);
+  decorateSync(g);
   decorateAchievements(g);
   decorateRa(g);
   decorateSteamAch(g);
@@ -3230,7 +3335,59 @@ async function act(action, g, el) {
       delete downloadsFound[g.id];
       render();
       break;
+    case 'sync-choose': {
+      const v = await call('choose_sync_dir');
+      if (v) {
+        syncInfo = v;
+        Object.keys(syncCache).forEach((k) => delete syncCache[k]);
+        toast('Pasta escolhida. O save de cada jogo vai para lá quando você fechar o jogo.');
+        render();
+      }
+      break;
+    }
+    case 'sync-off': {
+      if (!confirm('Parar de sincronizar os saves? O que já está na pasta continua lá.')) break;
+      const v = await call('clear_sync_dir');
+      if (v) syncInfo = v;
+      Object.keys(syncCache).forEach((k) => delete syncCache[k]);
+      render();
+      break;
+    }
+    case 'sync-pull': {
+      const pc = el.dataset.pc;
+      if (!confirm(`Trazer o save de ${pc}? Os saves de ${g.title} neste PC serão trocados por ele; os de agora ficam num backup.`)) break;
+      const msg = await call('sync_pull', { id: g.id, pc });
+      if (msg) toast(msg);
+      delete syncCache[g.id];
+      delete backupCache[g.id];
+      render();
+      break;
+    }
+    case 'sync-keep': {
+      const msg = await call('sync_push', { id: g.id });
+      if (msg) toast(msg);
+      delete syncCache[g.id];
+      delete backupCache[g.id];
+      render();
+      break;
+    }
+    case 'sync-later':
+      syncLater[g.id] = true;
+      syncWarned[g.id] = true;
+      render();
+      break;
+    case 'sync-check':
+      delete syncCache[g.id];
+      render();
+      break;
     case 'play':
+      // A newer save waits on another PC: say so once before starting over the older one.
+      if (syncNews(g) && !syncWarned[g.id]) {
+        syncWarned[g.id] = true;
+        toast('Há um save mais novo em outro PC. Escolha no aviso no alto da página, ou clique em Jogar de novo para seguir com o deste PC.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        break;
+      }
       await call('play', { id: g.id });
       setGame(await call('get_game', { id: g.id }));
       break;
@@ -3970,6 +4127,7 @@ listen('achievement', (e) => {
 listen('backup', (e) => {
   const { id, result, message } = e.payload;
   toast(message, result === 'error');
+  delete syncCache[id];
   reloadBackups(id);
 });
 listen('save-changed', (e) => {

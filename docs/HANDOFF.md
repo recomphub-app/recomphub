@@ -5,6 +5,7 @@ feito, o que deu errado e o que falta.
 
 ## Onde estamos
 
+- **Pronta para teste, não publicada (09/11/2026):** v0.60.0, saves em outros PCs (decisão 96, sync.rs). Precisa de teste de verdade com dois PCs e uma pasta do OneDrive: só foi testado por testes de unidade e na prévia com dados de exemplo.
 - **Pronta para teste, não publicada (09/11/2026):** v0.59.0, prateleiras do jogador e verso com foto (decisão 95). Auditoria da v0.56 encerrada: o que não entrou está explicado na decisão 95.
 - **Pronta para teste, não publicada (09/11/2026):** v0.58.0, busca geral (Ctrl+K), Retrospectiva do ano e relatório de problema em .zip (decisão 94).
 - **Pronta para teste, não publicada (09/11/2026):** v0.57.0, itens de desempenho da auditoria (decisões 92 e 93): capas pequenas em cache, controle e estante mais leves, Modo TV com caixas de lado.

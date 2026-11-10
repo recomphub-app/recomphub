@@ -89,6 +89,33 @@ fn read_manifest(zip_path: &Path) -> Option<Manifest> {
     serde_json::from_str(&text).ok()
 }
 
+/// What a backup says about itself (None: not a Black Flag backup, or still being written).
+pub fn manifest_of(zip_path: &Path) -> Option<Manifest> {
+    read_manifest(zip_path)
+}
+
+/// Where a backup of the game is kept.
+pub fn backup_path(root: &Path, id: &str, file: &str) -> PathBuf {
+    game_dir(root, id).join(file)
+}
+
+/// The fingerprint `make` would give the saves as they are now; None when there are none.
+pub fn fingerprint_now(sources: &[(String, PathBuf)]) -> Option<String> {
+    let files = collect(sources);
+    if files.is_empty() {
+        return None;
+    }
+    let mut hasher = Sha256::new();
+    for (name, path) in &files {
+        let mut buf = Vec::new();
+        std::fs::File::open(path).and_then(|mut f| f.read_to_end(&mut buf)).ok()?;
+        hasher.update(name.as_bytes());
+        hasher.update((buf.len() as u64).to_le_bytes());
+        hasher.update(&buf);
+    }
+    Some(format!("{:x}", hasher.finalize()))
+}
+
 /// The game's backups, newest first.
 pub fn list(root: &Path, id: &str) -> Vec<BackupInfo> {
     let dir = game_dir(root, id);
@@ -131,6 +158,16 @@ pub enum Made {
 /// Backs up `sources` unless they are identical to the newest backup, then keeps only the
 /// newest `keep` unlocked backups.
 pub fn make(root: &Path, id: &str, sources: &[(String, PathBuf)], reason: &str, keep: usize, now: u64) -> Result<Made, String> {
+    make_inner(root, id, sources, reason, keep, now, false)
+}
+
+/// Backs up even when the saves are the same as in the newest backup: a copy with today's date,
+/// for "Enviar o deste PC" (sync.rs).
+pub fn make_again(root: &Path, id: &str, sources: &[(String, PathBuf)], reason: &str, keep: usize, now: u64) -> Result<Made, String> {
+    make_inner(root, id, sources, reason, keep, now, true)
+}
+
+fn make_inner(root: &Path, id: &str, sources: &[(String, PathBuf)], reason: &str, keep: usize, now: u64, again: bool) -> Result<Made, String> {
     let files = collect(sources);
     if files.is_empty() {
         return Ok(Made::Empty);
@@ -152,7 +189,7 @@ pub fn make(root: &Path, id: &str, sources: &[(String, PathBuf)], reason: &str, 
     let fingerprint = format!("{:x}", hasher.finalize());
 
     let dir = game_dir(root, id);
-    if let Some(newest) = list(root, id).first() {
+    if let Some(newest) = list(root, id).first().filter(|_| !again) {
         if read_manifest(&dir.join(&newest.file)).map(|m| m.fingerprint == fingerprint).unwrap_or(false) {
             return Ok(Made::Unchanged);
         }
