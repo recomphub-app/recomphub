@@ -708,3 +708,13 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     busca) junta os dados do PC, a biblioteca em resumo, o último diagnóstico e o fim dos logs do
     jogo; o nome do usuário do Windows é escondido e nenhuma chave entra. O jogador escolhe onde
     salvar e é lembrado de conferir antes de enviar. get_stats saiu da linha principal.
+95. **Prateleiras do jogador e verso com foto.** Últimas ideias da auditoria da v0.56. As
+    etiquetas que o jogador já punha nos jogos viram prateleiras: um botão para cada uma ao lado
+    das abas da biblioteca (as oito com mais jogos), que mostra só os jogos dela; clicar de novo
+    volta a Todos. O verso da caixa aceita uma foto do jogador ("Imagem do verso", na página do
+    jogo; guardada em covers/backs): a foto ocupa o verso e os dados ficam numa faixa embaixo.
+    Não baixamos versos nem manuais de lugar nenhum: os bancos que têm isso (LaunchBox, Internet
+    Archive) não dão licença clara para redistribuir e casar jogo com arquivo erra muito. Ficou
+    de fora também ordenar a Comunidade por downloads: pede uma chamada ao GitHub por projeto, e
+    "Em alta" e "Mais estrelas" já respondem a pergunta. A linha "Pasta do jogo" continua sob o
+    Jogar, como decidido antes (é o que o jogador procura logo depois de instalar).

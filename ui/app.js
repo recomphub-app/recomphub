@@ -179,6 +179,15 @@ document.addEventListener('load', (e) => {
 // The back of the case on the game page: what the player and the game have done, set like the
 // back of a real box.
 function boxBackHtml(g) {
+  const photo = backArt[g.id];
+  if (photo) {
+    return `
+    <div class="gbox-back photo">
+      <img class="gbox-back-img" src="${esc(photo)}" alt="">
+      <div class="gbox-back-strip"><b>${esc(g.title)}</b>
+        <span>${playTime(g.total_seconds)} · ${g.play_count || 0}× · ${esc(completionLabel(completionOf(g)))}</span></div>
+    </div>`;
+  }
   const m = metaCache[g.id];
   const blurb = m && m.summary ? m.summary : g.description || '';
   const c = caseOf(g);
@@ -224,6 +233,20 @@ function wholeCover(g) {
   return g;
 }
 
+// The back of the case as a picture the player chose (Imagem do verso), asked for once per game.
+const backArt = {};   // id -> picture, or null when there is none
+
+function loadBack(g) {
+  if (backArt[g.id] !== undefined) return;
+  backArt[g.id] = null;
+  invoke('game_back', { id: g.id }).then((url) => {
+    if (!url) return;
+    backArt[g.id] = url;
+    document.querySelectorAll(`.card[data-id="${CSS.escape(g.id)}"] .gbox-back`).forEach((b) => { b.outerHTML = boxBackHtml(g); });
+    if (openId === g.id) render();
+  }).catch(() => {});
+}
+
 // Which game pages show the back; the page is drawn again as its parts arrive.
 const boxFlipped = {};
 
@@ -259,6 +282,7 @@ function flipCard(card) {
   const btn = card.querySelector('.gbox-flip');
   if (btn) btn.title = `${on ? 'Ver a frente' : 'Virar a caixa'} (F)`;
   if (on) backMeta(g.id);
+  if (on) loadBack(g);
   return true;
 }
 
@@ -340,7 +364,7 @@ function inTab(g, t = tab) {
 
 // The tabs show how many games each one has.
 function markTabs() {
-  document.querySelectorAll('#tabs button').forEach((b) => {
+  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => {
     const t = b.dataset.tab;
     const n = t === 'community' ? (communityData ? communityData.items.length : null) : games.filter((g) => inTab(g, t)).length;
     const look = (profiles && profiles.active && profiles.active.look) || {};
@@ -392,6 +416,34 @@ function renderTabs() {
     [['', byConsole ? 'Todos' : 'Todas'], ...tags.map((t) => [t, `${t} (${count(t)})`])]) : '';
   const sel = $('#tag-select');
   if (sel) sel.addEventListener('change', () => { tagFilter = sel.value || null; render(); });
+  renderShelfTabs();
+}
+
+// Prateleiras: each label the player gave their games is a shelf of its own beside the tabs.
+function renderShelfTabs() {
+  const bar = $('#tabs');
+  bar.querySelectorAll('.tab-shelf').forEach((b) => b.remove());
+  const mine = {};
+  for (const g of games) {
+    if (!g.in_library || (g.hidden && !settings.show_hidden)) continue;
+    for (const t of g.tags || []) mine[t] = (mine[t] || 0) + 1;
+  }
+  const names = Object.keys(mine).sort((a, b) => mine[b] - mine[a] || a.localeCompare(b, 'pt-BR')).slice(0, 8);
+  const here = tab === 'all' && tagFilter && mine[tagFilter] ? tagFilter : null;
+  for (const t of names) {
+    const b = document.createElement('button');
+    b.className = `tab-shelf${here === t ? ' on' : ''}`;
+    b.title = `Prateleira: ${t}`;
+    b.innerHTML = `${esc(t)} <span class="count">${mine[t]}</span>`;
+    b.addEventListener('click', () => {
+      tagFilter = here === t ? null : t;
+      tab = 'all';
+      render();
+    });
+    bar.appendChild(b);
+  }
+  const all = bar.querySelector('[data-tab="all"]');
+  if (all && here) all.classList.remove('on');
 }
 
 // On top of the library: the profile's wide picture, a greeting and "Continuar jogando" with the
@@ -582,7 +634,7 @@ function tagsBox(g) {
         <input type="text" id="tags-input" placeholder="Ex.: favoritos, zerado, coop" value="${esc(g.tags.join(', '))}">
         <button data-act="tags">Salvar etiquetas</button>
       </div>
-      <p class="muted">Separe com vírgulas. Use as etiquetas para filtrar a biblioteca.</p>
+      <p class="muted">Separe com vírgulas. Cada etiqueta vira uma prateleira ao lado das abas da biblioteca.</p>
     </div>`;
 }
 
@@ -2154,6 +2206,7 @@ function decorateMeta(g) {
 
 function coverColumn(g) {
   if (!boxesOn()) return coverColumnFlat(g);
+  if (g.in_library) loadBack(g);
   return `
     <div class="box-stage">${boxHtml(wholeCover(g), { back: g.in_library ? boxBackHtml(g) : '', flipped: !!boxFlipped[g.id] })}</div>
     ${g.in_library ? `
@@ -2161,6 +2214,8 @@ function coverColumn(g) {
         <button data-act="box-flip">${boxFlipped[g.id] ? 'Ver a frente' : 'Virar a caixa'}</button>
         <button class="ghost" data-act="cover-choose">Escolher capa</button>
         ${['custom', 'downloaded'].includes(g.cover_source) ? '<button class="ghost" data-act="cover-clear">Restaurar</button>' : ''}
+        <button class="ghost" data-act="back-choose">Imagem do verso</button>
+        ${backArt[g.id] ? '<button class="ghost" data-act="back-clear">Tirar verso</button>' : ''}
       </div>
       ${g.cover_source ? `<p class="muted small-text">${COVER_SOURCE[g.cover_source]}</p>` : ''}` : ''}`;
 }
@@ -3029,6 +3084,22 @@ async function act(action, g, el) {
     }
     case 'cover-clear':
       setGame(await call('clear_cover', { id: g.id }));
+      break;
+    case 'back-choose': {
+      const url = await call('choose_back', { id: g.id });
+      if (url) {
+        backArt[g.id] = url;
+        boxFlipped[g.id] = true;
+        $('#grid')._shelf = null;
+        render();
+      }
+      break;
+    }
+    case 'back-clear':
+      await call('clear_back', { id: g.id });
+      backArt[g.id] = null;
+      $('#grid')._shelf = null;
+      render();
       break;
     case 'covers-save': {
       const lines = $('#templates').value.split('\n');

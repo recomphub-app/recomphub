@@ -636,6 +636,39 @@ async fn choose_cover(app: AppHandle, id: String) -> Result<Option<GameView>, St
     view_any(&state, &id).map(Some)
 }
 
+/// The picture of the back of the case, when the player chose one.
+#[tauri::command(async)]
+fn game_back(app: AppHandle, id: String) -> Option<String> {
+    let state = app.state::<AppState>();
+    let found = covers::find(&state.covers.backs, &id).and_then(|p| data_url(&p));
+    found
+}
+
+/// "Imagem do verso": a picture from the player's PC for the back of the case.
+/// Ok(None) when the player closed the dialog.
+#[tauri::command]
+async fn choose_back(app: AppHandle, id: String) -> Result<Option<String>, String> {
+    let state = app.state::<AppState>();
+    if !state.library.lock().unwrap().games.contains_key(&id) {
+        return Err("Adicione o jogo à biblioteca primeiro.".into());
+    }
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Escolha a imagem do verso da caixa")
+        .add_filter("Imagem", covers::IMAGE_EXTS)
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(picture) = picked else { return Ok(None) };
+    let kept = covers::set_back(&state.covers, &id, &picture)?;
+    Ok(data_url(&kept))
+}
+
+#[tauri::command]
+fn clear_back(app: AppHandle, id: String) {
+    covers::clear_back(&app.state::<AppState>().covers, &id);
+}
+
 #[tauri::command]
 fn clear_cover(app: AppHandle, id: String) -> Result<GameView, String> {
     let state = app.state::<AppState>();
@@ -5358,6 +5391,9 @@ pub fn run() {
             game_cover,
             get_sessions,
             problem_report,
+            game_back,
+            choose_back,
+            clear_back,
             get_game,
             check_updates,
             add_existing,

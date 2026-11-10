@@ -165,12 +165,14 @@ pub struct Dirs {
     pub icons: PathBuf,
     /// Small copies of the covers, for the lists (see `thumb`).
     pub thumbs: PathBuf,
+    /// The back of the case, a picture the player chose ("Imagem do verso").
+    pub backs: PathBuf,
 }
 
 impl Dirs {
     pub fn new(data_dir: &Path) -> Self {
         let base = data_dir.join("covers");
-        Self { custom: base.join("custom"), downloaded: base.join("downloaded"), icons: base.join("icons"), thumbs: base.join("thumbs") }
+        Self { custom: base.join("custom"), downloaded: base.join("downloaded"), icons: base.join("icons"), thumbs: base.join("thumbs"), backs: base.join("backs") }
     }
 }
 
@@ -305,6 +307,21 @@ pub fn set_custom(dirs: &Dirs, id: &str, picture: &Path) -> Result<(), String> {
     }
     let bytes = std::fs::read(picture).map_err(|e| e.to_string())?;
     store(&dirs.custom, id, &bytes).map(|_| ())
+}
+
+/// "Imagem do verso": copies the player's picture of the back of the case.
+pub fn set_back(dirs: &Dirs, id: &str, picture: &Path) -> Result<PathBuf, String> {
+    let size = std::fs::metadata(picture).map(|m| m.len()).map_err(|e| e.to_string())?;
+    if size > MAX_IMAGE_BYTES {
+        return Err("A imagem passa de 10 MB. Escolha uma menor.".into());
+    }
+    let bytes = std::fs::read(picture).map_err(|e| e.to_string())?;
+    store(&dirs.backs, id, &bytes)
+}
+
+/// "Tirar verso".
+pub fn clear_back(dirs: &Dirs, id: &str) {
+    remove_all(&dirs.backs, id);
 }
 
 /// "Restaurar capa": forgets the chosen and the downloaded picture.

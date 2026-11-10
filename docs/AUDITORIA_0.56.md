@@ -79,4 +79,8 @@ Deixados de lado, em acordo com o Codex: Museu 3D, prévias em vídeo e o disco 
   escolher uma fonte de imagens e PDFs com licença clara; ideia 3 (prateleiras do jogador), que
   hoje já existe em parte como Etiquetas; ideia 8 (ordenar a Comunidade por mais baixados);
   design 5 (página do jogo mais curta).
+- **v0.59:** ideia 3 (prateleiras do jogador, a partir das etiquetas) e ideia 1 em parte (verso
+  com foto escolhida pelo jogador). Não entram, com o motivo na decisão 95: baixar versos e
+  manuais (licença e erro de casamento), ordenar a Comunidade por downloads (uma chamada ao
+  GitHub por projeto) e tirar a "Pasta do jogo" de perto do Jogar (decisão anterior).
 

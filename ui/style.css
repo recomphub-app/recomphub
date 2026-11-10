@@ -1562,3 +1562,17 @@ body.no-motion .palette, body.no-motion .pal-card { animation: none; }
 .recap-months i { align-self: end; width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--gold) 40%, var(--panel-2)); }
 .recap-months i.top { background: var(--gold); }
 .recap-months em { font-style: normal; font-size: 11px; color: var(--muted); }
+
+/* ---- v0.59: prateleiras do jogador e verso com foto ---- */
+.tabs .tab-shelf { border-style: dashed; }
+.tabs button[data-tab] + .tab-shelf { margin-left: 12px; }
+.tabs .tab-shelf.on { border-style: solid; }
+.gbox-back.photo { position: absolute; }
+.gbox-back-img { flex: 1; min-height: 0; width: 100%; object-fit: cover; border-radius: .6cqw; background: #0c0c0e; }
+.gbox-back-strip {
+  position: absolute; left: var(--rim); right: var(--rim); bottom: var(--rim); display: grid; gap: 1cqw;
+  padding: 9cqw 5cqw 4cqw; border-radius: 0 0 .6cqw .6cqw;
+  background: linear-gradient(transparent, rgba(8, 8, 9, .9) 55%);
+  font-size: 4.6cqw; color: rgba(244, 241, 233, .82);
+}
+.gbox-back-strip b { font: 850 6cqw/1.1 var(--wide); color: var(--gold-hi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
