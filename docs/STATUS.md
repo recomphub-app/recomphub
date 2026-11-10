@@ -52,6 +52,7 @@
 - [x] **v0.54** Emuladores com a cor e um desenho de cada projeto nos cartões, e uma aba própria para cada emulador instalado (página na cor dele, com versão, tempo jogado, BIOS e firmware, e os jogos dele)
 - [x] **v0.55** Capas como caixas de jogo (a caixa de cada console, com faixa, lombada e brilho), de pé numa estante; capa gerada para jogo sem imagem; verso da caixa na página do jogo; Modo TV como estante com reflexo
 - [x] **v0.56** Caixa de verdade (frente, verso, lombada, dobradiça, faixa de luz), que vira na própria estante (botão, F ou Y) com os dados do jogo no verso; texto enxuto embaixo; auditoria de design e desempenho em docs/AUDITORIA_0.56.md
+- [x] **v0.57** Capas pequenas em cache para as listas (antes iam inteiras em base64), controle lido só com controle ligado, estante refeita só quando muda, cards com nome para leitor de tela, Modo TV com as caixas de lado, som ao virar a caixa
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 

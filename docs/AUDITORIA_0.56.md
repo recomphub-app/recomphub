@@ -65,3 +65,12 @@ Deixados de lado, em acordo com o Codex: Museu 3D, prévias em vídeo e o disco 
 3. Modo TV com as vizinhas inclinadas e Y para virar (design 1 e 2).
 4. Acessibilidade dos cards (design 4).
 5. Busca geral e prateleiras do jogador.
+
+## Andamento
+
+- **v0.57:** desempenho 1, 2, 3, 4 e 6 (capas pequenas em cache, get_library fora da linha
+  principal, estante refeita só quando muda, controle lido só com controle ligado); design 1, 2
+  e 4 (Modo TV com caixas de lado, rótulos na letra normal, cards com nome para leitor de tela);
+  ideia 5 (som ao virar). Ficaram de fora: desempenho 5 (`content-visibility`, corta a sombra e a
+  prateleira) e design 3 e 6 (juntar o CSS e dividir o app.js: só manutenção, risco sem ganho
+  para quem usa).

@@ -183,8 +183,17 @@ fn cover_file(state: &AppState, id: &str, own: Option<PathBuf>) -> Option<(PathB
 
 fn pick_cover(state: &AppState, id: &str, own: Option<PathBuf>) -> (Option<String>, Option<&'static str>) {
     match cover_file(state, id, own) {
-        Some((p, source)) => (data_url(&p), Some(source)),
+        Some((p, source)) => (cover_url(state, &p), Some(source)),
         None => (None, None),
+    }
+}
+
+/// A cover for the lists: its small copy when there is one (covers::thumb), the file itself
+/// the first time.
+fn cover_url(state: &AppState, path: &Path) -> Option<String> {
+    match covers::thumb(&state.covers.thumbs, path) {
+        Some(bytes) => Some(format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))),
+        None => data_url(path),
     }
 }
 
@@ -409,7 +418,19 @@ fn save(state: &AppState) -> Result<(), String> {
     state.library.lock().unwrap().save(&state.library_path)
 }
 
-#[tauri::command]
+/// The whole cover, for the game page (the lists carry a small copy).
+#[tauri::command(async)]
+fn game_cover(app: AppHandle, id: String) -> Option<String> {
+    let state = app.state::<AppState>();
+    let dir = state.library.lock().unwrap().games.get(&id).map(|e| PathBuf::from(&e.install_dir));
+    let own = catalog::get(&id)
+        .and_then(|g| files::cover(g, dir.as_deref()))
+        .or_else(|| id.strip_prefix("steam-").and_then(stores::steam_cover_for));
+    let found = cover_file(&state, &id, own).and_then(|(p, _)| data_url(&p));
+    found
+}
+
+#[tauri::command(async)]
 fn get_library(app: AppHandle) -> Vec<GameView> {
     let state = app.state::<AppState>();
     let mut list: Vec<GameView> = catalog::games().iter().map(|g| view(&state, g)).collect();
@@ -5266,6 +5287,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_library,
+            game_cover,
             get_game,
             check_updates,
             add_existing,

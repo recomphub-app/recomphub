@@ -206,6 +206,24 @@ function boxBackHtml(g) {
     </div>`;
 }
 
+// The lists carry a small copy of each cover; the game page asks for the whole picture once and
+// keeps it while the small one stays the same.
+const fullCover = {};   // id -> { small, whole }
+
+function wholeCover(g) {
+  if (!g.cover || g.cover.startsWith('data:image/svg')) return g;
+  const have = fullCover[g.id];
+  if (have && have.small === g.cover) return have.whole ? { ...g, cover: have.whole } : g;
+  const rec = (fullCover[g.id] = { small: g.cover, whole: null });
+  invoke('game_cover', { id: g.id }).then((url) => {
+    if (!url || fullCover[g.id] !== rec || url === rec.small) return;
+    rec.whole = url;
+    if (openId !== g.id) return;
+    document.querySelectorAll('#detail .box-stage .gbox-img, #detail .box-stage .gbox-img-bg').forEach((img) => { img.src = url; });
+  }).catch(() => {});
+  return g;
+}
+
 // Which game pages show the back; the page is drawn again as its parts arrive.
 const boxFlipped = {};
 
@@ -213,6 +231,7 @@ function flipBox() {
   const b = document.querySelector('#detail .gbox.two-sided');
   if (!b || !openId) return false;
   boxFlipped[openId] = !boxFlipped[openId];
+  tvSound('flip');
   b.classList.toggle('flipped', boxFlipped[openId]);
   const btn = document.querySelector('#detail [data-act="box-flip"]');
   if (btn) btn.textContent = b.classList.contains('flipped') ? 'Ver a frente' : 'Virar a caixa';
@@ -236,6 +255,7 @@ function flipCard(card) {
   const on = !box.classList.contains('flipped');
   box.classList.toggle('flipped', on);
   shelfFlipped[g.id] = on;
+  tvSound('flip');
   const btn = card.querySelector('.gbox-flip');
   if (btn) btn.title = `${on ? 'Ver a frente' : 'Virar a caixa'} (F)`;
   if (on) backMeta(g.id);
@@ -264,6 +284,12 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   flipCard(f.closest('.card'));
 }, true);
+
+// The card read aloud: the game, where it runs, what state it is in.
+function cardLabel(g) {
+  const where = g.kind === 'port' ? `port de ${g.family}` : g.family || 'PC';
+  return `${g.title}, ${where}, ${g.update_available ? 'atualização disponível' : STATUS_TEXT[g.status] || ''}`;
+}
 
 // What is said under a case: only what matters right now. The rest is on the back.
 function shelfLine(g) {
@@ -440,7 +466,11 @@ function renderGrid() {
       : tab === 'discover' ? 'Você já tem todos os ports do catálogo na biblioteca.'
       : 'Sua biblioteca está vazia. Use Adicionar para instalar um port, trazer os jogos da Steam, Epic e GOG ou escolher um jogo de PC.';
   }
-  $('#grid').innerHTML = list.map(gameCardHtml).join('');
+  const html = list.map(gameCardHtml).join('');
+  const gridEl = $('#grid');
+  if (gridEl._shelf === html && gridEl.childElementCount === list.length) return;
+  gridEl.innerHTML = html;
+  gridEl._shelf = html;
   const byId = new Map(list.map((x) => [x.id, x]));
   document.querySelectorAll('#grid .card').forEach((el) => {
     el.addEventListener('click', () => openGame(el.dataset.id));
@@ -2052,7 +2082,7 @@ function decorateMeta(g) {
 function coverColumn(g) {
   if (!boxesOn()) return coverColumnFlat(g);
   return `
-    <div class="box-stage">${boxHtml(g, { back: g.in_library ? boxBackHtml(g) : '', flipped: !!boxFlipped[g.id] })}</div>
+    <div class="box-stage">${boxHtml(wholeCover(g), { back: g.in_library ? boxBackHtml(g) : '', flipped: !!boxFlipped[g.id] })}</div>
     ${g.in_library ? `
       <div class="cover-actions">
         <button data-act="box-flip">${boxFlipped[g.id] ? 'Ver a frente' : 'Virar a caixa'}</button>
@@ -3961,6 +3991,7 @@ function renderCommunityGrid() {
   const empty = $('#empty');
   empty.hidden = list.length > 0 || communityLoading;
   empty.textContent = data.items.length ? 'Nenhum port com esse filtro.' : 'Nenhum port carregado. Verifique a internet e clique em "Atualizar".';
+  $('#grid')._shelf = null;
   $('#grid').innerHTML = list.map((i) => `
     <div class="card" data-repo="${esc(i.repo)}" tabindex="0">
       ${communityCover(i)}
@@ -4411,18 +4442,34 @@ function padPoll(t) {
     // TV and "Quem vai jogar?" read the controller themselves; these presses are theirs.
     padEdges(navPad, p, t);
   }
+  if (!padPresent()) {
+    padLive = false;
+    return;
+  }
   requestAnimationFrame(padPoll);
 }
+
+// No controller, no loop: it starts when one shows up (the browser tells on the first button
+// pressed) and stops when the last one is unplugged.
+let padLive = false;
+const padPresent = () => [...(navigator.getGamepads ? navigator.getGamepads() : [])].some(Boolean);
+function padWake() {
+  if (padLive) return;
+  padLive = true;
+  requestAnimationFrame(padPoll);
+}
+window.addEventListener('gamepadconnected', padWake);
+setInterval(() => { if (padPresent()) padWake(); }, 3000);
 
 // The hints go away when the mouse is back.
 document.addEventListener('mousemove', (e) => {
   if (e.movementX || e.movementY) document.body.classList.remove('pad-on');
 });
-requestAnimationFrame(padPoll);
+if (padPresent()) padWake();
 
 // A card chosen with Tab or the controller opens with Enter like a button.
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('card') && e.target.tabIndex === 0) {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('card') && e.target.tabIndex === 0) {
     e.target.click();
     e.preventDefault();
   }
@@ -4480,7 +4527,7 @@ function tvSound(kind) {
   if (!tvSoundOn()) return;
   try {
     tvAudio = tvAudio || new AudioContext();
-    const notes = { move: [[1320, 0.025]], ok: [[880, 0.05], [1320, 0.07]], back: [[990, 0.05], [660, 0.07]], section: [[740, 0.04], [990, 0.05]] }[kind] || [];
+    const notes = { flip: [[520, 0.03], [780, 0.045]], move: [[1320, 0.025]], ok: [[880, 0.05], [1320, 0.07]], back: [[990, 0.05], [660, 0.07]], section: [[740, 0.04], [990, 0.05]] }[kind] || [];
     let t = tvAudio.currentTime;
     for (const [f, d] of notes) {
       const o = tvAudio.createOscillator();
@@ -4539,7 +4586,7 @@ function tvItems() {
 }
 
 function tvTile(x, i, sel) {
-  const cls = `tv-tile${i === sel ? ' sel' : ''}${i < sel ? ' past' : ''}`;
+  const cls = `tv-tile${i === sel ? ' sel' : ''}${i < sel ? ' past' : ''}${i > sel && i - sel <= 8 ? ' near' : ''}`;
   if (x.item) return `<div class="${cls} tv-fn" data-i="${i}"><span class="tv-icon">${x.item.icon}</span><span>${esc(x.item.title)}</span></div>`;
   const g = x.game;
   const boxed = boxesOn();
@@ -4642,7 +4689,7 @@ function renderTv() {
   const x = list[sel];
   const art = tvArt(x);
   const p = profiles && profiles.active;
-  const ach = achSummary ? `<span class="tv-trophy">🏆 ${achSummary.unlocked}</span>` : '';
+  const ach = achSummary ? `<span class="tv-trophy">${achSummary.unlocked} conquistas</span>` : '';
   const shoulder = (k, kb) => `<span class="tv-key">${padKind !== null ? padName(k) : kb}</span>`;
   $('#tv').innerHTML = `
     <div class="tv-art"${art ? ` style="background-image:url('${art.replace(/'/g, '%27')}')${p && art === p.banner ? `;background-position:${bannerPos(p)}` : ''}"` : ''}></div>
@@ -5183,7 +5230,7 @@ function gameCardHtml(g) {
     const [tone, line] = shelfLine(g);
     const turned = !!shelfFlipped[g.id] && g.in_library;
     return `
-    <div class="card boxed" data-id="${g.id}" tabindex="0">
+    <div class="card boxed" data-id="${g.id}" tabindex="0" role="button" aria-label="${esc(cardLabel(g))}">
       <div class="shelf-slot">
         ${boxHtml(g, { back: turned ? boxBackHtml(g) : '', flipped: turned })}
         ${g.in_library ? `<span class="gbox-flip" aria-hidden="true" title="${turned ? 'Ver a frente' : 'Virar a caixa'} (F)">${FLIP_ICON}</span>` : ''}
@@ -5195,7 +5242,7 @@ function gameCardHtml(g) {
     </div>`;
   }
   return `
-    <div class="card" data-id="${g.id}" tabindex="0">
+    <div class="card" data-id="${g.id}" tabindex="0" role="button" aria-label="${esc(cardLabel(g))}">
       ${coverHtml(g)}
       <div class="body">
         <div class="title">${esc(g.title)}</div>
@@ -6238,6 +6285,7 @@ function shelf(title, note, cards, more) {
 function renderShowcase() {
   const box = $('#showcase');
   box.hidden = false;
+  $('#grid')._shelf = null;
   $('#grid').innerHTML = '';
   $('#empty').hidden = true;
   $('#tagbar').innerHTML = '';

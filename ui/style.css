@@ -1502,3 +1502,18 @@ body.no-motion .gbox-flip { transform: none !important; }
   .gbox-flip { transform: none !important; }
   .card.boxed:hover .gbox.flipped, .card.boxed:focus-visible .gbox.flipped, body.pad-on .card.boxed:focus .gbox.flipped { transform: none; }
 }
+
+/* ---- v0.57: Modo TV as a shelf seen from the side, and plain lettering ---- */
+.tv-tile.tv-boxed.near .gbox { transform: rotateY(-26deg); transition: none; }
+.tv-tile.tv-boxed.near .gbox > * { visibility: visible; }
+.tv-tile.tv-boxed.near .gbox::before { opacity: 0; }
+.tv-tile.tv-boxed:not(.sel) .gbox-front::after { background: rgba(6, 6, 7, .42); }
+body.no-motion .tv-tile.tv-boxed.near .gbox { transform: none; }
+@media (prefers-reduced-motion: reduce) { .tv-tile.tv-boxed.near .gbox { transform: none; } }
+/* labels in the page's own lettering, in lower case (decisão 80) */
+.tv-fam, .tv-meta .k, .tv-fn, .tv-live, .tv-trophy {
+  font-family: "Segoe UI", system-ui, sans-serif; text-transform: none; letter-spacing: 0;
+}
+.tv-fam { font-weight: 650; font-size: max(15px, 2vh); }
+.tv-meta .k { font-size: max(13px, 1.6vh); }
+.tv-clock { font-family: var(--wide); font-variant-numeric: tabular-nums; }

@@ -683,3 +683,18 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     ainda não estiverem guardados. Embaixo da caixa ficam só o nome e uma linha curta; tempo,
     vezes jogado, última vez, estado, lançamento, gênero e versão moram no verso. O resto da
     revisão do programa está em docs/AUDITORIA_0.56.md.
+92. **Capas pequenas para as listas.** Primeiro item da auditoria da v0.56. A biblioteca mandava
+    cada capa inteira, como texto, toda vez que a lista era pedida. Agora as listas recebem uma
+    cópia de 480 px de largura (JPEG), feita uma vez e guardada em covers/thumbs com o nome tirado
+    do caminho, do tamanho e da data do arquivo (capa trocada, cópia nova). A cópia é feita em
+    segundo plano: na primeira vez a capa vai inteira, como antes, e da seguinte em diante vai a
+    pequena, então ninguém espera por isso ao abrir. Arquivos com menos de 64 KB e SVG vão como
+    estão. A página do jogo pede a capa inteira (game_cover). get_library saiu da linha principal
+    da janela. Escolha consciente: não usar o protocolo asset do Tauri agora, porque mexe em
+    permissões e CSP e não dá para testar fora do CI.
+93. **Menos trabalho parado.** O laço que lê o controle só roda com um controle ligado (acorda
+    no gamepadconnected e numa conferida a cada 3 s). A estante só é refeita quando o que ela
+    mostra mudou, então a caixa em foco ou virada não é desfeita por notícias de outro jogo. Os
+    cards dizem o que são a um leitor de tela (role button, nome, console e estado) e abrem com
+    espaço. No Modo TV as caixas depois da escolhida ficam viradas de lado e mais escuras, e os
+    rótulos usam a letra normal em caixa baixa (decisão 80).

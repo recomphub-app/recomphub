@@ -163,12 +163,104 @@ pub struct Dirs {
     pub custom: PathBuf,
     pub downloaded: PathBuf,
     pub icons: PathBuf,
+    /// Small copies of the covers, for the lists (see `thumb`).
+    pub thumbs: PathBuf,
 }
 
 impl Dirs {
     pub fn new(data_dir: &Path) -> Self {
         let base = data_dir.join("covers");
-        Self { custom: base.join("custom"), downloaded: base.join("downloaded"), icons: base.join("icons") }
+        Self { custom: base.join("custom"), downloaded: base.join("downloaded"), icons: base.join("icons"), thumbs: base.join("thumbs") }
+    }
+}
+
+// ---- Small copies of the covers ----
+//
+// The library used to send every cover whole, as text, each time the list was asked for: a few
+// hundred games made a reply of a hundred megabytes. The lists now get a copy 480 pixels wide,
+// made once and kept in covers/thumbs; the game page still asks for the whole picture.
+
+/// Width of the copy sent to the lists.
+const THUMB_WIDTH: u32 = 480;
+/// A file this small goes as it is.
+const THUMB_SKIP: u64 = 64 * 1024;
+/// Nothing bigger than this is opened to make a copy.
+const THUMB_MAX: u64 = 40 * 1024 * 1024;
+
+/// Copies waiting to be made: (the cover, where its copy goes).
+static THUMB_QUEUE: std::sync::Mutex<Vec<(PathBuf, PathBuf)>> = std::sync::Mutex::new(Vec::new());
+/// Copies that could not be made (a broken picture): not tried again until the program restarts.
+static THUMB_FAILED: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
+static THUMB_WORKING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Where the copy of this cover lives: named after the file, its size and when it was written,
+/// so a changed cover gets a new copy.
+fn thumb_file(cache: &Path, path: &Path, meta: &std::fs::Metadata) -> Option<PathBuf> {
+    let stamp = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    let key = xxhash_rust::xxh3::xxh3_64(format!("{}|{stamp}|{}", path.display(), meta.len()).as_bytes());
+    Some(cache.join(format!("{key:016x}.jpg")))
+}
+
+/// Draws the copy. Written beside its final name first, so a half-written file is never read.
+pub fn make_thumb(path: &Path, out: &Path) -> Option<()> {
+    let img = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?.decode().ok()?;
+    let small = if img.width() > THUMB_WIDTH { img.thumbnail(THUMB_WIDTH, THUMB_WIDTH * 4) } else { img };
+    let small = small.to_rgb8();
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, 84).encode_image(&small).ok()?;
+    std::fs::create_dir_all(out.parent()?).ok()?;
+    let tmp = out.with_extension("tmp");
+    std::fs::write(&tmp, bytes.into_inner()).ok()?;
+    std::fs::rename(&tmp, out).ok()
+}
+
+/// The small copy of a cover (a JPEG), when it is already made. Otherwise None: the caller sends
+/// the whole file this once, and the copy is made in the background for the next time.
+/// Also None for pictures that go as they are (small files, SVG).
+pub fn thumb(cache: &Path, path: &Path) -> Option<Vec<u8>> {
+    let ext = path.extension()?.to_str()?.to_lowercase();
+    if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp") {
+        return None;
+    }
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.len() < THUMB_SKIP || meta.len() > THUMB_MAX {
+        return None;
+    }
+    let out = thumb_file(cache, path, &meta)?;
+    if let Ok(bytes) = std::fs::read(&out) {
+        return Some(bytes);
+    }
+    if THUMB_FAILED.lock().unwrap().contains(&out) {
+        return None;
+    }
+    {
+        let mut q = THUMB_QUEUE.lock().unwrap();
+        if !q.iter().any(|(_, o)| o == &out) {
+            q.push((path.to_path_buf(), out));
+        }
+    }
+    if !THUMB_WORKING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        std::thread::spawn(thumb_worker);
+    }
+    None
+}
+
+fn thumb_worker() {
+    loop {
+        let next = THUMB_QUEUE.lock().unwrap().first().cloned();
+        let Some((path, out)) = next else {
+            THUMB_WORKING.store(false, std::sync::atomic::Ordering::SeqCst);
+            // One may have arrived between the look and the flag.
+            if THUMB_QUEUE.lock().unwrap().is_empty() || THUMB_WORKING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
+            continue;
+        };
+        if make_thumb(&path, &out).is_none() {
+            THUMB_FAILED.lock().unwrap().push(out.clone());
+        }
+        // Taken off only when done, so the same cover is not queued twice meanwhile.
+        THUMB_QUEUE.lock().unwrap().retain(|(_, o)| o != &out);
     }
 }
 
@@ -285,4 +377,26 @@ mod tests {
         assert_eq!(sniff(b"RIFF\0\0\0\0WEBPVP8 "), Some("webp"));
         assert_eq!(sniff(b"<!DOCTYPE html>"), None);
     }
+    #[test]
+    fn a_cover_gets_a_small_copy() {
+        let dir = std::env::temp_dir().join(format!("bf-thumb-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let cover = dir.join("big.png");
+        image::RgbImage::from_fn(1200, 1800, |x, y| image::Rgb([(x % 251) as u8, (y % 241) as u8, ((x * y) % 239) as u8]))
+            .save(&cover)
+            .unwrap();
+        let out = dir.join("thumbs").join("copy.jpg");
+        assert!(make_thumb(&cover, &out).is_some());
+        let small = image::open(&out).unwrap();
+        assert_eq!((small.width(), small.height()), (480, 720));
+        // A broken picture makes no copy.
+        let bad = dir.join("bad.png");
+        std::fs::write(&bad, b"not a picture").unwrap();
+        assert!(make_thumb(&bad, &dir.join("thumbs").join("bad.jpg")).is_none());
+        // A small file goes as it is.
+        assert!(thumb(&dir.join("thumbs"), &bad).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 }
