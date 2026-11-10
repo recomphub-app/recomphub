@@ -5,6 +5,7 @@ feito, o que deu errado e o que falta.
 
 ## Onde estamos
 
+- **Pronta para teste, não publicada (09/11/2026):** v0.56.0, caixa de verdade que vira na estante com os dados no verso (decisão 91) e a auditoria em `docs/AUDITORIA_0.56.md` (primeiro item a fazer: capas por endereço e miniaturas, hoje vão em base64).
 - **Pronta para teste, não publicada (08/11/2026):** v0.55.0, capas como caixas de jogo numa estante (decisão 90, ideias do Boxshelf sem código dele), capa gerada, verso da caixa e Modo TV como estante. CI com 132 testes; instalador em `Desktop\calude\instalador\Black Flag_0.55.0_x64-setup.exe`. As versões 0.49 a 0.54 também ainda não foram publicadas.
 - **Versão publicada:** v0.25.0 (21/10/2026). Junta tudo desde a 0.20: variáveis de ambiente no modo administrador, Seu PC (compatibilidade, placa de vídeo, API gráfica, antivírus), contador de FPS (PresentMon), God of War III como SpartanPort com cache de shaders, e a aba Comunidade com .7z, .exe portátil, nome do jogo, tópicos novos e fotos. Publicada a pedido do Gustavo; as partes novas ainda não foram testadas por ele no Windows.
 - **Pronta para teste, não publicada:** v0.26.0, com o diagnóstico de erro ("O jogo fechou com erro", "Procurar o erro", relatório para issue), o visual mais enxuto (menus no topo, página do jogo e Configurações em abas) e o tutorial de boas-vindas. O CI passou com 78 testes; o instalador está em `Desktop\calude\instalador`. Falta o Gustavo testar e autorizar a tag.

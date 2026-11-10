@@ -672,3 +672,14 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     caixa escolhida. Sem animação (perfil ou Windows), nada gira; o verso aparece no lugar da frente.
     Desliga em Perfil > Aparência > "Capas como caixas de jogo". Ideias deixadas para depois, em
     consenso com o Codex: Museu 3D, prévias em vídeo e o disco saindo da caixa.
+91. **A caixa de verdade, que vira na estante.** Pedido do Gustavo em 09/11/2026: as capas mais
+    perto do Boxshelf, com os dados do jogo no verso. A caixa passa a ter frente, verso, lombada e
+    a outra lateral (um bloco, com a espessura em --d), dobradiça nas caixas de plástico, uma faixa
+    de luz que cruza a capa do jogo escolhido e uma luz dourada atrás dele. Parada, ela é uma
+    imagem plana com um filete de lombada desenhado ao lado; as outras faces só existem na caixa
+    escolhida ou virada, para a estante longa continuar leve (ponto do Codex: não tratar 3D como
+    de graça, nem como culpado sem medir). A caixa vira no lugar pelo botão do canto, pela tecla F
+    ou pelo Y do controle; o verso é montado na primeira virada e busca ano, gênero e resumo se
+    ainda não estiverem guardados. Embaixo da caixa ficam só o nome e uma linha curta; tempo,
+    vezes jogado, última vez, estado, lançamento, gênero e versão moram no verso. O resto da
+    revisão do programa está em docs/AUDITORIA_0.56.md.

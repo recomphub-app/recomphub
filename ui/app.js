@@ -135,7 +135,7 @@ function genCover(g, sys, logo) {
 }
 
 // The case. `face` adds the back (the game page turns it over).
-function boxHtml(g, { back = '' } = {}) {
+function boxHtml(g, { back = '', flipped = false } = {}) {
   const c = caseOf(g);
   const svg = g.cover && g.cover.startsWith('data:image/svg');
   const art = g.cover && !svg;
@@ -145,12 +145,14 @@ function boxHtml(g, { back = '' } = {}) {
     ? `<img class="gbox-img" src="${esc(g.cover)}" alt="" decoding="async">`
     : genCover(g, sys, svg ? g.cover : g.icon);
   return `
-    <div class="gbox pack-${c.pack}${c.ratio >= 1 ? ' wide' : ''}${c.ratio < .62 ? ' tall' : ''}${back ? ' two-sided' : ''}${back && boxFlipped[g.id] ? ' flipped' : ''}" style="--ratio:${c.ratio};--side:${c.side}${band ? `;--bb:${band[0]};--bf:${band[1]}` : ''}">
+    <div class="gbox pack-${c.pack}${c.ratio >= 1 ? ' wide' : ''}${c.ratio < .62 ? ' tall' : ''}${back ? ' two-sided' : ''}${back && flipped ? ' flipped' : ''}" style="--ratio:${c.ratio};--side:${c.side}${band ? `;--bb:${band[0]};--bf:${band[1]}` : ''}">
       <div class="gbox-front">
         ${band ? `<div class="gbox-band"><span>${esc(band[2])}</span></div>` : ''}
         <div class="gbox-art">${inner}</div>
+        <i class="gbox-glare"></i>
       </div>
       <div class="gbox-spine"><span>${esc(g.title)}</span></div>
+      <div class="gbox-edge"></div>
       ${back}
     </div>`;
 }
@@ -182,18 +184,23 @@ function boxBackHtml(g) {
   const c = caseOf(g);
   const origin = g.kind === 'emulated' ? `Emulado: ${g.family}` : g.kind === 'port' ? `Port ${g.port_name}`
     : g.kind === 'community' ? `Port da comunidade ${g.port_name}` : g.store || 'Jogo de PC';
+  const known = m && typeof m === 'object' && !m.error;
+  const facts = [
+    ['Tempo de jogo', playTime(g.total_seconds)],
+    ['Vezes jogado', g.play_count || 0],
+    ['Última vez', lastPlayed(g.last_played)],
+    ['Estado', esc(completionLabel(completionOf(g)))],
+  ];
+  if (known && m.released) facts.push(['Lançamento', new Date(m.released * 1000).getFullYear()]);
+  if (known && m.genres && m.genres.length) facts.push(['Gênero', esc(m.genres.slice(0, 2).join(', '))]);
+  if (g.version) facts.push(['Versão', esc(g.version)]);
   return `
     <div class="gbox-back"${c.band ? ` style="--bb:${c.band[0]};--bf:${c.band[1]}"` : ''}>
       ${c.band ? `<div class="gbox-band"><span>${esc(c.band[2])}</span></div>` : ''}
       <div class="gbox-back-body">
         <b class="gbox-back-title">${esc(g.title)}</b>
         ${blurb ? `<p>${esc(blurb.length > 320 ? `${blurb.slice(0, 317).trimEnd()}…` : blurb)}</p>` : ''}
-        <dl>
-          <div><dt>Tempo de jogo</dt><dd>${playTime(g.total_seconds)}</dd></div>
-          <div><dt>Vezes jogado</dt><dd>${g.play_count || 0}</dd></div>
-          <div><dt>Última vez</dt><dd>${lastPlayed(g.last_played)}</dd></div>
-          <div><dt>Estado</dt><dd>${esc(completionLabel(completionOf(g)))}</dd></div>
-        </dl>
+        <dl>${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
         <span class="gbox-back-foot">${esc(origin)}</span>
       </div>
     </div>`;
@@ -210,6 +217,61 @@ function flipBox() {
   const btn = document.querySelector('#detail [data-act="box-flip"]');
   if (btn) btn.textContent = b.classList.contains('flipped') ? 'Ver a frente' : 'Virar a caixa';
   return true;
+}
+
+// On the shelf a case turns over where it stands (the corner button, F, or Y on the controller).
+// The back is only built the first time it is asked for.
+const shelfFlipped = {};
+const FLIP_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15"/><path d="M4 20v-5h5"/></svg>';
+
+function flipCard(card) {
+  const g = card && games.find((x) => x.id === card.dataset.id);
+  const box = card && card.querySelector('.shelf-slot .gbox');
+  if (!g || !box || !g.in_library) return false;
+  if (!box.querySelector('.gbox-back')) {
+    box.insertAdjacentHTML('beforeend', boxBackHtml(g));
+    box.classList.add('two-sided');
+    void box.offsetWidth;   // the back is in place before the turn starts
+  }
+  const on = !box.classList.contains('flipped');
+  box.classList.toggle('flipped', on);
+  shelfFlipped[g.id] = on;
+  const btn = card.querySelector('.gbox-flip');
+  if (btn) btn.title = `${on ? 'Ver a frente' : 'Virar a caixa'} (F)`;
+  if (on) backMeta(g.id);
+  return true;
+}
+
+// The year, the genre and the summary for a back turned before the game page was ever opened.
+async function backMeta(id) {
+  if (metaCache[id] !== undefined || !coverKeys()) return;
+  try {
+    const m = await invoke('game_meta', { id, term: null, again: false });
+    if (metaCache[id] === undefined) metaCache[id] = m;
+  } catch {
+    return;
+  }
+  const g = games.find((x) => x.id === id);
+  if (!g) return;
+  document.querySelectorAll(`.card[data-id="${CSS.escape(id)}"] .gbox-back`).forEach((b) => { b.outerHTML = boxBackHtml(g); });
+}
+
+// The corner button never opens the game under it.
+document.addEventListener('click', (e) => {
+  const f = e.target.closest && e.target.closest('.gbox-flip');
+  if (!f) return;
+  e.stopPropagation();
+  e.preventDefault();
+  flipCard(f.closest('.card'));
+}, true);
+
+// What is said under a case: only what matters right now. The rest is on the back.
+function shelfLine(g) {
+  if (g.status === 'running') return ['live', `Jogando há ${sessionLength(g)}`];
+  if (!g.in_library) return ['', `Port ${esc(g.port_name)}`];
+  if (g.update_available) return ['live', 'Atualização disponível'];
+  if (g.status !== 'ready') return ['warn', STATUS_TEXT[g.status] || ''];
+  return ['', `${g.hidden ? 'Oculto · ' : ''}${g.total_seconds ? playTime(g.total_seconds) : 'Ainda não jogado'}`];
 }
 
 function coverHtml(g) {
@@ -379,9 +441,10 @@ function renderGrid() {
       : 'Sua biblioteca está vazia. Use Adicionar para instalar um port, trazer os jogos da Steam, Epic e GOG ou escolher um jogo de PC.';
   }
   $('#grid').innerHTML = list.map(gameCardHtml).join('');
+  const byId = new Map(list.map((x) => [x.id, x]));
   document.querySelectorAll('#grid .card').forEach((el) => {
     el.addEventListener('click', () => openGame(el.dataset.id));
-    const g = list.find((x) => x.id === el.dataset.id);
+    const g = byId.get(el.dataset.id);
     const art = g && realArt(g);
     if (!art) return;
     el.addEventListener('mouseenter', () => setFocusArt(art));
@@ -1989,7 +2052,7 @@ function decorateMeta(g) {
 function coverColumn(g) {
   if (!boxesOn()) return coverColumnFlat(g);
   return `
-    <div class="box-stage">${boxHtml(g, { back: g.in_library ? boxBackHtml(g) : '' })}</div>
+    <div class="box-stage">${boxHtml(g, { back: g.in_library ? boxBackHtml(g) : '', flipped: !!boxFlipped[g.id] })}</div>
     ${g.in_library ? `
       <div class="cover-actions">
         <button data-act="box-flip">${boxFlipped[g.id] ? 'Ver a frente' : 'Virar a caixa'}</button>
@@ -4342,6 +4405,7 @@ function padPoll(t) {
     if (e.lb) padTab(-1);
     if (e.rb) padTab(1);
     if (e.y && openId && !$('#detail').hidden) flipBox();
+    else if (e.y && document.activeElement && document.activeElement.classList.contains('boxed')) flipCard(document.activeElement);
     if (e.menu) tvOpen();
   } else if (p) {
     // TV and "Quem vai jogar?" read the controller themselves; these presses are theirs.
@@ -4361,6 +4425,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('card') && e.target.tabIndex === 0) {
     e.target.click();
     e.preventDefault();
+  }
+  if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.altKey && !e.metaKey && !tvOn
+    && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '') && !e.target.isContentEditable) {
+    const done = openId && !$('#detail').hidden ? flipBox()
+      : e.target.classList && e.target.classList.contains('boxed') ? flipCard(e.target) : false;
+    if (done) e.preventDefault();
   }
 });
 
@@ -5109,9 +5179,24 @@ function emuTabsHtml(d) {
 
 function gameCardHtml(g) {
   const boxed = boxesOn();
+  if (boxed) {
+    const [tone, line] = shelfLine(g);
+    const turned = !!shelfFlipped[g.id] && g.in_library;
+    return `
+    <div class="card boxed" data-id="${g.id}" tabindex="0">
+      <div class="shelf-slot">
+        ${boxHtml(g, { back: turned ? boxBackHtml(g) : '', flipped: turned })}
+        ${g.in_library ? `<span class="gbox-flip" aria-hidden="true" title="${turned ? 'Ver a frente' : 'Virar a caixa'} (F)">${FLIP_ICON}</span>` : ''}
+      </div>
+      <div class="body">
+        <div class="title">${g.favorite ? '<span class="fav-star" aria-hidden="true">★</span>' : ''}${esc(g.title)}</div>
+        <div class="meta${tone ? ` ${tone}` : ''}">${line}</div>
+      </div>
+    </div>`;
+  }
   return `
-    <div class="card${boxed ? ' boxed' : ''}" data-id="${g.id}" tabindex="0">
-      ${boxed ? `<div class="shelf-slot">${boxHtml(g)}</div>` : coverHtml(g)}
+    <div class="card" data-id="${g.id}" tabindex="0">
+      ${coverHtml(g)}
       <div class="body">
         <div class="title">${esc(g.title)}</div>
         <div>${chips(g)}</div>
