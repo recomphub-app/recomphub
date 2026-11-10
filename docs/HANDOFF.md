@@ -5,6 +5,7 @@ feito, o que deu errado e o que falta.
 
 ## Onde estamos
 
+- **Pronta para teste, não publicada (09/11/2026):** v0.58.0, busca geral (Ctrl+K), Retrospectiva do ano e relatório de problema em .zip (decisão 94).
 - **Pronta para teste, não publicada (09/11/2026):** v0.57.0, itens de desempenho da auditoria (decisões 92 e 93): capas pequenas em cache, controle e estante mais leves, Modo TV com caixas de lado.
 - **Pronta para teste, não publicada (09/11/2026):** v0.56.0, caixa de verdade que vira na estante com os dados no verso (decisão 91) e a auditoria em `docs/AUDITORIA_0.56.md` (primeiro item a fazer: capas por endereço e miniaturas, hoje vão em base64).
 - **Pronta para teste, não publicada (08/11/2026):** v0.55.0, capas como caixas de jogo numa estante (decisão 90, ideias do Boxshelf sem código dele), capa gerada, verso da caixa e Modo TV como estante. CI com 132 testes; instalador em `Desktop\calude\instalador\Black Flag_0.55.0_x64-setup.exe`. As versões 0.49 a 0.54 também ainda não foram publicadas.

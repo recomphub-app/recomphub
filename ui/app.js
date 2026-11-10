@@ -1963,8 +1963,76 @@ async function openStats() {
   // getTimezoneOffset is minutes WEST of UTC; the backend wants east.
   statsData = await call('get_stats', { offsetMinutes: -new Date().getTimezoneOffset() });
   if (openId === '__stats') render();
+  try {
+    statsSessions = (await invoke('get_sessions')) || [];
+  } catch {
+    statsSessions = [];
+  }
+  if (openId === '__stats') render();
   achSummary = await call('get_achievement_summary');
   if (openId === '__stats') render();
+}
+
+// ---- Retrospectiva: one year of play, summed here from the sessions ----
+let statsSessions = null;
+let recapYear = null;
+const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+function recapOf(sessions, year) {
+  const r = { seconds: 0, sessions: 0, days: new Set(), games: {}, months: Array(12).fill(0), weekdays: Array(7).fill(0), longest: null };
+  for (const s of sessions) {
+    const d = new Date(s.start * 1000);
+    if (d.getFullYear() !== year) continue;
+    r.seconds += s.seconds;
+    r.sessions += 1;
+    r.days.add(`${d.getMonth()}-${d.getDate()}`);
+    r.games[s.id] = (r.games[s.id] || 0) + s.seconds;
+    r.months[d.getMonth()] += s.seconds;
+    r.weekdays[d.getDay()] += s.seconds;
+    if (!r.longest || s.seconds > r.longest.seconds) r.longest = s;
+  }
+  return r;
+}
+
+function recapHtml(title) {
+  if (!statsSessions || !statsSessions.length) return '';
+  const years = [...new Set(statsSessions.map((s) => new Date(s.start * 1000).getFullYear()))].sort((a, b) => b - a);
+  const year = years.includes(recapYear) ? recapYear : years[0];
+  const r = recapOf(statsSessions, year);
+  const top = Object.entries(r.games).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const max = Math.max(1, ...top.map(([, s]) => s));
+  const best = (list) => list.indexOf(Math.max(...list));
+  const monthMax = Math.max(1, ...r.months);
+  return `
+    <div class="box recap">
+      <div class="recap-head">
+        <h3>Retrospectiva de ${year}</h3>
+        ${years.length > 1 ? `<div class="recap-years">${years.map((y) => `<button class="${y === year ? 'on' : 'ghost'} small" data-recap="${y}">${y}</button>`).join('')}</div>` : ''}
+      </div>
+      <div class="recap-big">
+        <div><b>${shortTime(r.seconds)}</b><span>de jogo</span></div>
+        <div><b>${r.days.size}</b><span>dia(s) com jogo</span></div>
+        <div><b>${Object.keys(r.games).length}</b><span>jogo(s) diferentes</span></div>
+        <div><b>${r.sessions}</b><span>sessões</span></div>
+      </div>
+      <div class="recap-cols">
+        <div>
+          <h4>Os mais jogados do ano</h4>
+          <ol class="recap-top">${top.map(([id, s], i) => `
+            <li><span class="recap-n">${i + 1}</span><span class="name">${esc(title(id))}</span>
+              <span class="track"><span style="width:${Math.round((s / max) * 100)}%"></span></span>
+              <span class="muted">${shortTime(s)}</span></li>`).join('')}</ol>
+        </div>
+        <div>
+          <h4>Mês a mês</h4>
+          <div class="recap-months">${r.months.map((s, i) => `
+            <span title="${MONTHS[i]}: ${shortTime(s)}"><i style="height:${Math.max(3, Math.round((s / monthMax) * 100))}%"${s === monthMax && s ? ' class="top"' : ''}></i><em>${MONTHS[i][0].toUpperCase()}</em></span>`).join('')}</div>
+          <p class="muted">O mês mais jogado foi ${MONTHS[best(r.months)]}; o dia da semana, ${WEEKDAYS[best(r.weekdays)]}.
+            ${r.longest ? `A maior sessão foi de ${shortTime(r.longest.seconds)}, em ${esc(title(r.longest.id))}.` : ''}</p>
+        </div>
+      </div>
+    </div>`;
 }
 
 function bars(buckets, label) {
@@ -2008,6 +2076,7 @@ function renderStats() {
           </li>`).join('')}</ul>` : '<p class="muted">Ainda não há sessões registradas. Jogue algo pelo Black Flag!</p>'}
         ${s.longest ? `<p class="muted">Maior sessão: ${shortTime(s.longest.seconds)} de ${esc(title(s.longest.id))}, em ${sessionDate(s.longest.start)}.</p>` : ''}
       </div>
+      ${recapHtml(title)}
       ${pickUpHtml()}
       <div class="box">
         <h3>Estado dos ${s.library_games} jogo(s) da biblioteca</h3>
@@ -2026,6 +2095,10 @@ function renderStats() {
     </div>`;
   document.querySelectorAll('#detail [data-act]').forEach((el) =>
     el.addEventListener('click', () => act(el.dataset.act, null, el)));
+  document.querySelectorAll('#detail [data-recap]').forEach((el) => el.addEventListener('click', () => {
+    recapYear = Number(el.dataset.recap);
+    render();
+  }));
   document.querySelectorAll('#detail [data-pick]').forEach((el) => el.addEventListener('click', async () => {
     const id = el.dataset.id;
     if (el.dataset.pick === 'open') return openGame(id);
@@ -2295,6 +2368,7 @@ function crashBox(g) {
       </details>
       <div class="row">
         <button data-act="crash-copy">Copiar relatório</button>
+        <button class="ghost" data-act="report-zip">Salvar em .zip</button>
         <button class="ghost" data-act="project">Abrir o GitHub do port</button>
         <button class="ghost" data-act="crash-dismiss">Dispensar</button>
       </div>
@@ -2425,6 +2499,7 @@ function pcInfoBox() {
       </dl>
       <div class="row">
         <button data-act="pc-copy">Copiar informações</button>
+        <button class="ghost" data-act="report-zip">Salvar relatório em .zip</button>
         <button class="ghost" data-act="pc-refresh">Ler de novo</button>
         <button class="ghost" data-act="win-security">Abrir Segurança do Windows</button>
       </div>
@@ -3617,6 +3692,11 @@ async function act(action, g, el) {
     case 'open-logs':
       await call('open_crash_folder', { id: g.id, what: action === 'open-dumps' ? 'dumps' : 'logs' });
       break;
+    case 'report-zip': {
+      const where = await call('problem_report', { id: g ? g.id : null });
+      if (where) toast(`Relatório salvo em ${where}. Confira o conteúdo antes de enviar.`);
+      break;
+    }
     case 'pc-copy':
       try {
         await navigator.clipboard.writeText(pcInfo.report);
@@ -6860,3 +6940,116 @@ document.addEventListener('keydown', (e) => {
   else return;
   e.preventDefault();
 });
+
+// ---- Busca geral (Ctrl+K): any game, any page, the things people look for in menus ----
+let palSel = 0;
+let palItems = [];
+const plain = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function palPlaces() {
+  return [
+    ['Biblioteca', 'Página', () => goNav('library')],
+    ['Emuladores', 'Página', () => goNav('emu')],
+    ['Instalar ports', 'Página', () => goNav('discover')],
+    ['Comunidade', 'Página', () => goNav('community')],
+    ['Estatísticas e retrospectiva', 'Página', () => goNav('stats')],
+    ['Modo TV', 'Abrir', () => tvOpen()],
+    ['Trocar de perfil', 'Abrir', () => openProfiles()],
+    ['Salvar relatório de problema em .zip', 'Ajuda', async () => {
+      const where = await call('problem_report', { id: null });
+      if (where) toast(`Relatório salvo em ${where}. Confira o conteúdo antes de enviar.`);
+    }],
+  ];
+}
+
+function palFind(q) {
+  const words = plain(q).split(/\s+/).filter(Boolean);
+  const hit = (text) => words.every((w) => plain(text).includes(w));
+  const mine = games.filter((g) => g.in_library && (!g.hidden || settings.show_hidden));
+  const found = (words.length ? mine.filter((g) => hit(`${g.title} ${g.family} ${g.port_name || ''} ${(g.tags || []).join(' ')}`))
+    : [...mine].sort((a, b) => (b.last_played || 0) - (a.last_played || 0)).slice(0, 6))
+    .sort((a, b) => words.length ? plain(a.title).indexOf(words[0]) - plain(b.title).indexOf(words[0]) || (b.last_played || 0) - (a.last_played || 0) : 0)
+    .slice(0, 8)
+    .map((g) => ({ title: g.title, note: g.kind === 'port' ? `Port de ${g.family}` : g.family || 'PC', cover: g.cover && !g.cover.startsWith('data:image/svg') ? g.cover : null, run: () => openGame(g.id) }));
+  const ports = words.length ? games.filter((g) => !g.in_library && g.kind === 'port' && hit(`${g.title} ${g.port_name}`)).slice(0, 3)
+    .map((g) => ({ title: g.title, note: 'Port para instalar', cover: null, run: () => openGame(g.id) })) : [];
+  const places = palPlaces().filter(([t]) => !words.length || hit(t)).map(([title, note, run]) => ({ title, note, cover: null, run }));
+  return [...found, ...ports, ...places];
+}
+
+function palPaint() {
+  const box = $('#palette');
+  palItems = palFind(box.querySelector('input').value);
+  palSel = Math.max(0, Math.min(palSel, palItems.length - 1));
+  box.querySelector('.pal-list').innerHTML = palItems.length ? palItems.map((x, i) => `
+    <li class="${i === palSel ? 'on' : ''}" data-i="${i}" role="option" aria-selected="${i === palSel}">
+      ${x.cover ? `<img src="${esc(x.cover)}" alt="">` : '<span class="pal-dot"></span>'}
+      <span class="pal-title">${esc(x.title)}</span><span class="pal-note">${esc(x.note)}</span>
+    </li>`).join('') : '<li class="pal-none">Nada com esse nome.</li>';
+  const on = box.querySelector('.pal-list .on');
+  if (on) on.scrollIntoView({ block: 'nearest' });
+}
+
+function palClose() {
+  const box = $('#palette');
+  if (box) box.hidden = true;
+}
+
+function palOpen() {
+  if (tvOn) return;
+  let box = $('#palette');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'palette';
+    box.className = 'palette';
+    box.innerHTML = `
+      <div class="pal-card" role="dialog" aria-label="Busca geral">
+        <input type="text" placeholder="Buscar um jogo, uma página, uma ação" aria-label="Buscar" autocomplete="off" spellcheck="false">
+        <ul class="pal-list" role="listbox"></ul>
+        <p class="pal-foot"><b>↑ ↓</b> escolher <b>Enter</b> abrir <b>Esc</b> fechar</p>
+      </div>`;
+    document.body.appendChild(box);
+    const input = box.querySelector('input');
+    input.addEventListener('input', () => { palSel = 0; palPaint(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        palSel = (palSel + (e.key === 'ArrowDown' ? 1 : -1) + palItems.length) % Math.max(1, palItems.length);
+        palPaint();
+        e.preventDefault();
+      } else if (e.key === 'Enter') {
+        const x = palItems[palSel];
+        palClose();
+        if (x) x.run();
+        e.preventDefault();
+      }
+      e.stopPropagation();
+      if (e.key === 'Escape') palClose();
+    });
+    box.addEventListener('mousedown', (e) => {
+      const li = e.target.closest('li[data-i]');
+      if (li) {
+        const x = palItems[Number(li.dataset.i)];
+        palClose();
+        if (x) x.run();
+      } else if (!e.target.closest('.pal-card')) {
+        palClose();
+      }
+    });
+  }
+  box.hidden = false;
+  const input = box.querySelector('input');
+  input.value = '';
+  palSel = 0;
+  palPaint();
+  input.focus();
+}
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    const box = $('#palette');
+    if (box && !box.hidden) palClose();
+    else palOpen();
+  }
+}, true);
+

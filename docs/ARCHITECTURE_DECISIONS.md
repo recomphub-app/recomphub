@@ -698,3 +698,13 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     cards dizem o que são a um leitor de tela (role button, nome, console e estado) e abrem com
     espaço. No Modo TV as caixas depois da escolhida ficam viradas de lado e mais escuras, e os
     rótulos usam a letra normal em caixa baixa (decisão 80).
+94. **Busca geral, retrospectiva e relatório em zip.** Ideias da auditoria da v0.56. Ctrl+K abre
+    uma busca por cima de tudo: jogos da biblioteca (sem acento, por palavras), ports do catálogo,
+    páginas e ações (Modo TV, trocar de perfil, relatório); sem nada digitado mostra os jogados
+    por último. A página Estatísticas ganha a Retrospectiva do ano, somada na própria página a
+    partir das sessões (get_sessions): horas, dias com jogo, os cinco mais jogados, mês a mês, o
+    mês e o dia da semana mais jogados e a maior sessão; com mais de um ano no histórico dá para
+    trocar o ano. "Salvar relatório em .zip" (no diagnóstico do jogo, em Informações do PC e na
+    busca) junta os dados do PC, a biblioteca em resumo, o último diagnóstico e o fim dos logs do
+    jogo; o nome do usuário do Windows é escondido e nenhuma chave entra. O jogador escolhe onde
+    salvar e é lembrado de conferir antes de enviar. get_stats saiu da linha principal.

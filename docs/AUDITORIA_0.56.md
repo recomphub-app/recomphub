@@ -74,3 +74,9 @@ Deixados de lado, em acordo com o Codex: Museu 3D, prévias em vídeo e o disco 
   ideia 5 (som ao virar). Ficaram de fora: desempenho 5 (`content-visibility`, corta a sombra e a
   prateleira) e design 3 e 6 (juntar o CSS e dividir o app.js: só manutenção, risco sem ganho
   para quem usa).
+- **v0.58:** ideias 2, 4 e 7 (busca geral com Ctrl+K, relatório de problema em zip, retrospectiva
+  do ano). Ainda abertas: ideia 1 (verso real da caixa) e 6 (manual do jogo), que dependem de
+  escolher uma fonte de imagens e PDFs com licença clara; ideia 3 (prateleiras do jogador), que
+  hoje já existe em parte como Etiquetas; ideia 8 (ordenar a Comunidade por mais baixados);
+  design 5 (página do jogo mais curta).
+

@@ -929,7 +929,75 @@ struct StatsView {
 
 /// "Estatísticas". `offset_minutes` is the page's own time zone (minutes east of UTC), so
 /// days and weeks start at the player's midnight.
+/// Every session of the active profile, oldest first, for the year's recap (the page does the sums).
+#[tauri::command(async)]
+fn get_sessions(app: AppHandle) -> Vec<history::Record> {
+    let state = app.state::<AppState>();
+    let profile = state.profiles.lock().unwrap().active.clone();
+    let h = state.history.lock().unwrap();
+    let out: Vec<history::Record> = h.sessions.iter().filter(|r| r.profile == profile).cloned().collect();
+    out
+}
+
+/// "Salvar relatório em .zip": one file to attach to an issue, with this PC, the library in
+/// short, the game's last diagnosis and the end of its logs. The Windows user name is hidden and
+/// no key or password goes in. Ok(None) when the player closed the dialog.
 #[tauri::command]
+async fn problem_report(app: AppHandle, id: Option<String>) -> Result<Option<String>, String> {
+    let Some(dest) = app
+        .dialog()
+        .file()
+        .set_title("Salvar o relatório de problema")
+        .set_file_name("blackflag-relatorio.zip")
+        .add_filter("Arquivo zip", &["zip"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let library: Vec<String> = get_library(app.clone())
+        .iter()
+        .filter(|g| g.in_library)
+        .map(|g| format!("{} | {} | {} | {}", g.title, g.kind, g.status, g.version.as_deref().unwrap_or("-")))
+        .collect();
+    let last = id.as_deref().and_then(diagnose::last);
+    let shown = dest.display().to_string();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        use std::io::Write;
+        let profile = std::env::var("USERPROFILE").ok();
+        let user = std::env::var("USERNAME").ok();
+        let hide = |t: &str| diagnose::anonymize(t, profile.as_deref(), user.as_deref());
+        let info = pcinfo::get(false);
+        let mut text = format!(
+            "Relatório de problema do Black Flag\n\n{}\n\nBiblioteca ({} jogos): nome | tipo | estado | versão\n{}\n",
+            pcinfo::report(&info),
+            library.len(),
+            library.join("\n")
+        );
+        if let Some(d) = &last {
+            text.push_str(&format!("\nÚltimo diagnóstico ({}):\n{}\n", d.id, d.report));
+        }
+        let file = std::fs::File::create(&dest).map_err(|e| format!("Não consegui criar o arquivo: {e}"))?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file("relatorio.txt", options).map_err(|e| e.to_string())?;
+        zip.write_all(hide(&text).as_bytes()).map_err(|e| e.to_string())?;
+        if let Some(d) = &last {
+            for (i, log) in d.logs.iter().take(4).enumerate() {
+                let Some(tail) = diagnose::log_tail(Path::new(log)) else { continue };
+                zip.start_file(format!("log-{}.txt", i + 1), options).map_err(|e| e.to_string())?;
+                zip.write_all(hide(&tail).as_bytes()).map_err(|e| e.to_string())?;
+            }
+        }
+        zip.finish().map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(Some(shown))
+}
+
+#[tauri::command(async)]
 fn get_stats(app: AppHandle, offset_minutes: i64) -> StatsView {
     let stats = {
         let state = app.state::<AppState>();
@@ -5288,6 +5356,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_library,
             game_cover,
+            get_sessions,
+            problem_report,
             get_game,
             check_updates,
             add_existing,
