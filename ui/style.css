@@ -1588,3 +1588,14 @@ body.no-motion .palette, body.no-motion .pal-card { animation: none; }
 .sync-banner b { font: 800 17px var(--wide); font-stretch: 112%; }
 .sync-banner p { margin: 4px 0 0; color: var(--muted); }
 .sync-box p { margin: 6px 0 12px; }
+
+/* ---- v0.61: ports que se descrevem ---- */
+.copy-box { border-left: 4px solid var(--gold); }
+.copy-box.warn { border-left-color: var(--warn); }
+.copy-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 8px; }
+.copy-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.copy-list li > div:first-child { flex: 1 1 260px; min-width: 0; }
+.copy-list li.done b::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--gold); vertical-align: middle; }
+.copy-list .path { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.port-box ul { margin: 6px 0 8px; padding-left: 20px; }
+.port-box li { margin: 3px 0; }

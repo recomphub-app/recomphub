@@ -114,6 +114,14 @@ async fn download_and_extract(
     file.flush().map_err(|e| e.to_string())?;
     drop(file);
 
+    let actual: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    // GitHub's own checksum of the file, when it has one; the project's .sha256 file as well.
+    if let Some(expected) = &release.sha256 {
+        emit(app, id, "verify", 0, 0);
+        if *expected != actual {
+            return Err("O arquivo baixado está corrompido (não confere com a soma que o GitHub guarda). Tente de novo.".into());
+        }
+    }
     if let Some(url) = &release.sha256_url {
         emit(app, id, "verify", 0, 0);
         let expected = client
@@ -126,7 +134,6 @@ async fn download_and_extract(
             .await
             .map_err(|e| e.to_string())?;
         let expected = expected.split_whitespace().next().unwrap_or("").to_lowercase();
-        let actual: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
         if expected != actual {
             return Err("O arquivo baixado está corrompido (a soma de verificação não confere). Tente de novo.".into());
         }

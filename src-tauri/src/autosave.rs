@@ -305,6 +305,13 @@ pub fn restore(root: &Path, id: &str, file: &str, targets: &[(String, PathBuf)])
             return Err(format!("O backup está incompleto: faltam arquivos de \"{}\".", s.label));
         }
     }
+    // A file too big for a backup (a cache, a movie) is not in it: swapping the folder would lose it.
+    for (label, _) in &by_label {
+        let Some((_, target)) = targets.iter().find(|(l, _)| l == label) else { continue };
+        if let Some(big) = too_big_inside(target) {
+            return Err(format!("A pasta de saves tem um arquivo grande demais para o backup ({}). Para não perdê-lo, o Black Flag não troca esta pasta: copie os saves à mão.", big.display()));
+        }
+    }
     let mut restored = 0;
     for (label, items) in by_label {
         let Some((_, target)) = targets.iter().find(|(l, _)| *l == label) else { continue };
@@ -332,6 +339,26 @@ pub fn restore(root: &Path, id: &str, file: &str, targets: &[(String, PathBuf)])
         restored += items.len();
     }
     Ok(restored)
+}
+
+/// A file in the folder that a backup leaves out for its size.
+fn too_big_inside(dir: &Path) -> Option<PathBuf> {
+    if !dir.exists() {
+        return None;
+    }
+    // A folder that cannot be read was not backed up either: swapping it would lose it.
+    let Ok(entries) = std::fs::read_dir(dir) else { return Some(dir.to_path_buf()) };
+    for e in entries.flatten() {
+        let Ok(kind) = e.file_type() else { continue };
+        if kind.is_dir() {
+            if let Some(p) = too_big_inside(&e.path()) {
+                return Some(p);
+            }
+        } else if kind.is_file() && e.metadata().map(|m| m.len() > MAX_FILE_BYTES).unwrap_or(false) {
+            return Some(e.path());
+        }
+    }
+    None
 }
 
 #[cfg(test)]

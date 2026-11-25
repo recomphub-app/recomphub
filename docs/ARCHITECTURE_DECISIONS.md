@@ -734,3 +734,17 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     a pasta de saves; emulados e jogos de PC ficam de fora por enquanto. Limite conhecido: as
     datas vêm do relógio de cada PC, então relógios muito errados podem inverter "mais novo".
     A pasta fica em sync.json, ao lado das configurações.
+97. **Ports que se descrevem (recomplauncher.json).** Pedido do Gustavo em 25/11/2026, depois de
+    estudar o RecompLauncher (GPL-3.0; só a documentação, nenhum código; estudo em
+    docs/RECOMPLAUNCHER.md). O sucesso dele veio de um arquivo que os próprios ports trazem na
+    release. O Black Flag passa a ler esse arquivo (manifest.rs, leitor nosso, tolerante: campo
+    desconhecido é ignorado, arquivo que não encaixa é ignorado inteiro). Usa `inputs` (a cópia do
+    jogador: caixa "Sua cópia do jogo", estado needs_copy até escolher), `start` (programa dentro da
+    pasta do jogo, argumentos com a cópia; argumento de cópia opcional não escolhida sai inteiro),
+    `saves` (só pastas; nunca a pasta do jogo nem pastas-base; rótulo pela posição, rl-1…) e
+    `exit_codes`. Vale para ports da comunidade e jogos de PC cujo programa é o do arquivo; ports
+    do catálogo seguem o catálogo. As variáveis RECOMPLAUNCHER, _MODE (bigpicture no Modo TV), _PAD
+    e _DATA vão só para ports que trazem o arquivo, e RECOMPLAUNCHER_VERSION não vai. Junto: soma
+    SHA-256 que o GitHub guarda por arquivo (digest) conferida no download, e o Restaurar recusa
+    trocar uma pasta que tenha arquivo grande demais para o backup. Em acordo com o Codex: a cópia
+    não é lida por dentro (serial, CRC) e a tela diz isso; ajustes, preparo e dumps ficam para depois.

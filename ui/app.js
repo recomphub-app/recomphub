@@ -18,6 +18,7 @@ const STATUS_TEXT = {
   installing: 'Instalando',
   missing: 'Programa não encontrado',
   needs_exe: 'Escolher programa',
+  needs_copy: 'Escolher sua cópia',
   needs_emulator: 'Falta o emulador',
 };
 
@@ -1105,6 +1106,76 @@ function decorateBackups(g) {
   }
   const pane = document.querySelector('#pane-saves');
   if (pane) pane.insertAdjacentHTML('beforeend', backupsBoxHtml(g));
+}
+
+// ---- Ports que se descrevem: the port's recomplauncher.json (manifest.rs) ----
+
+const portCache = {};   // id -> 'loading' | null (no file) | PortSupport
+
+function copyBoxHtml(g, s) {
+  const wanted = s.inputs || [];
+  if (!s.used || !wanted.length) return '';
+  const rows = wanted.map((i) => {
+    const have = s.picked[i.id];
+    const name = have ? have.split(/[\\/]/).pop() : '';
+    const buttons = [i.file ? `<button class="${have ? 'ghost small' : 'small primary'}" data-act="input-pick" data-input="${esc(i.id)}" data-folder="0">${have ? 'Trocar' : 'Escolher arquivo'}</button>` : '',
+      i.folder ? `<button class="${have || i.file ? 'ghost small' : 'small primary'}" data-act="input-pick" data-input="${esc(i.id)}" data-folder="1">${have && !i.file ? 'Trocar' : 'Escolher pasta'}</button>` : '',
+      have && i.optional ? `<button class="ghost small" data-act="input-clear" data-input="${esc(i.id)}">Tirar</button>` : ''].join('');
+    return `
+      <li class="${have ? 'done' : ''}">
+        <div><b>${esc(i.label)}</b>${i.optional ? ' <span class="muted">(opcional)</span>' : ''}
+          ${have ? `<code class="path" title="${esc(have)}">${esc(name)}</code>` : ''}</div>
+        <div class="row">${buttons}</div>
+      </li>`;
+  }).join('');
+  const unchecked = wanted.some((i) => i.unchecked);
+  return `
+    <div class="box copy-box${g.status === 'needs_copy' ? ' warn' : ''}">
+      <h3>Sua cópia do jogo</h3>
+      <p class="muted">O port diz o que precisa: escolha uma vez e o Jogar já abre com ela.</p>
+      <ul class="copy-list">${rows}</ul>
+      ${unchecked ? '<p class="muted small-text">O Black Flag confere o tipo do arquivo, mas não lê o disco para saber se é a versão certa. Se o jogo reclamar, confira a região pedida acima.</p>' : ''}
+    </div>`;
+}
+
+function portBoxHtml(g, s) {
+  if (!s.file) return '';
+  if (s.broken) {
+    return `<div class="box"><h3>Instruções do port</h3><p class="muted">O port traz um recomplauncher.json, mas o arquivo não está num formato que o Black Flag entende. O jogo abre do jeito comum.</p></div>`;
+  }
+  const yes = [];
+  if (s.used) yes.push('como abrir o jogo, com a sua cópia');
+  else if (s.start) yes.push('como abrir o jogo (o Jogar usa o programa que você escolheu)');
+  if (s.save_folders.length) yes.push(`onde ficam os saves (${s.save_folders.length === 1 ? 'uma pasta' : `${s.save_folders.length} pastas`}), para o backup e os outros PCs`);
+  if (s.exit_codes) yes.push('o que quer dizer cada jeito de fechar, para explicar um erro');
+  return `
+    <div class="box port-box">
+      <h3>Instruções do port</h3>
+      <p>Este port traz um <b>recomplauncher.json</b>, um arquivo em que o próprio autor explica o jogo para os launchers.
+        O Black Flag usa:</p>
+      <ul>${yes.map((x) => `<li>${x}</li>`).join('') || '<li>nada ainda: o arquivo não diz nada que o Black Flag use</li>'}</ul>
+      ${s.unused.length ? `<p class="muted">Ainda não usa: ${s.unused.join(' e ')}.${s.unused.includes('passo de preparo') ? ' Se o jogo não abrir, rode o preparo pelo próprio programa do port, como o README explica.' : ''}</p>` : ''}
+      ${s.save_folders.length ? `<p class="muted small-text">${s.save_folders.map(esc).join(' · ')}</p>` : ''}
+    </div>`;
+}
+
+function decoratePort(g) {
+  if (!g.in_library || !['community', 'pc_game'].includes(g.kind)) return;
+  if (portCache[g.id] === undefined) {
+    portCache[g.id] = 'loading';
+    invoke('port_support', { id: g.id })
+      .then((s) => { portCache[g.id] = s && s.file ? s : null; if (openId === g.id && portCache[g.id]) render(); })
+      .catch(() => { portCache[g.id] = null; });
+    return;
+  }
+  const s = portCache[g.id];
+  if (!s || s === 'loading') return;
+  const copy = copyBoxHtml(g, s);
+  const play = document.querySelector('#detail .play');
+  const row = play && play.closest('.row');
+  if (copy && row) row.insertAdjacentHTML('afterend', copy);
+  const pane = document.querySelector('#pane-geral');
+  if (pane) pane.insertAdjacentHTML('afterbegin', portBoxHtml(g, s));
 }
 
 // ---- Saves em outros PCs: a folder the player already syncs carries the saves between PCs ----
@@ -2891,6 +2962,7 @@ function renderDetail() {
   decorateMeta(g);
   decorateProgress(g);
   decorateBackups(g);
+  decoratePort(g);
   decorateSync(g);
   decorateAchievements(g);
   decorateRa(g);
@@ -3335,6 +3407,19 @@ async function act(action, g, el) {
       delete downloadsFound[g.id];
       render();
       break;
+    case 'input-pick': {
+      const updated = await call('pick_input', { id: g.id, input: el.dataset.input, folder: el.dataset.folder === '1' });
+      if (updated) {
+        delete portCache[g.id];
+        setGame(updated);
+        toast(updated.status === 'ready' ? 'Pronto: o Jogar já abre com a sua cópia.' : 'Cópia escolhida.');
+      }
+      break;
+    }
+    case 'input-clear':
+      delete portCache[g.id];
+      setGame(await call('clear_input', { id: g.id, input: el.dataset.input }));
+      break;
     case 'sync-choose': {
       const v = await call('choose_sync_dir');
       if (v) {
@@ -3388,7 +3473,7 @@ async function act(action, g, el) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         break;
       }
-      await call('play', { id: g.id });
+      await call('play', { id: g.id, tv: false, pad: padForPort() });
       setGame(await call('get_game', { id: g.id }));
       break;
     case 'stop':
@@ -4430,7 +4515,9 @@ function renderCommunityItem(repo) {
       delete progress[id];
       communityData = await invoke('get_community', { force: false });
       openGame(g.id);
-      toast(g.status === 'needs_exe'
+      toast(g.status === 'needs_copy'
+        ? `${g.title} instalado. Agora escolha a sua cópia do jogo, logo abaixo do Jogar.`
+        : g.status === 'needs_exe'
         ? `${g.title} instalado. Escolha qual programa o botão Jogar deve abrir.`
         : `${g.title} instalado. Leia o README do projeto para colocar os arquivos do jogo.`);
     } catch (e) {
@@ -4518,6 +4605,9 @@ function padFamily(pad) {
   if (/057e|nintendo|pro controller|joy-con/.test(id)) return 'nintendo';
   return 'xbox';
 }
+
+// The controller in use, as a port that reads RECOMPLAUNCHER_PAD knows them.
+const padForPort = () => (padKind === 'playstation' ? 'playstation' : padKind ? 'xbox' : '');
 
 function padName(which) {
   return PAD_NAMES[padKind || 'xbox'][which];
@@ -5101,7 +5191,7 @@ async function tvOk() {
     return;
   }
   try {
-    await invoke('play', { id: g.id });
+    await invoke('play', { id: g.id, tv: true, pad: padForPort() });
     setGame(await invoke('get_game', { id: g.id }));
   } catch (e) {
     toast(String(e), true);

@@ -489,6 +489,8 @@ struct ApiAsset {
     name: String,
     size: u64,
     browser_download_url: String,
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -530,6 +532,7 @@ pub async fn latest(emu: &Emulator) -> Result<Release, String> {
                     asset_url: asset.browser_download_url.clone(),
                     asset_size: asset.size,
                     sha256_url: r.assets.iter().find(|a| a.name == sha_name).map(|a| a.browser_download_url.clone()),
+                    sha256: github::sha256_of_digest(asset.digest.as_deref()),
                 });
             }
             Err(format!("A página do {} no GitHub não tem uma versão para Windows agora.", emu.name))
@@ -545,7 +548,7 @@ pub async fn latest(emu: &Emulator) -> Result<Release, String> {
                 .iter()
                 .find(|a| a.system == "Windows x64" && a.url.starts_with("https://dl.dolphin-emu.org/") && a.url.ends_with(".7z"))
                 .ok_or("O site do Dolphin não listou a versão para Windows.")?;
-            Ok(Release { tag: d.shortrev, published: 0, asset_url: a.url.clone(), asset_size: 0, sha256_url: None })
+            Ok(Release { tag: d.shortrev, published: 0, asset_url: a.url.clone(), asset_size: 0, sha256_url: None, sha256: None })
         }
         Source::Manual => Err(format!("O Black Flag não baixa o {}: instale pela página oficial e use \"Já tenho\".", emu.name)),
     }

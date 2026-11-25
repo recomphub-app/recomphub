@@ -56,6 +56,7 @@
 - [x] **v0.58** Busca geral com Ctrl+K (jogos, páginas, ações), Retrospectiva do ano em Estatísticas, relatório de problema em .zip
 - [x] **v0.59** Prateleiras do jogador (cada etiqueta vira um botão ao lado das abas) e verso da caixa com foto escolhida pelo jogador
 - [x] **v0.60** Saves em outros PCs: uma pasta que o jogador já sincroniza leva o save de um PC para o outro, com aviso de save mais novo e escolha em caso de conflito (ports e ports da comunidade)
+- [x] **v0.61** Ports que se descrevem: o Black Flag lê o recomplauncher.json dos ports (sua cópia do jogo, como abrir, onde ficam os saves, códigos de saída), confere a soma do GitHub no download e o Restaurar ficou mais seguro
 - [x] Repositório público (MIT) na organização `recomphub-app`, com site no GitHub Pages; a situação atual está em `HANDOFF.md`
 - [ ] Mais ports no catálogo (cada um com dados conferidos no código-fonte)
 

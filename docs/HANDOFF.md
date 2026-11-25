@@ -5,6 +5,7 @@ feito, o que deu errado e o que falta.
 
 ## Onde estamos
 
+- **Pronta para teste, não publicada (25/11/2026):** v0.61.0, ports que se descrevem (decisão 97, manifest.rs, estudo em docs/RECOMPLAUNCHER.md). Testar com um port da Comunidade que traga recomplauncher.json.
 - **Pronta para teste, não publicada (09/11/2026):** v0.60.0, saves em outros PCs (decisão 96, sync.rs). Precisa de teste de verdade com dois PCs e uma pasta do OneDrive: só foi testado por testes de unidade e na prévia com dados de exemplo.
 - **Pronta para teste, não publicada (09/11/2026):** v0.59.0, prateleiras do jogador e verso com foto (decisão 95). Auditoria da v0.56 encerrada: o que não entrou está explicado na decisão 95.
 - **Pronta para teste, não publicada (09/11/2026):** v0.58.0, busca geral (Ctrl+K), Retrospectiva do ano e relatório de problema em .zip (decisão 94).

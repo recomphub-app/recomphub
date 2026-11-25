@@ -16,6 +16,7 @@ mod history;
 mod install;
 mod library;
 mod ludusavi;
+mod manifest;
 mod meta;
 mod mods;
 mod pad;
@@ -329,6 +330,8 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         "running"
     } else if launching {
         "starting"
+    } else if (store_ready || exe.as_deref().map(Path::is_file).unwrap_or(false)) && needs_copy(entry) {
+        "needs_copy"
     } else if store_ready || exe.as_deref().map(Path::is_file).unwrap_or(false) {
         "ready"
     } else if community && entry.exe.is_none() {
@@ -392,6 +395,38 @@ fn view_pc(state: &AppState, id: &str, entry: &library::Entry) -> GameView {
         background: profile_background(state, id),
         system: None,
         emulator: None,
+    }
+}
+
+/// The port's file asks for the player's copy and it is not picked yet.
+fn needs_copy(entry: &library::Entry) -> bool {
+    match port_manifest(entry) {
+        Some((_, Ok(m))) => manifest_starts(entry, &m) && !m.missing(&entry.picked).is_empty(),
+        _ => false,
+    }
+}
+
+/// The port's own recomplauncher.json (manifest.rs): where it is and what it says. Only for
+/// ports and PC games (not store games, not emulated ones).
+fn port_manifest(entry: &library::Entry) -> Option<(PathBuf, Result<manifest::Manifest, String>)> {
+    if entry.launch_url.is_some() || matches!(entry.kind, library::EntryKind::Emulated) {
+        return None;
+    }
+    let dir = Path::new(&entry.install_dir);
+    let path = manifest::locate(dir, entry.exe.as_deref())?;
+    let read = manifest::read(&path);
+    Some((path, read))
+}
+
+/// The file's `start` applies: a community port, or a PC game whose chosen program is the
+/// file's (a catalog port keeps the catalog's way to start).
+fn manifest_starts(entry: &library::Entry, m: &manifest::Manifest) -> bool {
+    let dir = Path::new(&entry.install_dir);
+    let Some(program) = m.program(dir) else { return false };
+    match entry.kind {
+        library::EntryKind::Community => true,
+        library::EntryKind::PcGame => entry.exe.as_deref().map(|e| e.replace('/', "\\").eq_ignore_ascii_case(&program.replace('/', "\\"))).unwrap_or(true),
+        _ => false,
     }
 }
 
@@ -795,7 +830,7 @@ async fn check_updates(app: AppHandle) -> Vec<GameView> {
         .collect();
     for (id, repo) in community_ports {
         if let Ok(Some(r)) = community::latest_release(&repo).await {
-            let release = github::Release { tag: r.tag, published: r.published, asset_url: String::new(), asset_size: 0, sha256_url: None };
+            let release = github::Release { tag: r.tag, published: r.published, asset_url: String::new(), asset_size: 0, sha256_url: None, sha256: None };
             app.state::<AppState>().latest.lock().unwrap().insert(id, release);
         }
     }
@@ -1703,7 +1738,9 @@ async fn install_community_inner(app: &AppHandle, id: &str, repo: &str, asset: O
     if exes.is_empty() {
         return Err("O arquivo baixado não tem nenhum programa (.exe). Talvez este port precise ser compilado: veja a página do projeto.".into());
     }
-    let exe = (exes.len() == 1).then(|| exes[0].clone());
+    // The port's recomplauncher.json says which program is the game.
+    let named = manifest::locate(&target, None).and_then(|p| manifest::read(&p).ok()).and_then(|m| m.program(&target));
+    let exe = named.or_else(|| (exes.len() == 1).then(|| exes[0].clone()));
     let title = if title.trim().is_empty() { repo.split('/').nth(1).unwrap_or(repo) } else { title.trim() };
     {
         let mut lib = state.library.lock().unwrap();
@@ -2269,12 +2306,25 @@ pub(crate) fn save_sources(state: &AppState, id: &str) -> Vec<(String, PathBuf)>
             .and_then(|game| files::save_dir(game, &dir))
             .map(|d| vec![("saves".to_string(), d)])
             .unwrap_or_default(),
-        library::EntryKind::Community => ["saves", "save", "savedata", "user"]
-            .iter()
-            .map(|n| (n.to_string(), dir.join(n)))
-            .filter(|(_, p)| p.is_dir())
-            .collect(),
-        library::EntryKind::PcGame | library::EntryKind::Emulated => vec![],
+        library::EntryKind::Community | library::EntryKind::PcGame => {
+            // The port says where it saves: that wins over a guess.
+            if let Some((_, Ok(m))) = port_manifest(&entry) {
+                let places = manifest::Places { install: &dir, picked: &entry.picked, pad: "" };
+                let found = manifest::save_folders(&m, &places);
+                if !found.is_empty() {
+                    return found;
+                }
+            }
+            if entry.kind == library::EntryKind::PcGame {
+                return vec![];
+            }
+            ["saves", "save", "savedata", "user"]
+                .iter()
+                .map(|n| (n.to_string(), dir.join(n)))
+                .filter(|(_, p)| p.is_dir())
+                .collect()
+        }
+        library::EntryKind::Emulated => vec![],
     }
 }
 
@@ -4550,11 +4600,12 @@ async fn find_rom_in_downloads(app: AppHandle, id: String) -> Result<Option<Stri
 }
 
 #[tauri::command]
-fn play(app: AppHandle, id: String) -> Result<(), String> {
+fn play(app: AppHandle, id: String, tv: Option<bool>, pad: Option<String>) -> Result<(), String> {
     let state = app.state::<AppState>();
     let v = view_any(&state, &id)?;
     match v.status {
         "ready" => {}
+        "needs_copy" => return Err("Escolha a sua cópia do jogo na página do port (Sua cópia do jogo).".into()),
         "running" => {
             // Clicking Jogar again brings the game's window to the front instead of a second copy.
             let pid = state.sessions.lock().unwrap().pids.get(&id).copied();
@@ -4582,9 +4633,35 @@ fn play(app: AppHandle, id: String) -> Result<(), String> {
     if let Some(url) = &entry.launch_url {
         return play::start_url(&app, &id, url, entry.store.as_deref().map(stores::store_name).unwrap_or("a loja"));
     }
-    let exe = program_of(&id, &entry).ok_or("Jogo sem programa definido.")?;
+    let mut exe = program_of(&id, &entry).ok_or("Jogo sem programa definido.")?;
+    let mut args = entry.launch_args.clone();
+    let mut env = entry.env.clone();
+    // A port that describes itself: its program, its arguments with the player's copy, and the
+    // variables that tell it a launcher set it up.
+    if let Some((_, Ok(m))) = port_manifest(&entry) {
+        if manifest_starts(&entry, &m) {
+            let pad = pad.as_deref().unwrap_or("");
+            let places = manifest::Places { install: &dir, picked: &entry.picked, pad };
+            let _ = std::fs::create_dir_all(places.data());
+            if let Some(p) = m.program(&dir) {
+                exe = p;
+            }
+            let mut all = manifest::start_args(&m, &places);
+            all.extend(play::split_args(&entry.launch_args));
+            args = play::join_args(&all);
+            let mut vars: Vec<library::EnvVar> = m
+                .env
+                .iter()
+                .filter_map(|(k, v)| Some(library::EnvVar { name: k.clone(), value: places.fill(v)? }))
+                .chain(manifest::protocol_env(&places, tv.unwrap_or(false)).into_iter().map(|(name, value)| library::EnvVar { name, value }))
+                .collect();
+            // The player's own variables come last, so they win.
+            vars.extend(env);
+            env = vars;
+        }
+    }
     apply_profile_mods(&state, &id);
-    let started = play::start(&app, &id, &dir, &exe, &entry.launch_args, &entry.env, entry.run_as_admin)?;
+    let started = play::start(&app, &id, &dir, &exe, &args, &env, entry.run_as_admin)?;
     if started == play::Started::Admin && !entry.run_as_admin {
         // Next time straight to the prompt, and the page says why.
         if let Some(e) = state.library.lock().unwrap().games.get_mut(&id) {
@@ -4605,6 +4682,72 @@ pub(crate) fn program_of(id: &str, entry: &library::Entry) -> Option<String> {
         Some(game) => Some(game.program_in(Path::new(&entry.install_dir))),
         None => entry.exe.clone(),
     }
+}
+
+// ---- Ports que se descrevem (manifest.rs) ----
+
+#[derive(Serialize)]
+struct PortSupport {
+    #[serde(flatten)]
+    support: manifest::Support,
+    /// The file's `start` is the one Play uses.
+    used: bool,
+    /// input id -> the path the player picked.
+    picked: BTreeMap<String, String>,
+    /// Save folders taken from the file.
+    save_folders: Vec<String>,
+}
+
+#[tauri::command(async)]
+fn port_support(app: AppHandle, id: String) -> Result<PortSupport, String> {
+    let state = app.state::<AppState>();
+    let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
+    let found = port_manifest(&entry);
+    let support = manifest::Manifest::support(found.as_ref().map(|(p, _)| p.as_path()), found.as_ref().map(|(_, r)| r));
+    let (used, save_folders) = match &found {
+        Some((_, Ok(m))) => {
+            let dir = PathBuf::from(&entry.install_dir);
+            let places = manifest::Places { install: &dir, picked: &entry.picked, pad: "" };
+            (manifest_starts(&entry, m), manifest::save_folders(m, &places).into_iter().map(|(_, p)| p.display().to_string()).collect())
+        }
+        _ => (false, vec![]),
+    };
+    Ok(PortSupport { support, used, picked: entry.picked.clone(), save_folders })
+}
+
+/// "Escolher arquivo" / "Escolher pasta" for one of the copies the port asks for.
+#[tauri::command]
+async fn pick_input(app: AppHandle, id: String, input: String, folder: bool) -> Result<Option<GameView>, String> {
+    let state = app.state::<AppState>();
+    let entry = state.library.lock().unwrap().games.get(&id).cloned().ok_or("Jogo fora da biblioteca.")?;
+    let Some((_, Ok(m))) = port_manifest(&entry) else { return Err("Este port não diz o que precisa.".into()) };
+    let wanted = m.inputs.iter().find(|i| i.id == input).ok_or("O port não pede isso.")?.clone();
+    let title = if folder { "Escolha a pasta da sua cópia do jogo" } else { "Escolha o arquivo da sua cópia do jogo" };
+    let dialog = app.dialog().file().set_title(title);
+    let picked = if folder {
+        dialog.blocking_pick_folder()
+    } else if wanted.extensions.is_empty() {
+        dialog.blocking_pick_file()
+    } else {
+        let exts: Vec<&str> = wanted.extensions.iter().map(String::as_str).collect();
+        dialog.add_filter("Cópia do jogo", &exts).blocking_pick_file()
+    };
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    manifest::check_pick(&wanted, &path)?;
+    {
+        let mut lib = state.library.lock().unwrap();
+        lib.games.get_mut(&id).ok_or("Jogo fora da biblioteca.")?.picked.insert(input, path.display().to_string());
+    }
+    save(&state)?;
+    view_any(&state, &id).map(Some)
+}
+
+#[tauri::command]
+fn clear_input(app: AppHandle, id: String, input: String) -> Result<GameView, String> {
+    let state = app.state::<AppState>();
+    state.library.lock().unwrap().games.get_mut(&id).ok_or("Jogo fora da biblioteca.")?.picked.remove(&input);
+    save(&state)?;
+    view_any(&state, &id)
 }
 
 #[tauri::command]
@@ -4635,12 +4778,21 @@ pub(crate) fn check_crash(app: &AppHandle, id: &str, since: u64, seconds: Option
         return None;
     }
     let dir = PathBuf::from(&entry.install_dir);
+    // The port explains its own exit codes; "ok" is how it quits normally.
+    let said = exit_code.and_then(|c| match port_manifest(&entry) {
+        Some((_, Ok(m))) => m.exit_message(c).map(String::from),
+        _ => None,
+    });
+    if said.as_deref() == Some("ok") && !asked {
+        return None;
+    }
+    let said = said.filter(|s| s != "ok");
     let game = catalog::get(id);
     let names = diagnose::exe_names(&dir);
     let events = diagnose::events_since(since.saturating_sub(5));
     let event = diagnose::newest_for(&events, &dir, &names).cloned();
     // Windows' record names the module too; the exit code covers what never reaches it.
-    let code = event.as_ref().map(|e| e.code).or(exit_code.filter(|c| diagnose::is_crash_code(*c)));
+    let code = event.as_ref().map(|e| e.code).or(exit_code.filter(|c| diagnose::is_crash_code(*c) || said.is_some()));
     let module = event.as_ref().map(|e| e.module.clone()).filter(|m| !m.is_empty());
     let dumps = diagnose::dumps_dir().map(|d| diagnose::dumps_since(&d, &names, since)).unwrap_or_default();
     let short = seconds.is_some_and(|s| s < diagnose::SHORT_SESSION_SECS);
@@ -4681,7 +4833,11 @@ pub(crate) fn check_crash(app: &AppHandle, id: &str, since: u64, seconds: Option
         seconds,
         code: code.map(diagnose::code_text),
         module,
-        findings: diagnose::findings(&ctx),
+        findings: said
+            .iter()
+            .map(|s| diagnose::Finding { level: "bad", text: format!("O port explicou o que houve: {s}"), action: None })
+            .chain(diagnose::findings(&ctx))
+            .collect(),
         dumps: dumps.iter().map(|p| p.display().to_string()).collect(),
         logs: logs.iter().map(|p| p.display().to_string()).collect(),
         report: String::new(),
@@ -5523,6 +5679,9 @@ pub fn run() {
             game_back,
             choose_back,
             clear_back,
+            port_support,
+            pick_input,
+            clear_input,
             get_sync,
             choose_sync_dir,
             clear_sync_dir,

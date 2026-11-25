@@ -13,6 +13,8 @@ pub struct Release {
     pub asset_size: u64,
     /// URL of "<asset>.sha256", when the project publishes one.
     pub sha256_url: Option<String>,
+    /// The checksum GitHub keeps for the file, when it has one.
+    pub sha256: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -33,6 +35,15 @@ struct ApiAsset {
     name: String,
     size: u64,
     browser_download_url: String,
+    /// "sha256:<hex>", worked out by GitHub when the file was uploaded (newer releases).
+    #[serde(default)]
+    digest: Option<String>,
+}
+
+/// The hex of a "sha256:<hex>" digest.
+pub fn sha256_of_digest(d: Option<&str>) -> Option<String> {
+    let hex = d?.strip_prefix("sha256:")?.trim().to_lowercase();
+    (hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit())).then_some(hex)
 }
 
 /// The player's personal access token (Configurações), empty for none. Without it GitHub allows
@@ -160,6 +171,7 @@ pub async fn releases(game: &GameDef, max: usize) -> Result<Vec<Release>, String
             asset_url: asset.browser_download_url.clone(),
             asset_size: asset.size,
             sha256_url,
+            sha256: sha256_of_digest(asset.digest.as_deref()),
         });
     }
     Ok(out)

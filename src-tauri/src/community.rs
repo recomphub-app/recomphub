@@ -543,6 +543,8 @@ struct ApiAsset {
     name: String,
     size: u64,
     browser_download_url: String,
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 fn other_platform(n: &str) -> bool {
@@ -648,6 +650,7 @@ pub async fn release_for(repo: &str, asset: &str) -> Result<github::Release, Str
         asset_url: a.browser_download_url.clone(),
         asset_size: a.size,
         sha256_url: r.assets.iter().find(|x| x.name == sha_name).map(|x| x.browser_download_url.clone()),
+        sha256: github::sha256_of_digest(a.digest.as_deref()),
     })
 }
 
