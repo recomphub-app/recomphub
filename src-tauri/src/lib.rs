@@ -4969,7 +4969,7 @@ fn take_pending_open(app: AppHandle) -> Option<String> {
 
 /// A game chosen in the tray menu.
 pub fn play_from_tray(app: &AppHandle, id: &str) -> Result<(), String> {
-    play(app.clone(), id.to_string())
+    play(app.clone(), id.to_string(), None, None)
 }
 
 /// A message for the page's toast (from the tray or the background).
@@ -4983,7 +4983,7 @@ fn handle_args(app: &AppHandle, args: &[String]) {
     let Some(id) = args.get(i + 1) else { return };
     let Ok(v) = view_any(&app.state::<AppState>(), id) else { return };
     let ready = v.status == "ready";
-    let launched = ready && play(app.clone(), id.clone()).is_ok();
+    let launched = ready && play(app.clone(), id.clone(), None, None).is_ok();
     if !launched {
         // The page may not be loaded yet (Black Flag just started): it asks on load.
         *app.state::<AppState>().pending_open.lock().unwrap() = Some(id.clone());
