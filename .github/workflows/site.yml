@@ -8,7 +8,7 @@ on:
     - cron: '17 9 * * *'
   push:
     branches: [main]
-    paths: ['site/**', 'src-tauri/catalog.json', 'tools/site-ports.mjs', '.github/workflows/site.yml']
+    paths: ['site/**', 'src-tauri/catalog.json', 'tools/site-games.mjs', '.github/workflows/site.yml']
 
 permissions:
   contents: read
@@ -33,10 +33,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # A page for each port, with its facts sheet read from the project's GitHub and, when the
-      # SGDB_KEY secret is set, its cover and banner from SteamGridDB.
-      - name: Build the port pages
-        run: node tools/site-ports.mjs site
+      # Covers and banners already fetched stay from one day to the next, so each run only looks up
+      # the games that are new (tools/site-games.mjs keeps an index of them in img/games).
+      - name: Keep the game art
+        uses: actions/cache@v4
+        with:
+          path: site/img/games
+          key: game-art-${{ github.run_id }}
+          restore-keys: game-art-
+      # The showcase (ports.html), every game (todos.html) and a page per game: the verified ports
+      # with their facts sheet, and the community ones the program lists. Art from SteamGridDB when
+      # the SGDB_KEY secret is set.
+      - name: Build the game pages
+        run: node tools/site-games.mjs site
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SGDB_KEY: ${{ secrets.SGDB_KEY }}
