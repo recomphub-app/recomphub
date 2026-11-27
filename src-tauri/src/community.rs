@@ -347,7 +347,21 @@ async fn search_topic(topic: &str, sort: &str, page: u32) -> Result<(Vec<Item>, 
 /// A word search: only ports, not the trackers and tools around them.
 async fn search_words(query: &str, sort: &str) -> Result<Vec<Item>, SearchError> {
     let (items, _) = search(&format!("{query}+archived:false"), sort, 1, "busca").await?;
-    Ok(items.into_iter().filter(|i| !looks_like_a_tool(&i.name, &i.description)).collect())
+    Ok(items.into_iter().filter(|i| !looks_like_a_tool(&i.name, &i.description) && about_a_game(&i.name, &i.description, &i.console)).collect())
+}
+
+/// Words that say a project is about a game: a console, a big series, "recomp" in the name. A word
+/// search also matches software ports ("native port of Redis"), which never say any of these.
+const GAME_WORDS: &[&str] = &[
+    "nintendo", "switch", "n64", "gamecube", "wii", "snes", "nes ", "game boy", "gba", "3ds", "playstation", "ps1", "ps2", "ps3",
+    "ps4", "ps5", "psp", "vita", "xbox", "x360", "dreamcast", "saturn", "sega", "genesis", "mega drive", "arcade", "zelda", "mario",
+    "pokemon", "pokémon", "sonic", "halo", "gta", "grand theft", "metroid", "kirby", "crash", "spyro", "god of war", " game",
+];
+
+pub fn about_a_game(name: &str, description: &str, console: &str) -> bool {
+    let n = name.to_lowercase();
+    let d = format!(" {} ", description.to_lowercase());
+    !console.is_empty() || n.contains("recomp") || n.contains("decomp") || GAME_WORDS.iter().any(|w| d.contains(w))
 }
 
 /// Trackers, archives, launchers and tools found by the words of a port.
@@ -945,6 +959,9 @@ mod tests {
         assert!(!looks_like_a_tool("cool_fox", "cool_fox: Leading CGBJ runtime continuation for GTA VI PC"));
         assert!(!looks_like_a_tool("botw-pc-port", "Breath of the Wild native PC port"));
         assert!(!looks_like_a_tool("mirrors-edge-recomp", "Mirror's Edge recompilation"));
+        assert!(!about_a_game("redis", "Redis for Windows: a native port of the in-memory data store", ""));
+        assert!(about_a_game("cool_fox", "cool_fox: Leading CGBJ runtime continuation for GTA VI PC", ""));
+        assert!(about_a_game("Hookshot", "Hookshot Is A Native PC Recompilation Of The Switch 2 Ocarina Of Time Remake", ""));
         assert!(!looks_like_a_tool("HeyListen", "A Native Recompilation for The Legend of Zelda Ocarina of Time Remake on Switch 2"));
     }
 

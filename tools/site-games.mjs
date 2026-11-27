@@ -30,6 +30,15 @@ const looksLikeATool = (name, desc) => {
   const d = String(desc || '').toLowerCase();
   return NOT_A_PORT.some((w) => n.some((x) => x === w) || d.startsWith(`${w} `)) || d.includes('tracker') || d.includes('progress of') || d.includes('port status');
 };
+// A word search also finds software ports ("native port of Redis"): only those about a game stay.
+const GAME_WORDS = ['nintendo', 'switch', 'n64', 'gamecube', 'wii', 'snes', 'nes ', 'game boy', 'gba', '3ds', 'playstation', 'ps1', 'ps2', 'ps3',
+  'ps4', 'ps5', 'psp', 'vita', 'xbox', 'x360', 'dreamcast', 'saturn', 'sega', 'genesis', 'mega drive', 'arcade', 'zelda', 'mario',
+  'pokemon', 'pokémon', 'sonic', 'halo', 'gta', 'grand theft', 'metroid', 'kirby', 'crash', 'spyro', 'god of war', ' game'];
+const aboutAGame = (name, desc) => {
+  const n = String(name).toLowerCase();
+  const d = ` ${String(desc || '').toLowerCase()} `;
+  return n.includes('recomp') || n.includes('decomp') || GAME_WORDS.some((w) => d.includes(w));
+};
 const TOPICS = ['pc-port', 'native-port', 'game-port', 'n64recomp', 'xenonrecomp', 'rexglue', 'ps3recomp', 'ps2recomp', 'pc-ports', 'unofficial-port'];
 const NOTES = 5;
 const ART_DIR = join(out, 'img', 'games');
@@ -210,7 +219,7 @@ async function community() {
         const res = await api(`search/repositories?q=${query}&sort=${sort}&order=desc&per_page=100`);
         for (const i of res.items || []) {
           if (i.archived || (i.fork && i.stargazers_count < 20) || /awesome/i.test(i.name) || (i.topics || []).some((t) => t.startsWith('awesome'))) continue;
-          if (notForPc(i.description) || (words && looksLikeATool(i.name, i.description))) continue;
+          if (notForPc(i.description) || (words && (looksLikeATool(i.name, i.description) || !aboutAGame(i.name, i.description)))) continue;
           add({
             repo: i.full_name, name: i.name, game: guessGame(i.description), description: i.description || '',
             console: TOPIC_CONSOLE[topic] || (i.topics || []).map((t) => consoleOf(t.replace(/-/g, ' ')).name).find(Boolean) || consoleOf(i.description).name,
