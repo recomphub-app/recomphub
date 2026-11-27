@@ -748,3 +748,16 @@ o que foi escolhido e por quê. Mudar uma delas pede um motivo novo, escrito aqu
     SHA-256 que o GitHub guarda por arquivo (digest) conferida no download, e o Restaurar recusa
     trocar uma pasta que tenha arquivo grande demais para o backup. Em acordo com o Codex: a cópia
     não é lida por dentro (serial, CRC) e a tela diz isso; ajustes, preparo e dumps ficam para depois.
+98. **A Comunidade acompanha os ports novos e os em andamento.** Pedido do Gustavo em 27/11/2026,
+    com o exemplo do remake de Ocarina of Time (Hookshot, 760 estrelas em uma semana) e dos ports de
+    GTA VI. A lista só achava projetos com tópico no GitHub ou na lista curada, e esses não têm
+    tópico. Agora, antes dos tópicos, cinco buscas por palavras no nome e na descrição (recomp,
+    recompilation, "PC port", "native port", "static recompilation"), com pelo menos 5 estrelas;
+    rastreadores, arquivos, launchers, ícones e ferramentas ficam de fora (palavra inteira no nome).
+    A cada atualização, alguns ports (12 com token, 4 sem) têm as versões conferidas: os sem versão
+    ficam marcados "Em andamento" e são olhados de novo a cada dia. "Avisar quando sair" (ou "das
+    versões novas") guarda o port numa lista; o Black Flag confere até 20 deles por atualização,
+    de 6 em 6 horas mesmo com a aba fechada, e avisa a primeira versão ou uma nova uma vez só.
+    Projeto com menos de 3 semanas e poucas estrelas ganha o aviso "Projeto muito novo": ports de
+    jogos recém-lançados são onde aparecem .zip com vírus e launchers falsos (há até repositórios
+    só para rastrear esses golpes de GTA VI). O site usa as mesmas buscas por palavras.

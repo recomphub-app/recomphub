@@ -20,6 +20,16 @@ const catalog = JSON.parse(readFileSync(join(out, 'catalog.json'), 'utf8'));
 const APP = 'https://github.com/recomphub-app/recomphub';
 const SITE = 'https://recomphub-app.github.io/recomphub/';
 const LIST_URL = 'https://raw.githubusercontent.com/Sebastrion/awesome-unofficial-pc-ports/main/README.md';
+// Word searches, as the program does (community.rs QUERIES): many new ports have no topic.
+const QUERIES = ['recomp+in:name,description+stars:>=5', 'recompilation+in:description+stars:>=5', '%22pc+port%22+in:name,description+stars:>=5',
+  '%22native+port%22+in:name,description+stars:>=5', '%22static+recompilation%22+in:description+stars:>=5'];
+const NOT_A_PORT = ['tracker', 'trackers', 'tools', 'status', 'monitor', 'benchmark', 'archive', 'icons', 'wallpaper', 'website', 'mirror', 'launcher', 'map',
+  'tool', 'toolkit', 'template', 'guide', 'awesome', 'list of', 'widget', 'discord', 'bot'];
+const looksLikeATool = (name, desc) => {
+  const n = String(name).toLowerCase().replace(/[-_]/g, ' ').split(/s+/);
+  const d = String(desc || '').toLowerCase();
+  return NOT_A_PORT.some((w) => n.some((x) => x === w) || d.startsWith(`${w} `)) || d.includes('tracker') || d.includes('progress of') || d.includes('port status');
+};
 const TOPICS = ['pc-port', 'native-port', 'game-port', 'n64recomp', 'xenonrecomp', 'rexglue', 'ps3recomp', 'ps2recomp', 'pc-ports', 'unofficial-port'];
 const NOTES = 5;
 const ART_DIR = join(out, 'img', 'games');
@@ -191,13 +201,16 @@ async function community() {
   } catch (e) {
     console.warn(`lista: ${e.message}`);
   }
-  for (const topic of TOPICS) {
-    for (const sort of ['stars', 'updated']) {
+  const searches = [...QUERIES.map((q) => [`${q}+archived:false`, 'updated', true]), ...QUERIES.map((q) => [`${q}+archived:false`, 'stars', true]),
+    ...TOPICS.flatMap((t) => ['stars', 'updated'].map((sort) => [`topic:${t}+fork:true+archived:false`, sort, false]))];
+  for (const [query, sort, words] of searches) {
+    {
+      const topic = words ? '' : query.slice(6, query.indexOf('+'));
       try {
-        const res = await api(`search/repositories?q=topic:${topic}+fork:true+archived:false&sort=${sort}&order=desc&per_page=100`);
+        const res = await api(`search/repositories?q=${query}&sort=${sort}&order=desc&per_page=100`);
         for (const i of res.items || []) {
           if (i.archived || (i.fork && i.stargazers_count < 20) || /awesome/i.test(i.name) || (i.topics || []).some((t) => t.startsWith('awesome'))) continue;
-          if (notForPc(i.description)) continue;
+          if (notForPc(i.description) || (words && looksLikeATool(i.name, i.description))) continue;
           add({
             repo: i.full_name, name: i.name, game: guessGame(i.description), description: i.description || '',
             console: TOPIC_CONSOLE[topic] || (i.topics || []).map((t) => consoleOf(t.replace(/-/g, ' ')).name).find(Boolean) || consoleOf(i.description).name,

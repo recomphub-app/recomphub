@@ -4249,6 +4249,9 @@ listen('tauri://drag-drop', async (e) => {
   }
 });
 listen('notify', (e) => toast(String(e.payload), true));
+listen('community-news', (e) => toast(String(e.payload)));
+setTimeout(() => invoke('get_community', { force: false }).then((d) => { communityData = d; }).catch(() => {}), 45000);
+setInterval(() => invoke('get_community', { force: false }).then((d) => { communityData = d; if (tab === 'community' && !openId) render(); }).catch(() => {}), 6 * 3600 * 1000 + 60000);
 
 // ---- Aba Comunidade: ports from the awesome list and GitHub topics, not verified ----
 
@@ -4327,8 +4330,18 @@ const COMMUNITY_ORDER = {
   name: byName,
 };
 
+// Where a port stands: released, still only code (Em andamento), watched.
+let communityState = '';
+const isWatched = (i) => !!(communityData && (communityData.watching || []).some((w) => w.toLowerCase() === i.repo.toLowerCase()));
+const inProgress = (i) => i.released === false;
+// A project under three weeks old with few stars: where lures for big new games show up.
+const tooNew = (i) => !!i.created && Date.now() / 1000 - i.created < 21 * 86400 && (i.stars || 0) < 50 && !i.recommended;
+
 function communityMatches(i) {
   if (tagFilter && i.console !== tagFilter) return false;
+  if (communityState === 'released' && i.released !== true) return false;
+  if (communityState === 'wip' && !inProgress(i)) return false;
+  if (communityState === 'watching' && !isWatched(i)) return false;
   if (!search) return true;
   const hay = [i.name, i.game, i.console, i.description, i.repo].join(' ').toLowerCase();
   return search.toLowerCase().split(/\s+/).every((w) => hay.includes(w));
@@ -4360,7 +4373,8 @@ function renderCommunityGrid() {
       <details class="sources">
         <summary>De onde vem esta lista?</summary>
         <p class="muted">Da lista <button class="link" data-clink="${esc(data.list_page || '')}">awesome-unofficial-pc-ports</button>
-          e dos projetos do GitHub com os tópicos <code>pc-port</code>, <code>native-port</code>, <code>game-port</code>,
+          , de buscas no GitHub pelas palavras recomp, recompilation, "PC port" e "native port" no nome ou na descrição (com 5
+          estrelas ou mais; rastreadores, arquivos e launchers ficam de fora) e dos projetos com os tópicos <code>pc-port</code>, <code>native-port</code>, <code>game-port</code>,
           <code>pc-ports</code>, <code>unofficial-port</code>, <code>n64recomp</code>, <code>xenonrecomp</code>, <code>rexglue</code>,
           <code>ps3recomp</code> e <code>ps2recomp</code>. Forks entram quando têm 20 estrelas ou mais. A cada 6 horas o
           Black Flag procura os projetos novos e os que mudaram, e a cada 3 dias os mais populares. Um port sai da lista
@@ -4377,8 +4391,10 @@ function renderCommunityGrid() {
   const perConsole = (c) => data.items.filter((i) => i.console === c).length;
   $('#tagbar').innerHTML = selectHtml('console-select', 'Console', tagFilter || '',
     [['', `Todos (${data.items.length})`], ...consoles.map((c) => [c, `${c} (${perConsole(c)})`])])
+    + selectHtml('state-select', 'Situação', communityState, [['', 'Todos'], ['released', 'Com versão para baixar'], ['wip', `Em andamento (${data.items.filter(inProgress).length})`], ['watching', `Acompanhando (${(data.watching || []).length})`]])
     + selectHtml('sort-select', 'Ordenar', communitySort, COMMUNITY_SORTS);
   $('#console-select').addEventListener('change', (e) => { tagFilter = e.target.value || null; render(); });
+  $('#state-select').addEventListener('change', (e) => { communityState = e.target.value; render(); });
   $('#sort-select').addEventListener('change', (e) => { communitySort = e.target.value; render(); });
 
   const list = data.items.filter(communityMatches).sort(COMMUNITY_ORDER[communitySort] || COMMUNITY_ORDER.recommended);
@@ -4394,6 +4410,8 @@ function renderCommunityGrid() {
         <div>
           ${i.console ? `<span class="chip family">${esc(i.console)}</span>` : ''}
           ${isNewPort(i) ? '<span class="chip new">Novo</span>' : ''}
+          ${inProgress(i) ? '<span class="chip wip">Em andamento</span>' : ''}
+          ${isWatched(i) ? '<span class="chip watching">Acompanhando</span>' : ''}
           ${i.recommended ? '<span class="chip fav">⭐ Recomendado</span>' : ''}
           ${i.catalog_id ? '<span class="chip ready">No catálogo</span>' : ''}
           ${i.installed_id ? '<span class="chip running">Na biblioteca</span>' : ''}
@@ -4435,25 +4453,29 @@ function renderCommunityItem(repo) {
     install = progressBox({ id });
   } else {
     let files = '';
+    const watch = isWatched(i)
+      ? '<button class="ghost" data-cact="unwatch">Parar de acompanhar</button>'
+      : `<button data-cact="watch">${rel === null ? 'Avisar quando sair' : 'Avisar das versões novas'}</button>`;
     if (rel === 'loading') files = '<p class="muted">Procurando a versão para Windows no GitHub…</p>';
     else if (rel === null) {
-      files = `<p>Este projeto ainda não publicou nenhuma versão para baixar: por enquanto existe só o código. Para jogar, é
-        preciso compilar seguindo as instruções da página do projeto, ou esperar a primeira versão pronta.</p>
-        <div class="row"><button data-cact="page">Abrir a página do projeto</button></div>`;
+      files = `<p><b>Em andamento.</b> Este projeto ainda não publicou nenhuma versão para baixar: por enquanto existe só o código.
+        Com "Avisar quando sair", o Black Flag confere de 6 em 6 horas e avisa quando sair a primeira versão.</p>
+        <div class="row">${watch}<button class="ghost" data-cact="page">Abrir a página do projeto</button></div>`;
     } else if (rel && !rel.assets.length && rel.installers && rel.installers.length) {
       files = `
         <p>A versão <b>${esc(rel.tag)}</b> vem com instalador próprio:</p>
         <ul class="versions">${rel.installers.map((a) => `<li><span>${esc(a.name)} · ${(a.size / 1048576).toFixed(0)} MB</span></li>`).join('')}</ul>
         <p class="muted">O Black Flag não roda instaladores de outros projetos. Baixe e instale pela página de versões; depois use
           "Adicionar jogo de PC" na biblioteca para ter tempo de jogo, atalhos e backup dos saves.</p>
-        <div class="row"><button data-cact="releases">Abrir a página de versões</button></div>`;
+        <div class="row"><button data-cact="releases">Abrir a página de versões</button>${watch}</div>`;
     } else if (rel && !rel.assets.length) {
       files = `<p>A versão <b>${esc(rel.tag)}</b> só tem arquivos para outros sistemas (Linux, Mac, Steam Deck…), nenhum para Windows.
         Veja na página do projeto se há outro jeito de rodar no Windows.</p>
-        <div class="row"><button data-cact="page">Abrir a página do projeto</button></div>`;
+        <div class="row"><button data-cact="page">Abrir a página do projeto</button>${watch}</div>`;
     } else if (rel) {
       files = `
-        <p>Versão <b>${esc(rel.tag)}</b>${rel.prerelease ? ' (pré-lançamento)' : ''} · ${new Date(rel.published * 1000).toLocaleDateString('pt-BR')}</p>
+        <p>Versão <b>${esc(rel.tag)}</b>${rel.prerelease ? ' (pré-lançamento)' : ''} · ${new Date(rel.published * 1000).toLocaleDateString('pt-BR')}
+          <span class="watch-inline">${watch}</span></p>
         <ul class="versions">${rel.assets.map((a) => `
           <li><span>${esc(a.name)} · ${(a.size / 1048576).toFixed(0)} MB${/\.exe$/i.test(a.name) ? ' · programa portátil' : ''}</span>
             <button data-cact="install" data-asset="${esc(a.name)}">Instalar (experimental)</button></li>`).join('')}
@@ -4461,6 +4483,9 @@ function renderCommunityItem(repo) {
     }
     install = `
       ${communityWarning()}
+      ${tooNew(i) ? `<div class="box warn"><h3>Projeto muito novo</h3><p>Este projeto foi criado ${lastPlayed(i.created)} e tem poucas estrelas.
+        Ports de jogos recém-lançados são o lugar preferido de golpes: .zip com vírus, "cracks" e "launchers" falsos.
+        Confira quem publica, leia as issues e espere outras pessoas testarem antes de instalar.</p></div>` : ''}
       <div class="box">
         <h3>Versão para Windows</h3>
         ${files || '<div class="row"><button data-cact="release">Ver versão para Windows</button></div>'}
@@ -4501,6 +4526,17 @@ function renderCommunityItem(repo) {
     } catch {
       delete communityRelease[repo];
     }
+    render();
+  });
+  on('watch', async () => {
+    const w = await call('community_watch', { repo, on: true });
+    if (communityData) communityData.watching = w;
+    toast(communityRelease[repo] === null ? 'Pronto: o Black Flag avisa quando sair a primeira versão.' : 'Pronto: o Black Flag avisa das versões novas.');
+    render();
+  });
+  on('unwatch', async () => {
+    const w = await call('community_watch', { repo, on: false });
+    if (communityData) communityData.watching = w;
     render();
   });
   on('install', async (el) => {

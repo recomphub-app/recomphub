@@ -1527,6 +1527,10 @@ struct CommunityView {
     fetched_at: u64,
     errors: Vec<String>,
     list_page: &'static str,
+    /// Ports the player is waiting for ("Avisar quando sair").
+    watching: Vec<String>,
+    /// Watched ports that got a first or new release on this refresh.
+    news: Vec<String>,
 }
 
 /// The catalog port for a repository, also when the project moved (same repository name).
@@ -1543,6 +1547,10 @@ async fn get_community(app: AppHandle, force: bool) -> CommunityView {
     let path = app.state::<AppState>().community_path.clone();
     let cache = community::refresh(&path, force).await;
     let state = app.state::<AppState>();
+    // Watched ports with a release: a notice on the desktop too, as for an update.
+    for n in &cache.news {
+        let _ = app.emit("community-news", n);
+    }
     // Pictures still missing are looked for in the background (community_art.rs).
     {
         let keys = state.settings.lock().unwrap().keys();
@@ -1562,7 +1570,17 @@ async fn get_community(app: AppHandle, force: bool) -> CommunityView {
             }
         })
         .collect();
-    CommunityView { items, fetched_at: cache.fetched_at, errors: cache.errors, list_page: community::LIST_PAGE }
+    CommunityView { items, fetched_at: cache.fetched_at, errors: cache.errors, list_page: community::LIST_PAGE, watching: cache.watching, news: cache.news }
+}
+
+/// "Avisar quando sair" / "Parar de acompanhar".
+#[tauri::command(async)]
+fn community_watch(app: AppHandle, repo: String, on: bool) -> Result<Vec<String>, String> {
+    let state = app.state::<AppState>();
+    if on && !known_community_repo(&state, &repo) {
+        return Err("Port fora da lista da Comunidade.".into());
+    }
+    Ok(community::set_watching(&state.community_path, &repo, on))
 }
 
 fn community_art_dir(state: &AppState) -> PathBuf {
@@ -5679,6 +5697,7 @@ pub fn run() {
             game_back,
             choose_back,
             clear_back,
+            community_watch,
             port_support,
             pick_input,
             clear_input,

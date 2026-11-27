@@ -33,6 +33,28 @@ const SEARCHES: &[(&str, u32)] = &[
     ("pc-ports", 1),
     ("unofficial-port", 1),
 ];
+/// Searches by words in the name and description, run before the topics: many new ports never
+/// get a topic (Hookshot, the Ocarina of Time remake recompilation, had none at 700 stars), and the
+/// curated list takes days to add them. At least 5 stars, so a day-old copy or a lure does not get in.
+const QUERIES: &[&str] = &[
+    "recomp+in:name,description+stars:>=5",
+    "recompilation+in:description+stars:>=5",
+    "%22pc+port%22+in:name,description+stars:>=5",
+    "%22native+port%22+in:name,description+stars:>=5",
+    "%22static+recompilation%22+in:description+stars:>=5",
+];
+/// What a word search finds that is not a game: trackers, archives, launchers, tools.
+const NOT_A_PORT: &[&str] = &[
+    "tracker", "trackers", "tools", "status", "monitor", "benchmark", "archive", "icons", "wallpaper", "website", "mirror", "launcher", "map",
+    "tool", "toolkit", "template", "guide", "awesome", "list of", "widget", "discord", "bot",
+];
+/// Release checks per refresh for ports whose state is unknown or old (each is one request).
+const RELEASE_CHECKS_TOKEN: usize = 12;
+const RELEASE_CHECKS: usize = 4;
+/// Watched ports looked at per refresh; more wait for the next one.
+const MAX_WATCHED_CHECKS: usize = 20;
+/// A port with no release is looked at again after this long.
+const RELEASE_RECHECK_SECS: u64 = 24 * 3600;
 /// A fork is listed only when people use it as a project of its own (SpartanPort is a fork of
 /// shadPS4), not a personal copy.
 const MIN_FORK_STARS: u64 = 20;
@@ -69,9 +91,18 @@ pub struct Item {
     /// Marked ⭐ ("most user-friendly version") in the awesome list.
     #[serde(default)]
     pub recommended: bool,
-    /// "lista" and/or "tópico".
+    /// "lista", "tópico" and/or "busca".
     #[serde(default)]
     pub sources: Vec<String>,
+    /// Some(false): no release yet, only code (Em andamento). None: not looked at yet.
+    #[serde(default)]
+    pub released: Option<bool>,
+    /// The newest release's tag when last looked at.
+    #[serde(default)]
+    pub latest_tag: Option<String>,
+    /// When the releases were last looked at.
+    #[serde(default)]
+    pub release_checked: u64,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -87,10 +118,16 @@ pub struct Cache {
     /// When the searches by stars last ran to the end.
     #[serde(default)]
     pub popular_at: u64,
+    /// Ports the player asked to hear about ("Avisar quando sair").
+    #[serde(default)]
+    pub watching: Vec<String>,
+    /// What changed for those on the last refresh, said once (not saved).
+    #[serde(skip)]
+    pub news: Vec<String>,
 }
 
 /// Bumped when SEARCHES changes (2: forks and more topics, in 0.33; 3: searches by last update).
-const SEARCHES_VERSION: u32 = 3;
+const SEARCHES_VERSION: u32 = 4;
 
 pub fn valid_repo(repo: &str) -> bool {
     let mut parts = repo.split('/');
@@ -304,9 +341,28 @@ struct SearchError {
 /// The ports found and whether GitHub had a full page (so there may be another).
 /// `sort`: "stars" or "updated".
 async fn search_topic(topic: &str, sort: &str, page: u32) -> Result<(Vec<Item>, bool), SearchError> {
-    let url = format!(
-        "https://api.github.com/search/repositories?q=topic:{topic}+fork:true+archived:false&sort={sort}&order=desc&per_page=100&page={page}"
-    );
+    search(&format!("topic:{topic}+fork:true+archived:false"), sort, page, "tópico").await
+}
+
+/// A word search: only ports, not the trackers and tools around them.
+async fn search_words(query: &str, sort: &str) -> Result<Vec<Item>, SearchError> {
+    let (items, _) = search(&format!("{query}+archived:false"), sort, 1, "busca").await?;
+    Ok(items.into_iter().filter(|i| !looks_like_a_tool(&i.name, &i.description)).collect())
+}
+
+/// Trackers, archives, launchers and tools found by the words of a port.
+pub fn looks_like_a_tool(name: &str, description: &str) -> bool {
+    let n = name.to_lowercase().replace(['-', '_'], " ");
+    let d = description.to_lowercase();
+    // Whole words only: "bot" is not "botw", "mirror" is not "mirrors".
+    NOT_A_PORT.iter().any(|w| n.split_whitespace().any(|x| x == *w) || d.starts_with(&format!("{w} ")))
+        || d.contains("tracker")
+        || d.contains("progress of")
+        || d.contains("port status")
+}
+
+async fn search(q: &str, sort: &str, page: u32, source: &str) -> Result<(Vec<Item>, bool), SearchError> {
+    let url = format!("https://api.github.com/search/repositories?q={q}&sort={sort}&order=desc&per_page=100&page={page}");
     let resp = github::api(&url).send().await.map_err(|e| SearchError { text: e.to_string(), limit: false })?;
     if !resp.status().is_success() {
         let limit = matches!(resp.status().as_u16(), 403 | 429);
@@ -329,7 +385,7 @@ async fn search_topic(topic: &str, sort: &str, page: u32) -> Result<(Vec<Item>, 
             stars: Some(i.stargazers_count),
             pushed: i.pushed_at.as_deref().and_then(github::parse_time),
             created: i.created_at.as_deref().and_then(github::parse_time),
-            sources: vec!["tópico".into()],
+            sources: vec![source.into()],
             ..Default::default()
         })
         .collect();
@@ -460,6 +516,19 @@ pub async fn refresh(path: &Path, force: bool) -> Cache {
     }
     let mut found = Vec::new();
     let mut popular_done = false;
+    // The word searches first: they find the new ports, and without a token only about ten
+    // searches fit in GitHub's minute.
+    'words: for q in QUERIES {
+        match search_words(q, "updated").await {
+            Ok(items) => found.extend(items),
+            Err(e) => {
+                errors.push(format!("busca {q}: {}", e.text));
+                if e.limit {
+                    break 'words;
+                }
+            }
+        }
+    }
     'searches: for sort in kinds {
         let mut all_read = true;
         for (t, pages) in SEARCHES {
@@ -490,17 +559,93 @@ pub async fn refresh(path: &Path, force: bool) -> Cache {
         // Offline or rate-limited: keep what we had.
         return Cache { errors, ..old };
     }
-    let cache = Cache {
+    let watching = old.watching.clone();
+    let mut cache = Cache {
         fetched_at: now,
         items: absorb(old.items, fresh, now, list_read),
         errors,
         searches: SEARCHES_VERSION,
         popular_at: if popular_done { now } else { old.popular_at },
+        watching,
+        news: Vec::new(),
     };
-    if let Ok(text) = serde_json::to_string(&cache) {
-        let _ = std::fs::write(path, text);
-    }
+    check_releases(&mut cache, now).await;
+    // A port watched or let go while GitHub was being asked stays as the player left it.
+    cache.watching = load(path).watching;
+    save(path, &cache);
     cache
+}
+
+fn save(path: &Path, cache: &Cache) {
+    let _guard = WRITING.lock().unwrap();
+    if let Ok(text) = serde_json::to_string(cache) {
+        let tmp = path.with_extension("json.tmp");
+        if std::fs::write(&tmp, text).is_ok() {
+            let _ = std::fs::rename(&tmp, path);
+        }
+    }
+}
+
+static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Which ports get their releases looked at now: every watched one, then the ones never looked
+/// at (newest first) and those still without a release, as many as `budget`.
+pub fn release_candidates(items: &[Item], watching: &[String], now: u64, budget: usize) -> Vec<String> {
+    let watched = |r: &str| watching.iter().any(|w| w.eq_ignore_ascii_case(r));
+    // The watched ones looked at longest ago first, at most MAX_WATCHED_CHECKS a time.
+    let mut mine: Vec<&Item> = items.iter().filter(|i| watched(&i.repo)).collect();
+    mine.sort_by_key(|i| i.release_checked);
+    let mut out: Vec<String> = mine.into_iter().take(MAX_WATCHED_CHECKS).map(|i| i.repo.clone()).collect();
+    let mut rest: Vec<&Item> = items
+        .iter()
+        .filter(|i| !watched(&i.repo))
+        .filter(|i| i.released.is_none() || (i.released == Some(false) && now.saturating_sub(i.release_checked) >= RELEASE_RECHECK_SECS))
+        .collect();
+    rest.sort_by_key(|i| std::cmp::Reverse(i.created.unwrap_or(0)));
+    out.extend(rest.into_iter().take(budget).map(|i| i.repo.clone()));
+    out
+}
+
+/// What a watched port's news is, when its releases changed: the first one, or a new one.
+pub fn release_news(name: &str, before: Option<&str>, was_released: Option<bool>, now_tag: Option<&str>) -> Option<String> {
+    let tag = now_tag?;
+    if was_released == Some(false) {
+        return Some(format!("Saiu a primeira versão de {name}: {tag}."));
+    }
+    match before {
+        Some(b) if b != tag => Some(format!("{name} tem versão nova: {tag}.")),
+        _ => None,
+    }
+}
+
+async fn check_releases(cache: &mut Cache, now: u64) {
+    let budget = if github::has_token() { RELEASE_CHECKS_TOKEN } else { RELEASE_CHECKS };
+    for repo in release_candidates(&cache.items, &cache.watching, now, budget) {
+        let Ok(found) = latest_release(&repo).await else { continue };
+        let watched = cache.watching.iter().any(|w| w.eq_ignore_ascii_case(&repo));
+        let Some(item) = cache.items.iter_mut().find(|i| i.repo.eq_ignore_ascii_case(&repo)) else { continue };
+        let tag = found.as_ref().map(|r| r.tag.clone());
+        if watched {
+            let name = if item.game.is_empty() { item.name.clone() } else { format!("{} ({})", item.name, item.game) };
+            if let Some(n) = release_news(&name, item.latest_tag.as_deref(), item.released, tag.as_deref()) {
+                cache.news.push(n);
+            }
+        }
+        item.released = Some(found.is_some());
+        item.latest_tag = tag;
+        item.release_checked = now;
+    }
+}
+
+/// "Avisar quando sair": the port is watched (or no longer). Returns the watched list.
+pub fn set_watching(path: &Path, repo: &str, on: bool) -> Vec<String> {
+    let mut cache = load(path);
+    cache.watching.retain(|w| !w.eq_ignore_ascii_case(repo));
+    if on && valid_repo(repo) {
+        cache.watching.push(repo.to_string());
+    }
+    save(path, &cache);
+    cache.watching
 }
 
 // ---- Releases of a community port ----
@@ -790,4 +935,34 @@ mod tests {
         assert_eq!(github_repo("https://github.com/a/b.git#x").as_deref(), Some("a/b"));
         assert_eq!(github_repo("https://gitlab.com/a/b"), None);
     }
+    #[test]
+    fn word_searches_leave_out_trackers_and_tools() {
+        assert!(looks_like_a_tool("gta6-pc-port-tracker", "Live tracker: the race to run GTA VI natively on PC"));
+        assert!(looks_like_a_tool("GTA6-PC-Port-Archive", "Archive of Leonida, xcl and VIctory"));
+        assert!(looks_like_a_tool("i95-GTA6-PC-Launcher", "open-source GTA VI PC launcher"));
+        assert!(looks_like_a_tool("zelda-pc-port-icons", "Custom-made Windows desktop icons for Zelda PC ports."));
+        assert!(!looks_like_a_tool("Hookshot", "Hookshot Is A Native PC Recompilation Of The Switch 2 Ocarina Of Time Remake"));
+        assert!(!looks_like_a_tool("cool_fox", "cool_fox: Leading CGBJ runtime continuation for GTA VI PC"));
+        assert!(!looks_like_a_tool("botw-pc-port", "Breath of the Wild native PC port"));
+        assert!(!looks_like_a_tool("mirrors-edge-recomp", "Mirror's Edge recompilation"));
+        assert!(!looks_like_a_tool("HeyListen", "A Native Recompilation for The Legend of Zelda Ocarina of Time Remake on Switch 2"));
+    }
+
+    #[test]
+    fn watched_ports_are_looked_at_first_and_news_is_said_once() {
+        let item = |repo: &str, released: Option<bool>, created: u64, checked: u64| Item {
+            repo: repo.into(), name: repo.into(), released, created: Some(created), release_checked: checked, ..Default::default()
+        };
+        let items = vec![item("a/old", Some(true), 10, 0), item("a/new", None, 900, 0), item("a/wip", Some(false), 500, 0), item("a/watched", Some(false), 1, 999_990)];
+        let picked = release_candidates(&items, &["a/watched".to_string()], 1_000_000, 1);
+        assert_eq!(picked, vec!["a/watched".to_string(), "a/new".to_string()]);
+        let picked = release_candidates(&items, &[], 1_000_000, 5);
+        assert!(picked.contains(&"a/wip".to_string()) && !picked.contains(&"a/old".to_string()));
+        assert_eq!(release_news("Leonida", None, Some(false), Some("v0.1")).as_deref(), Some("Saiu a primeira versão de Leonida: v0.1."));
+        assert_eq!(release_news("Hookshot", Some("v3.0.1"), Some(true), Some("v3.0.2")).as_deref(), Some("Hookshot tem versão nova: v3.0.2."));
+        assert_eq!(release_news("Hookshot", Some("v3.0.2"), Some(true), Some("v3.0.2")), None);
+        assert_eq!(release_news("Novo", None, None, Some("v1")), None, "o primeiro olhar não é novidade");
+        assert_eq!(release_news("Sem nada", None, Some(false), None), None);
+    }
+
 }
